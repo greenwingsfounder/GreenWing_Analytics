@@ -1,0 +1,571 @@
+# ═══════════════════════════════════════════════════════════
+# GreenWing Analytics — Uçak Parametreleri Veritabanı
+# ═══════════════════════════════════════════════════════════
+#
+# Bu dosya tüm uçak tiplerinin aerodinamik, motor ve yapısal
+# parametrelerini içerir.
+#
+# NEDEN YAML:
+#   • Kod değiştirmeden yeni uçak eklenebilir
+#   • Okunabilir format (mühendis de okuyabilir)
+#   • Yorum satırı destekler
+#   • Kalibrasyon sonrası kolayca güncellenir
+#
+# KALİBRASYON:
+#   Model Calibrator çalıştırıldıktan sonra CD0 ve tsfc_cruise
+#   değerleri güncellenir. Eski değeri yorum olarak tut:
+#   # CD0: 0.022  # orijinal
+#   CD0: 0.0231   # kalibre edilmiş (sfc_factor=1.05)
+#
+# YENİ UÇAK EKLEME:
+#   1. Bu dosyaya yeni blok ekle (aşağıdaki formatı takip et)
+#   2. config/assumptions.py'a OEW, MTOW, MAX_FUEL, SEATS ekle
+#   3. src/models/emission_model.py'a motor emisyon verisi ekle
+#   4. python -m src.models.fuel_model ile test et
+#
+# KAYNAKLAR:
+#   • Boeing/Airbus Aircraft Characteristics for Airport Planning
+#   • EASA/FAA Type Certificate Data Sheets (TCDS)
+#   • Eurocontrol BADA (Base of Aircraft Data)
+#   • Jane's All the World's Aircraft
+#   • Motor üreticisi performans kılavuzları
+#
+# BİRİMLER:
+#   Kütle    : kg
+#   Uzunluk  : m (kanat), ft (irtifa)
+#   Alan     : m²
+#   Hız      : Mach (cruise), ft (irtifa)
+#   Thrust   : Newton (N)
+#   SFC      : kg/(N·s)
+#   Menzil   : Nm (deniz mili)
+#
+# SON GÜNCELLEME: 2025-Q1
+# ═══════════════════════════════════════════════════════════
+
+
+aircraft_types:
+
+  # ─────────────────────────────────────────────────────────
+  # BOEING 737-800
+  # ─────────────────────────────────────────────────────────
+  # En yaygın dar gövde uçak. Dünyada 4500+ aktif.
+  # Pegasus, THY, Ryanair, FlyDubai, SunExpress kullanıyor.
+  # Kaynak: Boeing 737-800 Airport Planning Document D6-58325-6
+  #         EASA TCDS A.064, BADA 3.15
+  
+  B738:
+    name: "Boeing 737-800"
+    manufacturer: "Boeing"
+    engine_type: "CFM56-7B26"
+    num_engines: 2
+
+    # ─── Ağırlık limitleri (kg) ──────────────────────────
+    # MTOW: Maximum Takeoff Weight (sertifikasyon limiti, değişmez)
+    # OEW: Operating Empty Weight (konfigürasyona göre değişebilir)
+    #      Standart 2-class 162 koltuk konfigürasyonu
+    #      Gerçek OEW müşteriden alınmalı (±3% fark olabilir)
+    # max_fuel: Yakıt tank kapasitesi (fiziksel limit)
+    # max_payload: Yapısal payload limiti
+    mtow: 79016
+    oew: 41413
+    max_fuel: 20894
+    max_payload: 20244
+
+    # ─── Kanat geometrisi ────────────────────────────────
+    # wing_area: Referans kanat alanı (m²)
+    #   Tüm CL ve CD hesaplarında kullanılır
+    #   CL = W/(q×S), D = q×S×CD
+    # wingspan: Kanat açıklığı (m)
+    #   Aspect ratio hesabında: AR = b²/S
+    #   İndüktif drag (K) hesabında: K = 1/(π×e×AR)
+    wing_area: 124.6
+    wingspan: 35.8
+
+    # ─── Performans limitleri ────────────────────────────
+    # cruise_mach: Tipik cruise Mach sayısı
+    #   Cost Index'e göre M0.74-M0.82 arası değişir
+    #   Bu varsayılan değer. Optimizasyonda override edilir.
+    # max_altitude: Maksimum operasyonel irtifa (ft)
+    #   Sertifikasyon tavanı. Optimizer bu üstüne çıkmaz.
+    # range_nm: Maksimum menzil (Nm)
+    #   Referans bilgisi. Rota fizibilitesi için.
+    # passengers_typical: Tipik yolcu kapasitesi
+    #   CO2/pax/km metriği için. Havayoluna göre değişir.
+    #   Ryanair: 189, standart: 162, business mix: 148
+    cruise_mach: 0.785
+    max_altitude: 41000
+    range_nm: 2935
+    passengers_typical: 162
+
+    # ─── Aerodinamik parametreler ────────────────────────
+    # CD0: Sıfır kaldırma drag katsayısı (parasitic drag)
+    #   Gövde, kanat profil, nacelle, antenler toplamı
+    #   Yeni uçak: 0.021-0.022
+    #   10 yaşında: 0.023-0.024
+    #   20 yaşında: 0.024-0.026
+    #   KALİBRASYON: cd0_factor ile çarpılır
+    #   Kanat yıkama sonrası %1-2 düşer
+    #
+    # K: İndüktif drag faktörü
+    #   K = 1/(π × e × AR)
+    #   Winglet etkisi: K %8-12 azalır
+    #   B738 blended winglet: e=0.85, K=0.045
+    #   B738 split scimitar: e=0.87, K=0.043
+    #
+    # e: Oswald verimlilik faktörü
+    #   İdeal eliptik kanat: e=1.0
+    #   Gerçek: e=0.80-0.90
+    #   Winglet varsa daha yüksek
+    #
+    # AR: Aspect Ratio (kanat en-boy oranı)
+    #   AR = wingspan² / wing_area = 35.8² / 124.6 = 10.27
+    #   Sabit (geometrik özellik)
+    CD0: 0.022
+    K: 0.045
+    e: 0.85
+    AR: 10.27
+
+    # ─── Motor parametreleri ─────────────────────────────
+    # tsfc_cruise: Cruise SFC (Thrust Specific Fuel Consumption)
+    #   Birim: kg/(N·s)
+    #   "1 Newton thrust üretmek için saniyede kaç kg yakıt"
+    #   Bu REFERANS değer. İrtifa ve Mach ile düzeltilir:
+    #     SFC = tsfc_cruise × √(θ/δ) × (1 - 0.10 × (M - 0.80))
+    #   KALİBRASYON: sfc_factor ile çarpılır
+    #   Yeni motor: 0.0000175-0.0000178
+    #   Yaşlı motor: 0.0000180-0.0000190
+    #   Motor yıkama sonrası %0.5-1 düşer
+    #
+    # max_thrust_sl: Deniz seviyesi maksimum thrust (N, toplam)
+    #   İki motorun toplam thrust'ı
+    #   İrtifada azalır: T_available ≈ T_sl × δ × 0.95
+    #   Thrust yeterliliği kontrolünde kullanılır
+    #
+    # Kaynak: CFM International, EASA Engine TCDS E.067
+    tsfc_cruise: 0.0000178
+    max_thrust_sl: 121400
+
+    # ─── Buffet sınırları (opsiyonel, PhysicsValidator'da) ─
+    # Şu an physics_validator.py içinde sabit tablo.
+    # İleride buraya taşınabilir.
+    # buffet_cl:
+    #   M070: 0.72
+    #   M074: 0.68
+    #   M078: 0.62
+    #   M080: 0.58
+    #   M082: 0.54
+
+
+  # ─────────────────────────────────────────────────────────
+  # BOEING 737 MAX 8
+  # ─────────────────────────────────────────────────────────
+  # B738'in yeni nesil versiyonu. LEAP-1B motor.
+  # %14 daha az yakıt tüketimi (üreticiye göre).
+  # Kaynak: Boeing 737 MAX Airport Planning D6-58326
+  #         EASA TCDS A.064 Rev.72
+
+  B38M:
+    name: "Boeing 737 MAX 8"
+    manufacturer: "Boeing"
+    engine_type: "LEAP-1B"
+    num_engines: 2
+
+    mtow: 82191
+    oew: 44280
+    max_fuel: 20894
+    max_payload: 20886
+
+    wing_area: 127.0
+    wingspan: 35.9
+
+    cruise_mach: 0.79
+    max_altitude: 41000
+    range_nm: 3550
+    passengers_typical: 172
+
+    # LEAP-1B: Daha yüksek BPR (9.0), daha düşük SFC
+    # Yeni kanat tasarımı: daha düşük CD0
+    # Split-tip winglet: daha düşük K
+    CD0: 0.020
+    K: 0.042
+    e: 0.87
+    AR: 10.15
+
+    # LEAP-1B SFC: CFM56'dan %15 daha iyi
+    tsfc_cruise: 0.0000152
+    max_thrust_sl: 130280
+
+
+  # ─────────────────────────────────────────────────────────
+  # AIRBUS A320-200
+  # ─────────────────────────────────────────────────────────
+  # Boeing 737'nin rakibi. Dünyada 5000+ aktif.
+  # THY, Air Arabia, Jazeera, IndiGo kullanıyor.
+  # Kaynak: Airbus A320 Aircraft Characteristics AC
+  #         EASA TCDS A.064
+
+  A320:
+    name: "Airbus A320-200"
+    manufacturer: "Airbus"
+    engine_type: "CFM56-5B4/3"
+    num_engines: 2
+
+    mtow: 78000
+    oew: 42600
+    max_fuel: 18900
+    max_payload: 16600
+
+    wing_area: 122.6
+    wingspan: 35.8
+
+    cruise_mach: 0.78
+    max_altitude: 39800
+    range_nm: 3300
+    passengers_typical: 150
+
+    # Sharklet'siz versiyon
+    # Sharklet ile: CD0 aynı ama K=0.041 (e=0.87)
+    CD0: 0.024
+    K: 0.044
+    e: 0.84
+    AR: 10.45
+
+    tsfc_cruise: 0.0000175
+    max_thrust_sl: 120000
+
+
+  # ─────────────────────────────────────────────────────────
+  # AIRBUS A320neo
+  # ─────────────────────────────────────────────────────────
+  # A320'nin yeni nesil versiyonu. LEAP-1A veya PW1127G motor.
+  # %15-20 daha az yakıt tüketimi.
+  # Kaynak: Airbus A320neo Aircraft Characteristics
+  #         EASA TCDS A.064
+
+  A20N:
+    name: "Airbus A320neo"
+    manufacturer: "Airbus"
+    engine_type: "LEAP-1A"
+    num_engines: 2
+
+    mtow: 79000
+    oew: 44300
+    max_fuel: 19100
+    max_payload: 15700
+
+    wing_area: 122.6
+    wingspan: 35.8
+
+    cruise_mach: 0.78
+    max_altitude: 39800
+    range_nm: 3400
+    passengers_typical: 150
+
+    # Sharklet standart. Daha temiz aerodinamik.
+    CD0: 0.021
+    K: 0.041
+    e: 0.87
+    AR: 10.45
+
+    # LEAP-1A: BPR 11.0, CFM56'dan %15 daha iyi SFC
+    tsfc_cruise: 0.0000148
+    max_thrust_sl: 121400
+
+
+  # ─────────────────────────────────────────────────────────
+  # AIRBUS A321-200
+  # ─────────────────────────────────────────────────────────
+  # A320'nin uzatılmış gövde versiyonu. Daha fazla yolcu.
+  # Kaynak: Airbus A321 Aircraft Characteristics
+
+  A321:
+    name: "Airbus A321-200"
+    manufacturer: "Airbus"
+    engine_type: "V2533-A5"
+    num_engines: 2
+
+    mtow: 93500
+    oew: 48500
+    max_fuel: 23860
+    max_payload: 21200
+
+    wing_area: 122.6
+    wingspan: 35.8
+
+    cruise_mach: 0.78
+    max_altitude: 39800
+    range_nm: 3200
+    passengers_typical: 185
+
+    CD0: 0.024
+    K: 0.044
+    e: 0.84
+    AR: 10.45
+
+    tsfc_cruise: 0.0000180
+    max_thrust_sl: 146800
+
+
+  # ─────────────────────────────────────────────────────────
+  # AIRBUS A321neo
+  # ─────────────────────────────────────────────────────────
+  # A321'in yeni nesil versiyonu. Çok popüler sipariş kitabı.
+  # Kaynak: Airbus A321neo Aircraft Characteristics
+
+  A21N:
+    name: "Airbus A321neo"
+    manufacturer: "Airbus"
+    engine_type: "LEAP-1A-33"
+    num_engines: 2
+
+    mtow: 97000
+    oew: 50100
+    max_fuel: 26730
+    max_payload: 20100
+
+    wing_area: 122.6
+    wingspan: 35.8
+
+    cruise_mach: 0.78
+    max_altitude: 39800
+    range_nm: 4000
+    passengers_typical: 180
+
+    CD0: 0.021
+    K: 0.041
+    e: 0.87
+    AR: 10.45
+
+    tsfc_cruise: 0.0000150
+    max_thrust_sl: 147300
+
+
+  # ─────────────────────────────────────────────────────────
+  # BOEING 777-300ER
+  # ─────────────────────────────────────────────────────────
+  # En yaygın uzun menzil geniş gövde. THY, Emirates kullanıyor.
+  # Kaynak: Boeing 777-300ER Airport Planning D6-58329-2
+  #         EASA TCDS A.120
+
+  B77W:
+    name: "Boeing 777-300ER"
+    manufacturer: "Boeing"
+    engine_type: "GE90-115B"
+    num_engines: 2
+
+    mtow: 352441
+    oew: 167829
+    max_fuel: 145538
+    max_payload: 69853
+
+    wing_area: 427.8
+    wingspan: 64.8
+
+    cruise_mach: 0.84
+    max_altitude: 43100
+    range_nm: 7370
+    passengers_typical: 365
+
+    # Geniş gövde: daha düşük CD0 (göreceli)
+    # Yüksek AR: daha düşük K
+    CD0: 0.020
+    K: 0.040
+    e: 0.87
+    AR: 9.82
+
+    # GE90-115B: Dünyanın en güçlü jet motoru
+    # BPR 9.0, çok verimli
+    tsfc_cruise: 0.0000162
+    max_thrust_sl: 513900
+
+
+  # ─────────────────────────────────────────────────────────
+  # BOEING 787-8 DREAMLINER
+  # ─────────────────────────────────────────────────────────
+  # Kompozit gövde, çok verimli.
+  # Kaynak: Boeing 787-8 Airport Planning D6-58333
+
+  B788:
+    name: "Boeing 787-8 Dreamliner"
+    manufacturer: "Boeing"
+    engine_type: "GEnx-1B70"
+    num_engines: 2
+
+    mtow: 228000
+    oew: 120000
+    max_fuel: 101323
+    max_payload: 44226
+
+    wing_area: 325.0
+    wingspan: 60.1
+
+    cruise_mach: 0.85
+    max_altitude: 43000
+    range_nm: 7355
+    passengers_typical: 242
+
+    # Kompozit yapı: çok düşük CD0
+    # Raked wingtip: çok düşük K
+    CD0: 0.018
+    K: 0.038
+    e: 0.89
+    AR: 11.12
+
+    # GEnx: Çok verimli yeni nesil motor
+    tsfc_cruise: 0.0000152
+    max_thrust_sl: 312000
+
+
+  # ─────────────────────────────────────────────────────────
+  # BOEING 787-9 DREAMLINER
+  # ─────────────────────────────────────────────────────────
+  # 787-8'in uzatılmış versiyonu. THY kullanıyor.
+  # Kaynak: Boeing 787-9 Airport Planning D6-58333
+
+  B789:
+    name: "Boeing 787-9 Dreamliner"
+    manufacturer: "Boeing"
+    engine_type: "GEnx-1B76"
+    num_engines: 2
+
+    mtow: 254011
+    oew: 128850
+    max_fuel: 126920
+    max_payload: 52163
+
+    wing_area: 325.0
+    wingspan: 60.1
+
+    cruise_mach: 0.85
+    max_altitude: 43000
+    range_nm: 7635
+    passengers_typical: 296
+
+    CD0: 0.018
+    K: 0.037
+    e: 0.89
+    AR: 11.12
+
+    tsfc_cruise: 0.0000155
+    max_thrust_sl: 339000
+
+
+  # ─────────────────────────────────────────────────────────
+  # AIRBUS A350-900
+  # ─────────────────────────────────────────────────────────
+  # Boeing 787 rakibi. Kompozit gövde.
+  # THY, Qatar, Singapore Airlines kullanıyor.
+  # Kaynak: Airbus A350-900 Aircraft Characteristics
+
+  A350:
+    name: "Airbus A350-900"
+    manufacturer: "Airbus"
+    engine_type: "Trent XWB-84"
+    num_engines: 2
+
+    mtow: 280000
+    oew: 142400
+    max_fuel: 158791
+    max_payload: 53300
+
+    wing_area: 443.0
+    wingspan: 64.8
+
+    cruise_mach: 0.85
+    max_altitude: 43100
+    range_nm: 8100
+    passengers_typical: 315
+
+    # En verimli modern geniş gövde
+    # Kompozit kanat ve gövde
+    CD0: 0.017
+    K: 0.035
+    e: 0.90
+    AR: 9.48
+
+    # Trent XWB: Rolls-Royce'un en verimli motoru
+    tsfc_cruise: 0.0000150
+    max_thrust_sl: 374000
+
+
+  # ─────────────────────────────────────────────────────────
+  # AIRBUS A380-800
+  # ─────────────────────────────────────────────────────────
+  # Dünyanın en büyük yolcu uçağı. Üretimi durdu ama
+  # Emirates, Singapore hâlâ yoğun kullanıyor.
+  # Kaynak: Airbus A380 Aircraft Characteristics
+
+  A380:
+    name: "Airbus A380-800"
+    manufacturer: "Airbus"
+    engine_type: "Trent 970"
+    num_engines: 4
+
+    mtow: 575000
+    oew: 277000
+    max_fuel: 320000
+    max_payload: 83000
+
+    wing_area: 845.0
+    wingspan: 79.8
+
+    cruise_mach: 0.85
+    max_altitude: 43000
+    range_nm: 8200
+    passengers_typical: 555
+
+    # Dev kanat: çok düşük CD0 (göreceli)
+    # 4 motor: farklı motor konfigürasyonu
+    CD0: 0.019
+    K: 0.038
+    e: 0.88
+    AR: 7.53  # AR düşük: Geniş gövdeye göre kısa ve çok geniş kanat (A380 özel tasarımı)
+
+    # 4 × Trent 970 = çok yüksek toplam thrust
+    tsfc_cruise: 0.0000168
+    max_thrust_sl: 1248000
+
+
+# ═══════════════════════════════════════════════════════════
+# PARAMETRE AÇIKLAMA TABLOSU
+# ═══════════════════════════════════════════════════════════
+#
+# PARAMETRE         BİRİM       AÇIKLAMA                    DEĞİŞİR Mİ?
+# ─────────────────────────────────────────────────────────────────────
+# name              -           Uçak tam adı                Hayır
+# manufacturer      -           Üretici                     Hayır
+# engine_type       -           Motor tipi (ICAO)           Varyant ile
+# num_engines       -           Motor sayısı                Hayır
+# mtow              kg          Max kalkış ağırlığı         Hayır (sertifikasyon)
+# oew               kg          Boş operasyonel ağırlık     Evet (konfigürasyon)
+# max_fuel          kg          Yakıt tank kapasitesi       Hayır (fiziksel)
+# max_payload       kg          Max yük kapasitesi          Hayır (yapısal)
+# wing_area         m²          Referans kanat alanı        Hayır (geometrik)
+# wingspan          m           Kanat açıklığı              Hayır (geometrik)
+# cruise_mach       -           Tipik cruise Mach           Override edilir (CI)
+# max_altitude      ft          Operasyonel tavan           Hayır (sertifikasyon)
+# range_nm          Nm          Maks menzil                 Hayır (referans)
+# passengers_typical -          Tipik yolcu sayısı          Evet (havayoluna göre)
+# CD0               -           Parasitic drag katsayısı    Evet (kalibrasyon)
+# K                 -           İndüktif drag faktörü       Az (winglet ile)
+# e                 -           Oswald verimlilik           Az
+# AR                -           Aspect ratio                Hayır (geometrik)
+# tsfc_cruise       kg/(N·s)    Cruise SFC                  Evet (kalibrasyon)
+# max_thrust_sl     N           SL maksimum thrust          Varyant ile
+#
+# ═══════════════════════════════════════════════════════════
+# EKLENEBİLECEK GELECEK TİPLER:
+# ═══════════════════════════════════════════════════════════
+#
+# B39M: Boeing 737 MAX 9
+# A339: Airbus A330-900neo
+# B748: Boeing 747-8
+# E195: Embraer E195-E2
+# CRJ9: Bombardier CRJ-900
+# AT76: ATR 72-600
+#
+# Her yeni tip için:
+# 1. Bu dosyaya blok ekle
+# 2. config/assumptions.py'a OEW/MTOW/SEATS ekle
+# 3. emission_model.py'a motor emisyon verisi ekle
+# 4. Test et: python -m src.models.fuel_model

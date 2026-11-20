@@ -1,0 +1,53 @@
+# ═══════════════════════════════════════════════════════════
+# GreenWing Analytics — Senaryo Bazlı Gösterim Veritabanı
+# ═══════════════════════════════════════════════════════════
+
+scenarios:
+
+  # ─────────────────────────────────────────────────────────
+  # SUNEXPRESS (SXS) — Dar Gövde Bölgesel Turizm Rotası
+  # ─────────────────────────────────────────────────────────
+  SXS:
+    airline_name: "SunExpress"
+    aircraft_type: "B738"
+    days: 30
+    realization_factor: 0.65
+    routes:
+      - {origin: "LTAI", destination: "EDDF", distance_nm: 1241, heading_deg: 316, frequency_weekly: 14, flight_no: "SXS1409"}
+      - {origin: "LTAI", destination: "EDDUS", distance_nm: 1338, heading_deg: 318, frequency_weekly: 10, flight_no: "SXS1757"}
+      - {origin: "LTAI", destination: "EDDM", distance_nm: 1080, heading_deg: 316, frequency_weekly: 7, flight_no: "SXS5720"}
+      - {origin: "LTAI", destination: "EDDB", distance_nm: 1180, heading_deg: 327, frequency_weekly: 7, flight_no: "SXS2862"}
+      - {origin: "LTBJ", destination: "EDDF", distance_nm: 1061, heading_deg: 318, frequency_weekly: 7, flight_no: "SXS6381"}
+      - {origin: "LTBJ", destination: "EDDUS", distance_nm: 1161, heading_deg: 319, frequency_weekly: 5, flight_no: "SXS4453"}
+      - {origin: "LTFM", destination: "EDDF", distance_nm: 992, heading_deg: 309, frequency_weekly: 14, flight_no: "SXS9901"}
+      - {origin: "LTFM", destination: "EDDM", distance_nm: 836, heading_deg: 306, frequency_weekly: 7, flight_no: "SXS7640"}
+
+  # ─────────────────────────────────────────────────────────
+  # PEGASUS (PGT) — Düşük Maliyetli (LCC) Neo Filosu
+  # ─────────────────────────────────────────────────────────
+  PGT:
+    airline_name: "Pegasus Airlines"
+    aircraft_type: "A20N"  # Airbus A320neo (Ultra Verimli Motorlar)
+    days: 30
+    realization_factor: 0.70
+    routes:
+      - {origin: "LTFJ", destination: "EDDF", distance_nm: 1010, heading_deg: 311, frequency_weekly: 14, flight_no: "PGT501"}
+      - {origin: "LTFJ", destination: "LCLK", distance_nm: 410, heading_deg: 165, frequency_weekly: 10, flight_no: "PGT120"}
+      - {origin: "LTFJ", destination: "OMDB", distance_nm: 1618, heading_deg: 121, frequency_weekly: 14, flight_no: "PGT802"}
+      - {origin: "LTFJ", destination: "UUEE", distance_nm: 1030, heading_deg: 5, frequency_weekly: 7, flight_no: "PGT401"}
+      - {origin: "LTAI", destination: "EGLL", distance_nm: 1610, heading_deg: 308, frequency_weekly: 7, flight_no: "PGT615"}
+
+  # ─────────────────────────────────────────────────────────
+  # THY (THY) — Geniş Gövde Küresel Uzun Menzilli Rotalar
+  # ─────────────────────────────────────────────────────────
+  THY:
+    airline_name: "Turkish Airlines"
+    aircraft_type: "A350"  # Airbus A350-900 (Son Teknoloji Geniş Gövde)
+    days: 15  # Uzun menzilli olduğu için frekans/gün ölçeği dengelendi
+    realization_factor: 0.75
+    routes:
+      - {origin: "LTFM", destination: "KJFK", distance_nm: 4373, heading_deg: 295, frequency_weekly: 21, flight_no: "THY001"}
+      - {origin: "LTFM", destination: "KLAX", distance_nm: 5937, heading_deg: 310, frequency_weekly: 14, flight_no: "THY009"}
+      - {origin: "LTFM", destination: "RJTT", distance_nm: 4825, heading_deg: 53, frequency_weekly: 14, flight_no: "THY198"}
+      - {origin: "LTFM", destination: "WSSS", distance_nm: 4672, heading_deg: 119, frequency_weekly: 14, flight_no: "THY054"}
+      

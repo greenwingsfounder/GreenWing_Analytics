@@ -1,0 +1,42 @@
+{
+  "report_type": "CORSIA Annual Emission Report",
+  "standard": "ICAO CORSIA SARP Annex 16 Volume IV",
+  "airline": "SunExpress (SXS) — B738 Fleet Fuel Efficiency Analysis",
+  "reporting_year": 2026,
+  "report_status": "ILLUSTRATIVE — Demonstrative Analysis",
+  "emissions_summary": {
+    "total_co2_tonnes": 5346.2,
+    "baseline_co2_tonnes": 5078.9,
+    "baseline_is_estimated": true,
+    "excess_co2_tonnes": 267.3,
+    "total_flights": 231,
+    "total_fuel_tonnes": 1691.8
+  },
+  "offset_requirements": {
+    "co2_to_offset_tonnes": 267.3,
+    "estimated_offset_cost_usd": 8019,
+    "carbon_price_usd_per_tonne": 30,
+    "note": "Illustrative estimate. Gerçek CORSIA yükümlülüğü doğrulanmış baseline verisi ve ISO 14065 akredite üçüncü taraf doğrulaması gerektirir."
+  },
+  "reduction_opportunities": {
+    "achievable_co2_reduction_tonnes_per_year": 1335.4,
+    "potential_offset_cost_avoidance_usd": 40062,
+    "projection_basis": "Yıllık projeksiyon, her uçuşun rota frekansı ve gerçekleşme faktörü dikkate alınarak hesaplanmıştır. Ortalama yakıt fiyatı: $0.85/kg.",
+    "note": "Yakıt verimliliği iyileştirmeleri hem operasyonel maliyeti hem de CORSIA offset maruziyetini azaltır. Her 1000 ton CO₂ azaltma = $30,000 offset tasarrufu."
+  },
+  "data_quality": {
+    "quality_grade": "A",
+    "valid_flights": 231,
+    "partial_flights": 0,
+    "corsia_data_note": null
+  },
+  "methodology_notes": [
+    "CO₂ = Fuel Burn × 3.16 kg/kg (ICAO standard emission factor)",
+    "Fuel monitoring method: Block fuel (Method B) — where applicable",
+    "Baseline year: 2019 (CORSIA standard)",
+    "Baseline source: Estimated (95% of current — VERIFY WITH OPERATOR)",
+    "Report generated: 2026-06-24T20:23:43.330506",
+    "Data quality grade: A",
+    "✅ Data quality sufficient for illustrative CORSIA reporting."
+  ]
+}

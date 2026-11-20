@@ -1,0 +1,95 @@
+# ═══════════════════════════════════════════════════════════
+# GreenWing Analytics — Sürdürülebilir Havacılık Yakıtı (SAF) Veritabanı
+# ═══════════════════════════════════════════════════════════
+#
+# Bu dosya farklı SAF üretim yollarının (pathways) kimyasal,
+# fiziksel, emisyon ve maliyet parametrelerini içerir.
+#
+# KAYNAKLAR:
+#   • ICAO CORSIA Eligible Fuels (CORSIA EF) Database
+#   • ASTM D7566 (Standard Specification for Aviation Turbine Fuel Containing Synthesized Hydrocarbons)
+#   • Air Transport Action Group (ATAG) Waypoint 2050
+#   • IATA Sustainable Aviation Fuel Roadmap
+#
+# PARAMETRELER:
+#   lhv                   : Net Isıl Değer (Lower Heating Value) (MJ/kg). Jet A-1 = 43.15 MJ/kg.
+#   density               : Yoğunluk (kg/m³) @ 15°C. Jet A-1 = 800 kg/m³.
+#   lifecycle_co2_g_mj    : Yaşam Döngüsü (Well-to-Wake) CO2e emisyon faktörü (g CO2e / MJ). Jet A-1 = 89.0 g CO2e/MJ.
+#   aromatics_pct         : Aromatik bileşen oranı (%). Pure SAF = 0. ASTM sınırı için minimum %8 aromatik gerekir.
+#   price_premium_factor  : Jet A-1 fiyatına göre fiyat çarpanı. HEFA = ~3.0x, PTL = ~6.0x.
+#   tailpipe_co2_factor   : Doğrudan yanma sonucu oluşan egzoz CO2 katsayısı (kg CO2 / kg yakıt). Jet A-1 = 3.16.
+#   tailpipe_h2o_factor   : Doğrudan yanma sonucu oluşan egzoz su buharı katsayısı (kg H2O / kg yakıt). Jet A-1 = 1.23.
+#   max_blend_limit       : ASTM D7566 uyarınca maksimum karışım sınırı (%).
+# ═══════════════════════════════════════════════════════════
+
+saf_pathways:
+
+  # ─── Geleneksel Jet A-1 (Referans) ──────────────────────
+  Jet_A1:
+    name: "Conventional Jet A-1"
+    abbreviation: "Jet-A1"
+    lhv: 43.15
+    density: 800.0
+    lifecycle_co2_g_mj: 89.0
+    aromatics_pct: 18.0
+    price_premium_factor: 1.0
+    tailpipe_co2_factor: 3.160
+    tailpipe_h2o_factor: 1.230
+    max_blend_limit: 100.0
+    feedstock: "Fossil Petroleum"
+
+  # ─── HEFA-SPK (Yağ ve Yağ Asitleri Hidroprosesi) ─────────
+  HEFA:
+    name: "Hydroprocessed Esters and Fatty Acids"
+    abbreviation: "HEFA-SPK"
+    lhv: 44.10
+    density: 755.0
+    lifecycle_co2_g_mj: 16.0  # %82 lifecycle CO2 azaltımı
+    aromatics_pct: 0.0
+    price_premium_factor: 2.8
+    tailpipe_co2_factor: 3.100
+    tailpipe_h2o_factor: 1.370
+    max_blend_limit: 50.0
+    feedstock: "Used Cooking Oil, Animal Fats"
+
+  # ─── FT-SPK (Fischer-Tropsch Sentezi) ───────────────────
+  FT:
+    name: "Fischer-Tropsch Synthetic Paraffinic Kerosene"
+    abbreviation: "FT-SPK"
+    lhv: 44.00
+    density: 760.0
+    lifecycle_co2_g_mj: 13.0  # %85 lifecycle CO2 azaltımı
+    aromatics_pct: 0.0
+    price_premium_factor: 4.0
+    tailpipe_co2_factor: 3.110
+    tailpipe_h2o_factor: 1.360
+    max_blend_limit: 50.0
+    feedstock: "Municipal Solid Waste, Forestry Residues"
+
+  # ─── ATJ-SPK (Alkolün Uçak Yakıtına Dönüştürülmesi) ──────
+  ATJ:
+    name: "Alcohol-to-Jet Synthetic Paraffinic Kerosene"
+    abbreviation: "ATJ-SPK"
+    lhv: 43.80
+    density: 765.0
+    lifecycle_co2_g_mj: 26.0  # %70 lifecycle CO2 azaltımı
+    aromatics_pct: 0.0
+    price_premium_factor: 3.5
+    tailpipe_co2_factor: 3.120
+    tailpipe_h2o_factor: 1.340
+    max_blend_limit: 50.0
+    feedstock: "Agricultural Waste, Industrial Starches"
+
+  # ─── PTL (Power-to-Liquid / e-Fuel) ─────────────────────
+  PTL:
+    name: "Synthetic e-Kerosene (Power-to-Liquid)"
+    abbreviation: "PtL-SPK"
+    lhv: 44.20
+    density: 762.0
+    lifecycle_co2_g_mj: 4.5   # %95 lifecycle CO2 azaltımı (Neredeyse Karbon Nötr)
+    aromatics_pct: 0.0
+    price_premium_factor: 5.5
+    tailpipe_co2_factor: 3.090
+    tailpipe_h2o_factor: 1.380
+    max_blend_limit: 50.0
+    feedstock: "Captured CO2 & Green Hydrogen (Electrolysis)"

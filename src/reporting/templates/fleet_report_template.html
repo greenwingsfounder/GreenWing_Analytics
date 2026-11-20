@@ -1,0 +1,30 @@
+<!-- src/reporting/templates/fleet_report_template.html -->
+
+<!--
+    GreenWing Analytics — Fleet Report Template
+    ════════════════════════════════════════════
+
+    DURUM: Placeholder (V1.0)
+
+    Bu dosya şu an kullanılmıyor.
+    HTML rapor report_generator.py içinde inline olarak üretiliyor.
+
+    V1.5'te burada tam Jinja2 şablonu olacak:
+
+        <html>
+        <body>
+            <h1>{{ airline_name }}</h1>
+            <p>Total fuel: {{ fleet_summary.total_fuel_tonnes }} tonnes</p>
+            {% for route in rankings %}
+                <tr>{{ route.route }} — {{ route.fuel_per_nm }} kg/Nm</tr>
+            {% endfor %}
+        </body>
+        </html>
+
+    KULLANIM (gelecekte):
+        from jinja2 import Environment, FileSystemLoader
+
+        env      = Environment(loader=FileSystemLoader('src/reporting/templates'))
+        template = env.get_template('fleet_report_template.html')
+        html     = template.render(fleet_summary=summary, airline_name="Demo")
+-->
