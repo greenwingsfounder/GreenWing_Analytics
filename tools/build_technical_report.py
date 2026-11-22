@@ -291,7 +291,7 @@ def section_toc():
         ('', '4.9', 'Maliyet modeli ve sınırları'),
         ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
-        ('6', 'Satır satır denetim — 20 gerçek hata', '41.656 satır, 2 tur'),
+        ('6', 'Satır satır denetim — 65 gerçek hata', '41.656 satır, 10 tur'),
         ('', '6.1', 'Ölü kod neden en tehlikeli hataydı?'),
         ('7', 'Sonuç — ne satılabilir, ne satılamaz?', 'Hazır olanlar, bekleyenler, dürüstlük'),
     ]
@@ -887,6 +887,44 @@ def section_correctness():
           'gecede siler. %50, "bu fırsat yıl boyunca yarı yarıya '
           'sürdürülebilir" varsayımıdır ve raporda açıkça belirtilir.')
 
+    h2('4.10 Belirsizlik: yıllık tasarruf bir aralıktır')
+
+    p('§4.2\'deki "±%20" sezgisel bir uyarıydı. Denetimde bu sayı '
+      '<b>hesaplanabilir hale getirildi</b> ve tek nokta değerinin '
+      'yanına yazıldı. Önceden panel <b>$1.835.013</b> diyordu — '
+      'belirsizlik yok, aralık yok. Müşteri bunu taahhüt sanabilirdi.')
+
+    p('B738, 1.240 nm, 65 t, FL370, M0.78 için duyarlılık analizi:')
+
+    table([
+        ['Parametre', 'Etki', 'Not'],
+        ['Rüzgâr', '±%22.0', 'En büyük kaynak'],
+        ['Yakıt fiyatı', '±%20.0', 'Yalnız $ değerini etkiler'],
+        ['İrtifa', '±%13.7', ''],
+        ['Ağırlık', '±%6.5', ''],
+        ['CD0', '±%6.3', ''],
+        ['SFC', '±%4.8', ''],
+        ['<b>Toplam (RSS)</b>', '<b>±%26.6</b>', '<b>Bağımsız hatalar</b>'],
+    ], [46 * mm, 28 * mm, 74 * mm], fs=8.4)
+
+    p('Panelde ve raporda artık şu görünüyor:')
+    p('<code>$1.835.013 (aralık $1.347.817 – $2.322.209, ±%26,6)</code> '
+      've altında <b>"Bu bir taahhüt değil, aralıklı tahmindir."</b>')
+
+    callout(
+        '[!] En büyük belirsizlik, elimizde verisi olmayan şey',
+        'Rüzgârın baskın çıkması tesadüf değil: 14 uçuşun tamamı '
+        'mevsimsel/climatology tahmini kullanıyor (gerçek rüzgâr verisi '
+        'yok). Yani sistemin <b>en zayıf girdisi, en büyük belirsizlik '
+        'kaynağı</b> — ve bunu artık saklamıyor, söylüyor.',
+        color=AMBER, bg='#FFFBEB',
+    )
+
+    small('Belirsizlik hesaplanamazsa "available: false" döner ve '
+          'raporda "Belirsizlik aralığı hesaplanamadı" yazılır. '
+          'Sessizce sıfır belirsizlik iddia etmek, bilinmeyeni '
+          'bilinen gibi göstermek olurdu.')
+
 
 # ══════════════════════════════════════════════════════════════
 # BÖLÜM 5 — TESTLER
@@ -905,24 +943,26 @@ def section_tests():
         ['test_atmosphere.py', '84', 'EVET', 'ISA + ICAO Doc 7488 referansı'],
         ['test_fuel_model.py', '76', 'EVET', 'Yakıt akışı, Breguet, faz yakıtı'],
         ['test_performance.py', '59', 'EVET', 'Sürükleme poları, L/D, CL'],
-        ['test_emission.py', '118', 'EVET', 'CO₂/NOx, CORSIA'],
+        ['test_emission.py', '149', 'EVET', 'CO₂/NOx, CORSIA, BFFM2'],
         ['test_optimization.py', '97', 'EVET', 'İrtifa, CI, tankering, kalibrasyon'],
-        ['test_validation.py', '91', 'EVET', 'Şema, MTOW, yıllık projeksiyon'],
-        ['test_auth.py', '52', 'EVET', 'PBKDF2, çerez, oturum, brute-force'],
-        ['test_security.py', '—', 'EVET', 'Girdi temizleme, XSS'],
-        ['test_aircraft_data_provenance.py', '91', 'EVET', 'Her sabitin kaynağı'],
+        ['test_validation.py', '123', 'EVET', 'Şema, MTOW, yıllık projeksiyon'],
+        ['test_auth.py', '53', 'EVET', 'PBKDF2, çerez, oturum, brute-force'],
+        ['test_security.py', '18', 'EVET', 'Girdi temizleme, XSS, debug'],
+        ['test_aircraft_data_provenance.py', '176', 'EVET', 'Her sabitin kaynağı'],
         ['test_units.py', '96', 'EVET', 'Birim dönüşümleri'],
         ['test_utils.py', '74', 'EVET', 'Sütun normalizasyonu'],
         ['test_uncertainty.py', '107', 'EVET', 'Monte Carlo, duyarlılık'],
         ['test_logging.py', '100', 'EVET', 'Denetim izi, uyarılar'],
         ['test_saf_model.py', '16', 'EVET', 'SAF karışım düzeltmesi'],
-        ['test_tail_calibrator.py', '18', 'EVET', 'Kuyruk bazlı kalibrasyon'],
-        ['test_thermal_model.py', '7', 'EVET', 'Motor termal yükü'],
-    ], [56 * mm, 18 * mm, 14 * mm, 80 * mm], fs=7.8)
+        ['test_tail_calibrator.py', '30', 'EVET', 'Kuyruk bazlı kalibrasyon'],
+        ['test_thermal_model.py', '11', 'EVET', 'TAT, ram rise, soğuma'],
+        ['test_sensitivity.py', '22', 'EVET', 'Girdi sözleşmesi (denetim #62)'],
+        ['test_fleet_analyzer.py', '20', 'EVET', 'Filo özeti, belirsizlik (#64)'],
+    ], [56 * mm, 18 * mm, 14 * mm, 80 * mm], fs=7.3)
 
     gap(2)
     callout(
-        'Toplam: ~950 doğrulama · 16/16 dosya geçiyor',
+        'Toplam: ~1.180 doğrulama · 18/18 dosya geçiyor',
         'Bu sayı, denetim <b>öncesinde</b> de 16/16 olarak raporlanıyordu '
         'ama üç dosya hiç çalıştırılmamıştı. Test sayısı tek başına '
         'hiçbir şey kanıtlamaz; kanıt, testlerin <b>gerçekten '
@@ -957,11 +997,22 @@ def section_tests():
 # ══════════════════════════════════════════════════════════════
 
 def section_audit():
-    h1('6. Satır satır denetim — 20 gerçek hata')
+    h1('6. Satır satır denetim — 65 gerçek hata')
 
-    p('41.656 satır kod tarandı; iki turda <b>20 gerçek hata</b> '
+    p('41.656 satır kod tarandı; on turda <b>65 gerçek hata</b> '
       'bulundu. Her biri düzeltildi ve regresyon testiyle kilitlendi. '
-      'İlk turda 14, ikinci turda 6 hata (alt kümeler dahil 20 satır).')
+      'Aşağıda en ağır 28 tanesi; tamamı '
+      '<code>docs/COMMERCIAL_READINESS.md</code> §8\'de.')
+
+    callout(
+        'Dürüstlük notu: 3 yanlış pozitif de var',
+        'Denetim sırasında "hata" dediğim üç şey (ICAO yoğunluk '
+        'referansı, <code>np.convolve</code> kenar etkisi, TAT ram '
+        'rise) hesap yapılınca <b>doğru çıktı</b>. Üçünü de geri '
+        'aldım ve <code>§8.25–8.27</code>\'de yazdım. Yanlış bulguyu '
+        'sessizce silmek de bir tür gizleme olurdu.',
+        color=AMBER, bg='#FFFBEB',
+    )
 
     audit = [
         ['#', 'Dosya', 'Hata', 'Etki'],
