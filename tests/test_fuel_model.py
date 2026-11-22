@@ -203,10 +203,43 @@ def run_tests():
     sfc_m78 = fm.corrected_sfc(35000, 0.78)
     sfc_m84 = fm.corrected_sfc(35000, 0.84)
 
-    # Yüksek Mach → ram recovery → SFC azalır
+    # ═══════════════════════════════════════════════════════
+    # DENETİM #70 — ESKİ TEST YANLIŞ FİZİĞİ KİLİTLİYORDU
+    # ═══════════════════════════════════════════════════════
+    # Eski test: `sfc_m74 > sfc_m78 > sfc_m84` bekliyordu, yani
+    # "yüksek Mach → ram recovery → SFC AZALIR".
+    #
+    # Bu, yüksek-bypass turbofanlar için TERSİNE. Kaynaklar:
+    #   • Gao vd. (2025): "an increase in the Mach Number ALWAYS
+    #     increases the thrust-specific fuel consumption"
+    #   • Rolls-Royce, The Jet Engine §2: "sfc increases steadily
+    #     with Mach number"
+    #   • Hammami (HAW Hamburg) §3.3: "TSFC is increasing with
+    #     higher Mach number"
+    #
+    # Fizik: ram sıcaklık artışı kompresör girişini ısıtır →
+    # termal verim DÜŞER; fan ucu bağıl Mach artar → dalga kaybı.
+    # Net: TSFC ARTAR.
     check_true(
-        f"SFC: M0.74({sfc_m74:.8f}) > M0.78({sfc_m78:.8f}) > M0.84({sfc_m84:.8f})",
-        sfc_m74 > sfc_m78 > sfc_m84
+        f"SFC artar: M0.74({sfc_m74:.8f}) < M0.78({sfc_m78:.8f}) "
+        f"< M0.84({sfc_m84:.8f})",
+        sfc_m74 < sfc_m78 < sfc_m84
+    )
+
+    # Büyüklük kontrolü: BADA/EDB mertebesi (~%1-2 per 0.10 Mach)
+    _ratio = sfc_m84 / sfc_m74
+    check_true(
+        f"SFC Mach artışı makul (M0.74→M0.84: {(_ratio - 1) * 100:.2f}%, "
+        f"beklenen %1-3)",
+        1.005 < _ratio < 1.04
+    )
+
+    # Ve eğri monoton: her adımda artmalı
+    _steps = [fm.corrected_sfc(35000, m)
+              for m in (0.70, 0.74, 0.78, 0.82, 0.84)]
+    check_true(
+        "SFC Mach ile monoton artıyor",
+        all(_steps[i] < _steps[i + 1] for i in range(len(_steps) - 1))
     )
 
     # ═══════════════════════════════════════════════════════

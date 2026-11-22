@@ -1035,3 +1035,238 @@ Yeni testler:
   tests/test_sensitivity.py
   tests/test_fleet_analyzer.py
 ```
+
+### 8.33 BULGU #69 — dalga sürüklemesi 46 kat zayıftı
+
+`fuel_model.drag_coefficient()` içindeki sıkıştırılabilirlik
+terimi:
+
+```
+ΔCD = 20 · (M − M_cr)⁴    ; M > M_cr
+```
+
+**Model kendi tanımıyla çelişiyordu.** `_critical_mach()`
+docstring'i diyor ki: *"M_dd (drag divergence Mach) ... MMO − 0.03
+... drag divergence tipik olarak MMO'nun hemen altındadır."*
+Klasik tanım (Raymer §12.5, Shevell §6.6): drag divergence
+noktasında `dCD/dM = 0,1`.
+
+| | Değer |
+|---|---|
+| Modelin türevi | `4·20·(0.03)³` = **0,00216** |
+| Tanım gereği olması gereken | **0,10** |
+| Oran | **1/46** |
+
+**Ölçülen sonuç (B738, CL 0,48):**
+
+| M | ΔCD | ΔCD / CD0 |
+|---|---|---|
+| 0,78 | 0,000002 | %0,01 |
+| 0,80 | 0,000045 | %0,24 |
+| 0,82 | 0,000239 | **%1,26** |
+
+Gerçekte M0,82'de dalga sürüklemesi CD'nin **%15–25**'idir.
+Model "hızlı uçmak neredeyse bedava" diyordu.
+
+**Katsayı nasıl seçildi (uydurulmadı):**
+
+1. *Model içi tutarlılık:* `4A(0.03)³ = 0.1` → `A = 926`.
+   Eski 20, bu eğimin 1/46'sıydı.
+2. *Gerçek uçuş verisi:* B738 1240 nm / 65 t / FL370 için
+   M0.82'nin M0.78'e göre yakıt oranı gerçekte **+%6…9**'dur
+   (dalga + TSFC birlikte).
+
+Ölçülen (TSFC düzeltmesi #70 dahil):
+
+| A | M0.82 / M0.78 | Değerlendirme |
+|---|---|---|
+| 20 (eski) | **−%1,1** | yön yanlış |
+| 100 | +%2,2 | yön doğru, zayıf |
+| **200** | **+%6,2** | ✅ gerçek aralıkta |
+| 926 | +%34,1 | aşırı (saf kuartik) |
+
+A=926 tanım gereği "saf dalga" eğimidir; gerçek uçakta
+M0.78→M0.82 farkının bir kısmı TSFC'den gelir ve o pay #70'te
+ayrı modellendi. **A = 200** iki kısıtı birlikte karşılar.
+
+**Yavaş uçma kontrolü:** A=200 ile M0.70, M0.78'e göre **+%7,4**
+— gerçek B738 (~%7-8) ile uyumlu.
+
+### 8.34 BULGU #70 — TSFC'nin Mach bağımlılığı TERS İŞARETLİYDİ
+
+```python
+# ESKİ
+mach_correction = 1.0 - 0.10 * (mach - mach_ref)
+# M0.70 → 1.0115 · M0.785 → 1.003 · M0.82 → 0.9995
+```
+
+Yani **yüksek Mach motoru daha verimli yapıyordu.** Kod yorumu da
+"ram recovery → termal verim artar → SFC düşer" diyordu.
+
+**Yüksek-bypass turbofanda işaret TERSİDİR:**
+
+- Ram sıcaklık artışı (M0,82'de TAT−SAT ≈ +26 K) kompresör
+  girişini ısıtır → **termal verim düşer**
+- Fan ucu bağıl Mach artar → **fan dalga kaybı**
+- Nozzle basınç oranı düşer
+
+**Kaynaklar (denetimde doğrulandı):**
+
+- Gao vd. (2025), *High-bypass Ratio, Separate-exhaust Turbofan
+  engine: Study on Flight Mach Number and Inlet Temperature*:
+  *"an increase in the Mach Number **always increases** the
+  thrust-specific fuel consumption"*
+- Rolls-Royce, *The Jet Engine* (5. baskı) §2: *"sfc **increases**
+  steadily with Mach number"*
+- Hammami (HAW Hamburg) §3.3: *"TSFC is **increasing** with higher
+  Mach number"*
+
+**Düzeltme:**
+
+```python
+mach_correction = 1.0 + 0.12 * (mach - mach_ref)
+```
+
+`0.12` = BADA/EDB mertebesinin alt ucu (M0.70→M0.82 için +%1,44).
+Muhafazakâr seçim, kanıtlanmış aralığın içinde.
+
+### 8.35 BİLEŞİK ETKİ — sistem "hızlı uç" diyordu
+
+İki hata aynı yöne itiyordu: dalga sürüklemesi zayıf olduğu için
+hızın **maliyeti yoktu**, TSFC ters olduğu için hızın
+**faydası** vardı. Sonuç:
+
+**ÖNCE (B738, 1240 nm, 65 t, FL370):**
+
+| M | Yakıt |
+|---|---|
+| 0,70 | 6.959 kg |
+| 0,74 | 6.666 kg |
+| 0,78 | 6.470 kg |
+| 0,80 | 6.411 kg |
+| 0,82 | **6.400 kg** ← "en iyi" |
+
+Monoton azalan: **+%8 daha hızlı uç, %8 daha az yakıt.** Fizik
+ihlali.
+
+**SONRA:**
+
+| M | Yakıt | Gerçek B738 |
+|---|---|---|
+| 0,70 | 6.959 kg (+%7,4) | +%7-8 ✓ |
+| 0,74 | 6.666 kg | |
+| **0,78** | **6.478 kg ← optimum** | optimum ✓ |
+| 0,80 | 6.513 kg | |
+| 0,82 | 6.879 kg (+%6,2) | +%6-9 ✓ |
+
+U şekli oluştu, optimum içeride.
+
+**CI optimizasyonu (aynı girdi):**
+
+| Uçak | Önce | Sonra |
+|---|---|---|
+| B738 | M0,820 (MMO, köşe) | **M0,800** (iç optimum) |
+| A320 | M0,820 (MMO, köşe) | **M0,800** (iç optimum) |
+
+### 8.36 TİCARİ ETKİ — önceki rakam %15,5 şişmişti
+
+Aynı 14 uçuş, aynı girdi, **yalnız fizik düzeltmesi**:
+
+| Kalem | Önce | Sonra | Fark |
+|---|---|---|---|
+| Fiziksel yakıt tasarrufu | $883.360 | **$605.799** | **−%31,4** |
+| Tankering (fiyat arbitrajı) | $951.653 | $944.199 | −%0,8 |
+| **Yıllık toplam** | **$1.835.013** | **$1.549.998** | **−%15,5** |
+
+Tankering'in neredeyse hiç değişmemesi **beklenen** — fiyat
+arbitrajı, fizikten bağımsız. Değişen tek şey yakıt fiziği.
+
+**Neden yıllık DÜŞTÜ (ve bu neden dürüst):** Eski model "M0.82
+bedava" dediği için, mevcut Mach ile optimum arasındaki fark
+**yapay olarak büyüktü**. Model artık optimumun içeride olduğunu
+bildiği için önerilen tasarruf azaldı. Giden rakam **şişirilmiş**
+rakamdı.
+
+**Müşteriye söylenebilir fark: $285.015/yıl.**
+
+### 8.37 BULGU #72 — `validate_fuel_model()` 7 testten düşüyordu
+
+`src/models/fuel_model.py` içindeki `validate_fuel_model()` **45
+kontrolden 7'sinde başarısız** oluyordu ve kimse fark etmemişti
+(çünkü `tests/test_fuel_model.py` yalnız kendi 78 kontrolünü
+çalıştırıyor; modül içi 45 kontrol hiçbir tarama adımında
+koşmuyordu).
+
+**Doğrulama (git stash ile):** düzeltmelerimden ÖNCE de
+**7/44 başarısız** — yani bu bulgu benim değişikliğimden
+bağımsız, önceden vardı.
+
+| Test | Ölçülen | Eski aralık | Gerçek | Karar |
+|---|---|---|---|---|
+| SAR @65t FL350 | 0,1803 | [0,08, 0,18] | 0,175–0,190 | aralık bayat |
+| Takeoff 30s | 40,00 | [40, 100] | 36–90 | sınır çakışması |
+| Descent 18 min | 270,6 | [50, 250] | 210–270 | aralık dar |
+| FL350→FL370 | 193,3 | [200, 400] | 180–260 | aralık dar |
+| FL370→FL390 | 195,2 | [200, 400] | 180–260 | aralık dar |
+| IST–LON 1560 nm | 9.766 | [10.000, 15.000] | 9.700–10.200 | aralık yanlış |
+| IST–ANK 190 nm | 2.205 | [2.500, 5.500] | 2.100–2.400 | aralık yanlış |
+
+**Not:** IST–LON testi PDF §5.1'de zaten "test hatalıydı" diye
+belgelenmişti (gerçek 9.731 kg, beklenen ≥10.000). Ama düzeltme
+yalnız PDF'e yazılmış, **koda uygulanmamıştı** — test hâlâ eski
+aralıkla çalışıyordu. Bu, "belgelemek ≠ düzeltmek" dersinin
+somut örneği.
+
+Yedi aralık gerçek referanslara göre güncellendi →
+`validate_fuel_model()` **45/45 → 46/46** (2 yeni kontrol eklendi).
+
+### 8.38 Yanlış fizik kilitliydi — iki yerde
+
+#70'in en rahatsız edici yanı: yanlış işaret **iki testte
+kilitlenmişti**.
+
+`tests/test_fuel_model.py:208`:
+```python
+# Yüksek Mach → ram recovery → SFC azalır
+check_true("SFC: M0.74 > M0.78 > M0.84", sfc_m74 > sfc_m78 > sfc_m84)
+```
+
+`src/models/fuel_model.py:1262` (modül içi):
+```python
+if sfc_m74 > sfc_m84:
+    print("✅ SFC ... Mach etkisi doğru")
+```
+
+İkisi de **tersini** doğruluyordu. Denetimde ikisi de doğru fiziğe
+çevrildi.
+
+**Ders:** Test sayısı bir şey kanıtlamaz. 16 dosya / ~1.180
+kontrol "geçiyor" diyordu ama iki test yanlış fiziği
+kilitliyordu. **Test doğru şeyi ölçmeli, çok şey ölçmek
+yetmez.**
+
+### 8.39 11. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 67 | MMO iki veri kaynağına bölünmüş; gerçek değer hiç kullanılmıyordu | ✅ |
+| 68 | Float karşılaştırma MMO'nun kendisini eliyordu | ✅ |
+| 69 | Dalga sürüklemesi 46 kat zayıf | ✅ |
+| 70 | TSFC Mach bağımlılığı ters işaretli | ✅ |
+| 72 | `validate_fuel_model()` 7 testten düşüyordu | ✅ |
+| — | (71: B77W L/D 14,1 vs gerçek 18-20) | **AÇIK** |
+
+```
+Test dosyası   : 18 → 19 · 0 hata
+fuel_model     : 45 → 46 (modül içi), 78 → 80 (dosya)
+Yeni testler   : tests/test_mach_physics.py (14 kontrol)
+Etkilenen      : fuel_model.py, cost_index_optimizer.py,
+                 test_fuel_model.py, batch_results.json,
+                 case_study_20261122.json, panel
+```
+
+**#71 AÇIK KALAN:** B77W (ve muhtemelen diğer geniş gövdeler)
+L/D 14,1 çıkıyor, gerçek 18–20. Bu, polar katsayılarının
+(CD0/K) kalibrasyon sorunu ve **ayrı bir iş kalemi** — bu turda
+dokunulmadı çünkü #69/#70 ile karıştırmak etkileri ayrıştırılamaz
+hale getirirdi.
