@@ -291,7 +291,7 @@ def section_toc():
         ('', '4.9', 'Maliyet modeli ve sınırları'),
         ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
-        ('6', 'Satır satır denetim — 65 gerçek hata', '41.656 satır, 10 tur'),
+        ('6', 'Satır satır denetim — 72 gerçek hata', '41.656 satır, 11 tur'),
         ('', '6.1', 'Ölü kod neden en tehlikeli hataydı?'),
         ('7', 'Sonuç — ne satılabilir, ne satılamaz?', 'Hazır olanlar, bekleyenler, dürüstlük'),
     ]
@@ -891,7 +891,7 @@ def section_correctness():
 
     p('§4.2\'deki "±%20" sezgisel bir uyarıydı. Denetimde bu sayı '
       '<b>hesaplanabilir hale getirildi</b> ve tek nokta değerinin '
-      'yanına yazıldı. Önceden panel <b>$1.835.013</b> diyordu — '
+      'yanına yazıldı. Önceden panel tek bir sayı gösteriyordu — '
       'belirsizlik yok, aralık yok. Müşteri bunu taahhüt sanabilirdi.')
 
     p('B738, 1.240 nm, 65 t, FL370, M0.78 için duyarlılık analizi:')
@@ -907,8 +907,11 @@ def section_correctness():
         ['<b>Toplam (RSS)</b>', '<b>±%26.6</b>', '<b>Bağımsız hatalar</b>'],
     ], [46 * mm, 28 * mm, 74 * mm], fs=8.4)
 
-    p('Panelde ve raporda artık şu görünüyor:')
-    p('<code>$1.835.013 (aralık $1.347.817 – $2.322.209, ±%26,6)</code> '
+    p('Panelde ve raporda artık şu görünüyor (canlı değerler):')
+    _u_pct = 26.6
+    _u_total = ANN_FUEL + ANN_TANK
+    p(f'<code>${_u_total:,.0f} (aralık ${_u_total * (1 - _u_pct / 100):,.0f} – '
+      f'${_u_total * (1 + _u_pct / 100):,.0f}, ±%{_u_pct})</code> '
       've altında <b>"Bu bir taahhüt değil, aralıklı tahmindir."</b>')
 
     callout(
@@ -924,6 +927,87 @@ def section_correctness():
           'raporda "Belirsizlik aralığı hesaplanamadı" yazılır. '
           'Sessizce sıfır belirsizlik iddia etmek, bilinmeyeni '
           'bilinen gibi göstermek olurdu.')
+
+    # ══════════════════════════════════════════════════════════
+    h2('4.11 Mach fiziği — iki hata aynı yöne itiyordu')
+
+    p('Bu turun en ağır bulgusu. İki ayrı hata, ikisi de "hızlı '
+      'uçmak daha iyidir" diyordu:')
+
+    table([
+        ['#', 'Hata', 'Ölçüm'],
+        ['70', 'TSFC Mach ile <b>AZALIYOR</b> sanılıyordu',
+         'M0.70→M0.82: −%1,2 (gerçekte +%1,4)'],
+        ['69', 'Dalga sürüklemesi <b>46 kat zayıf</b>',
+         'dCD/dM = 0,0022 (tanım: 0,1)'],
+    ], [10 * mm, 90 * mm, 78 * mm], fs=8.4)
+
+    p('Sonuç: yakıt–Mach eğrisi <b>monoton azalıyordu</b>.')
+
+    table([
+        ['Mach', 'Önce (kg)', 'Sonra (kg)', 'Gerçek B738'],
+        ['M0.70', '6.959', '6.959 (+%7,4)', '+%7–8 ✓'],
+        ['M0.78', '6.470', '<b>6.478 — optimum</b>', 'optimum ✓'],
+        ['M0.82', '<b>6.400</b> "en iyi"', '6.879 (+%6,2)', '+%6–9 ✓'],
+    ], [24 * mm, 40 * mm, 52 * mm, 44 * mm], fs=8.4)
+
+    callout(
+        '[!] Model "daha hızlı uç, daha az yak" diyordu',
+        'Önce: M0.70 6.959 kg → M0.82 6.400 kg. Yani %8 daha hızlı '
+        'uçmak %8 <b>daha az</b> yakıt. Bu, dalga sürüklemesi olan bir '
+        'uçakta fizik ihlalidir. CI optimizasyonu da bu yüzden hep '
+        'köşe çözümü veriyordu: optimum <b>her zaman MMO</b>.',
+        color=RED, bg='#FEF2F2',
+    )
+
+    p('Düzeltme sonrası <b>CI optimizasyonu köşe çözümü vermiyor</b>:')
+
+    table([
+        ['Uçak', 'Önce', 'Sonra'],
+        ['B738', 'M0,820 (MMO, köşe)', '<b>M0,800</b> (iç optimum)'],
+        ['A320', 'M0,820 (MMO, köşe)', '<b>M0,800</b> (iç optimum)'],
+    ], [26 * mm, 62 * mm, 60 * mm], fs=8.4)
+
+    p('<b>Katsayılar uydurulmadı:</b>')
+
+    grid_note = (
+        'TSFC eğimi <code>+0.12 × ΔM</code> — BADA/EDB mertebesinin alt '
+        'ucu (M0.70→M0.82 için +%1,44).<br/>'
+        'Dalga katsayısı <code>A=200</code> — hem modelin kendi '
+        'drag-divergence tanımıyla (A=926) hem gerçek uçuş verisiyle '
+        '(A=200 → M0.82/M0.78 = +%6,2, gerçek +%6–9) sınandı; ikisini '
+        'birlikte karşılayan değer seçildi.'
+    )
+    small(grid_note)
+
+    h2('4.12 Ticari etki — önceki rakam %15,5 şişmişti')
+
+    p('Aynı 14 uçuş, aynı girdi, <b>yalnız fizik düzeltmesi</b>:')
+
+    table([
+        ['Kalem', 'Önce', 'Sonra', 'Fark'],
+        ['Fiziksel yakıt tasarrufu', '$883.360', '$605.799', '<b>−%31,4</b>'],
+        ['Tankering (fiyat arbitrajı)', '$951.653', '$944.199', '−%0,8'],
+        ['<b>Yıllık toplam</b>', '<b>$1.835.013</b>',
+         f'<b>${ANN_FUEL + ANN_TANK:,.0f}</b>', '<b>−%15,5</b>'],
+    ], [60 * mm, 36 * mm, 36 * mm, 26 * mm], fs=8.4)
+
+    p('Tankering\'in neredeyse hiç değişmemesi <b>beklenen</b>: fiyat '
+      'arbitrajı fizikten bağımsızdır. Değişen tek şey yakıt fiziği.')
+
+    callout(
+        'Neden yıllık DÜŞTÜ — ve bu neden dürüst',
+        'Eski model "M0.82 bedava" dediği için, mevcut Mach ile optimum '
+        'arasındaki fark <b>yapay olarak büyüktü</b>. Model artık '
+        'optimumun içeride olduğunu bildiği için önerilen tasarruf '
+        'azaldı. Giden rakam <b>şişirilmiş</b> rakamdı.<br/><br/>'
+        'Müşteriye söylenebilir fark: <b>$285.015/yıl</b>.',
+        color=GREEN, bg='#F0FDF4',
+    )
+
+    small('Bu, denetimin ticari değerinin en somut kanıtı: düzeltme '
+          'olmasaydı müşteriye %15,5 fazla bir tasarruf rakamı '
+          'sunulacaktı.')
 
 
 # ══════════════════════════════════════════════════════════════
@@ -941,7 +1025,7 @@ def section_tests():
     table([
         ['Test dosyası', 'Kontrol', 'Durum', 'Ne doğrular'],
         ['test_atmosphere.py', '84', 'EVET', 'ISA + ICAO Doc 7488 referansı'],
-        ['test_fuel_model.py', '76', 'EVET', 'Yakıt akışı, Breguet, faz yakıtı'],
+        ['test_fuel_model.py', '80', 'EVET', 'Yakıt akışı, Breguet, faz yakıtı'],
         ['test_performance.py', '59', 'EVET', 'Sürükleme poları, L/D, CL'],
         ['test_emission.py', '149', 'EVET', 'CO₂/NOx, CORSIA, BFFM2'],
         ['test_optimization.py', '97', 'EVET', 'İrtifa, CI, tankering, kalibrasyon'],
@@ -956,13 +1040,14 @@ def section_tests():
         ['test_saf_model.py', '16', 'EVET', 'SAF karışım düzeltmesi'],
         ['test_tail_calibrator.py', '30', 'EVET', 'Kuyruk bazlı kalibrasyon'],
         ['test_thermal_model.py', '11', 'EVET', 'TAT, ram rise, soğuma'],
+        ['test_mach_physics.py', '14', 'EVET', 'TSFC eğrisi, U eğrisi, MMO'],
         ['test_sensitivity.py', '22', 'EVET', 'Girdi sözleşmesi (denetim #62)'],
         ['test_fleet_analyzer.py', '20', 'EVET', 'Filo özeti, belirsizlik (#64)'],
     ], [56 * mm, 18 * mm, 14 * mm, 80 * mm], fs=7.3)
 
     gap(2)
     callout(
-        'Toplam: ~1.180 doğrulama · 18/18 dosya geçiyor',
+        'Toplam: ~1.200 doğrulama · 19/19 dosya geçiyor',
         'Bu sayı, denetim <b>öncesinde</b> de 16/16 olarak raporlanıyordu '
         'ama üç dosya hiç çalıştırılmamıştı. Test sayısı tek başına '
         'hiçbir şey kanıtlamaz; kanıt, testlerin <b>gerçekten '
@@ -997,9 +1082,9 @@ def section_tests():
 # ══════════════════════════════════════════════════════════════
 
 def section_audit():
-    h1('6. Satır satır denetim — 65 gerçek hata')
+    h1('6. Satır satır denetim — 72 gerçek hata')
 
-    p('41.656 satır kod tarandı; on turda <b>65 gerçek hata</b> '
+    p('41.656 satır kod tarandı; on bir turda <b>72 gerçek hata</b> '
       'bulundu. Her biri düzeltildi ve regresyon testiyle kilitlendi. '
       'Aşağıda en ağır 28 tanesi; tamamı '
       '<code>docs/COMMERCIAL_READINESS.md</code> §8\'de.')
