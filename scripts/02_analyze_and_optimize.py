@@ -594,6 +594,10 @@ def main():
             mid_weight = estimated_weight - estimated_fuel * 0.5
 
             # ─── Rüzgar ───────────────────────────────────
+            # NOT: wind_source sonuca YAZILMALI; yalnız konsola
+            # basmak, raporda hangi rüzgârın kullanıldığını
+            # gizler (gerçek ADS-B mi, mevsimsel climatology mi).
+            wind_source = 'Bilinmiyor'
             has_real_wind = (
                 'wind_speed_kts' in df.columns 
                 and 'wind_direction_deg' in df.columns
@@ -833,8 +837,10 @@ def main():
                 'route_resolution_source': route_info['source'],
                 'route_warnings'         : route_info['route_warnings'],
 
-                # Collection
+                # Collection + rüzgâr kaynağı (şeffaflık)
                 'collection_method'      : collection_method,
+                'wind_source'            : wind_source,
+                'wind_is_estimated'      : 'Climatology' in str(wind_source),
 
                 # Metrikler
                 'distance_nm'            : round(distance),

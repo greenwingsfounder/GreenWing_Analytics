@@ -10,6 +10,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1212,
     "estimated_fuel_kg": 8320,
     "cruise_altitude_ft": 35936,
@@ -56,7 +58,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.865,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:14.037440"
+    "timestamp": "2026-11-22T13:11:58.835505"
   },
   {
     "filename": "ARR_PGT_PGT501_20261122_121559.csv",
@@ -69,6 +71,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1025,
     "estimated_fuel_kg": 6984,
     "cruise_altitude_ft": 35946,
@@ -115,7 +119,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.816,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:14.636696"
+    "timestamp": "2026-11-22T13:11:59.341643"
   },
   {
     "filename": "ARR_PGT_PGT802_20261122_121651.csv",
@@ -128,6 +132,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 766,
     "estimated_fuel_kg": 4226,
     "cruise_altitude_ft": 34999,
@@ -174,7 +180,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.515,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:15.087569"
+    "timestamp": "2026-11-22T13:11:59.716973"
   },
   {
     "filename": "ARR_SXS_SXS1409_20261122_121559.csv",
@@ -187,6 +193,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1240,
     "estimated_fuel_kg": 8426,
     "cruise_altitude_ft": 35929,
@@ -233,7 +241,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:15.715206"
+    "timestamp": "2026-11-22T13:12:00.296197"
   },
   {
     "filename": "ARR_SXS_SXS1409_LTAI_EDDF.csv",
@@ -246,6 +254,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "arrivals",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1240,
     "estimated_fuel_kg": 8426,
     "cruise_altitude_ft": 35929,
@@ -292,7 +302,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:16.370756"
+    "timestamp": "2026-11-22T13:12:00.897980"
   },
   {
     "filename": "ARR_SXS_SXS5720_20261122_121612.csv",
@@ -305,6 +315,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1078,
     "estimated_fuel_kg": 6329,
     "cruise_altitude_ft": 34993,
@@ -351,7 +363,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.872,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:16.969638"
+    "timestamp": "2026-11-22T13:12:01.416885"
   },
   {
     "filename": "ARR_SXS_SXS6381_20261122_121559.csv",
@@ -364,6 +376,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1059,
     "estimated_fuel_kg": 6187,
     "cruise_altitude_ft": 35947,
@@ -410,7 +424,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.843,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:17.560174"
+    "timestamp": "2026-11-22T13:12:02.026189"
   },
   {
     "filename": "ARR_THY_THY1011_20261122_121638.csv",
@@ -423,6 +437,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1456,
     "estimated_fuel_kg": 8201,
     "cruise_altitude_ft": 35929,
@@ -469,7 +485,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.634,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:18.268807"
+    "timestamp": "2026-11-22T13:12:02.727162"
   },
   {
     "filename": "ARR_THY_THY1587_20261122_121559.csv",
@@ -482,6 +498,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 991,
     "estimated_fuel_kg": 6748,
     "cruise_altitude_ft": 34989,
@@ -528,7 +546,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.808,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:18.830451"
+    "timestamp": "2026-11-22T13:12:03.275951"
   },
   {
     "filename": "ARR_THY_THY1629_20261122_121612.csv",
@@ -541,6 +559,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 833,
     "estimated_fuel_kg": 4779,
     "cruise_altitude_ft": 34998,
@@ -587,7 +607,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.737,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:19.341584"
+    "timestamp": "2026-11-22T13:12:03.677919"
   },
   {
     "filename": "ARR_THY_THY1865_20261122_121651.csv",
@@ -600,6 +620,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 738,
     "estimated_fuel_kg": 4048,
     "cruise_altitude_ft": 34999,
@@ -646,7 +668,7 @@
     "is_partial_flight": true,
     "fuel_per_nm": 5.482,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:19.838287"
+    "timestamp": "2026-11-22T13:12:04.015608"
   },
   {
     "filename": "ARR_THY_THY1951_20261122_121625.csv",
@@ -659,6 +681,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 1176,
     "estimated_fuel_kg": 7021,
     "cruise_altitude_ft": 35940,
@@ -705,7 +729,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.97,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:20.520448"
+    "timestamp": "2026-11-22T13:12:04.488946"
   },
   {
     "filename": "ARR_THY_THY501_20261122_121559.csv",
@@ -718,6 +742,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 992,
     "estimated_fuel_kg": 6715,
     "cruise_altitude_ft": 34989,
@@ -764,7 +790,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.771,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:21.145826"
+    "timestamp": "2026-11-22T13:12:04.960999"
   },
   {
     "filename": "ARR_THY_THY764_20261122_121612.csv",
@@ -777,6 +803,8 @@
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
     "collection_method": "synthetic_fallback",
+    "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
+    "wind_is_estimated": true,
     "distance_nm": 834,
     "estimated_fuel_kg": 5750,
     "cruise_altitude_ft": 34996,
@@ -823,6 +851,6 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.894,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T13:10:21.668882"
+    "timestamp": "2026-11-22T13:12:05.368376"
   }
 ]

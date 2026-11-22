@@ -284,3 +284,81 @@ Kalibrasyon       : −%7.4 hata → ±%0.3
 Sihirli sayı      : CO₂ 43 yerde → 24 kanonik sabite bağlı
 F821              : 0
 ```
+
+---
+
+## 8. DENETİM — 3. TUR: FİZİK DOĞRULAMA (2026-11-22)
+
+Bu turda fiziksel çekirdek **dış referanslarla** kıyaslandı
+(ICAO Doc 7488, CORSIA, Boeing/Airbus tanımları).
+
+### 8.1 Atmosfer modeli — ICAO Doc 7488 uyumu ✅
+
+| # | Bulgu |
+|---|-------|
+| 36 | **Kod doğru çıktı, benim referansım yanlıştı.** İlk taramada `density(20000 ft)` için 0.5927 bekleyip "hata" sandım; doğrusu 0.6527 (ρ = p/RT ile 0.6532). Aynı şekilde 50.000 ft basıncı için 7978.5 Pa bekledim; doğrusu 11.597 Pa. **Ders: referansı doğrulamadan "hata" demek de bir hatadır.** |
+
+**Sonuç:** 8 referans noktasında (0–50.000 ft) sıcaklık ±0.15 °C,
+basınç ±%0.2 içinde. Tropopoz 216.65 K / 22.632 Pa tam isabet.
+Test dosyasına ICAO referans tablosu eklendi (**64 → 84 kontrol**);
+artık bu uyum regresyonla kilitli.
+
+### 8.2 Emisyon modeli — CORSIA uyumu ✅
+
+| Bileşen | Model | CORSIA/ICAO | Durum |
+|---|---|---|---|
+| CO₂ | 3.160 kg/kg | 3.160 kg/kg | ✅ |
+| H₂O | 1.240 kg/kg | 1.23–1.26 | ✅ |
+| SO₂ | 1.00 kg/kg | 0.5–1.2 (kükürde bağlı) | ✅ |
+
+Kütle dengesi tutarlı: 1.000 kg yakıt + 3.400 kg O₂ = 4.400 kg ürün.
+
+### 8.3 Rüzgâr kaynağı artık şeffaf (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 37 | `scripts/02` | `wind_source` (gerçek ADS-B mi, mevsimsel climatology mi) **yalnız konsola** basılıyordu, sonuca yazılmıyordu | Raporda hangi rüzgârın kullanıldığı bilinmiyordu. Artık her kayıtta `wind_source` + `wind_is_estimated` var. **Mevcut durum: 14/14 uçuş mevsimsel tahmin** — yani hiçbiri gerçek rüzgâr verisi değil. |
+
+### 8.4 Optimum irtifa FL320 çıkması — HATA DEĞİL
+
+İki uçuşta (PGT120, THY1011) optimum FL320, gözlenen FL359.
+Bu ilk bakışta "uçağı aşağı indirme" gibi görünüyor. **Doğrulandı: kod
+doğru.** Mevsimsel rüzgâr tahmini batıya uçuşta 70 kt'e kadar karşı
+rüzgâr veriyor:
+
+```
+FL340: TAS 451.6 kt − 49 kt = 402.6 kt yer hızı
+FL380: TAS 447.4 kt − 70 kt = 377.4 kt yer hızı
+```
+
+Yüksek irtifada karşı rüzgâr o kadar artıyor ki yer hızı düşüyor ve
+specific air range **yer** bazında FL320'de en yüksek oluyor.
+Uçak havada daha verimli (air SAR FL380'de tepe), ama **yerde**
+daha az mesafe kat ediyor. Yakıt/mesafe optimizasyonu yer bazlıdır.
+→ Bu, modelin gerçek bir başarısı: rüzgârı hesaba katıyor.
+
+### 8.5 Ticarî hikâyenin değişmesi
+
+Fizik düzeltmelerinden sonra tasarruf dağılımı **tersine döndü**:
+
+| Dönem | Fiziksel yakıt | Tankering |
+|---|---|---|
+| Önce (abs() hatası varken) | $4.936 (%0,5) | $951.653 (%99,5) |
+| **Şimdi** | **$883.360 (%48)** | $951.653 (%52) |
+
+Bu, ürünün değer önerisini temelden değiştirir: önceden ürün fiilen
+bir fiyat arbitrajı aracıydı (fizik %0,5). Şimdi yarısı **fizik**,
+yarısı ekonomi. Fizik tarafı tekrarlanabilir; tankering fiyata bağlı
+ve oynak.
+
+### 8.6 3. tur sonrası durum
+
+```
+Test dosyası        : 16/16 · 0 hata
+Toplam kontrol       : ~970 (atmosfer +20 ICAO referansı)
+ICAO Doc 7488 uyumu  : 8/8 nokta (±%0.2)
+CORSIA CO₂ faktörü   : 3.160 kg/kg ✅
+Rüzgâr şeffaflığı    : 14/14 kayıtta kaynak etiketi
+Fiziksel / tankering : %48 / %52 (önce %0.5 / %99.5)
+F821                 : 0
+```
