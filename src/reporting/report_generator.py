@@ -222,6 +222,25 @@ class ReportGenerator:
         avg_fuel_nm  = float(fs.get('avg_fuel_per_nm', 0))
 
         ann_cost = float(sv.get('annualized_cost_saving_usd', 0))
+
+        # ── DENETİM #29: belirsizlik aralığı ────────────────
+        # sensitivity.py ±%26,7 (rüzgâr baskın) hesaplıyor ama
+        # rapor tek nokta değeri gösteriyordu. Müşteri bunu
+        # taahhüt sanabilir; aralık HTML'e yazılıyor.
+        _unc = sv.get('uncertainty') or {}
+        if _unc.get('available'):
+            unc_html = (
+                f'<div style="font-size:11px;color:#636e72;margin-top:4px;">'
+                f'Aralık: ${_unc["low_usd"]:,.0f} – ${_unc["high_usd"]:,.0f} '
+                f'(&plusmn;%{_unc["total_uncertainty_pct"]}). '
+                f'En büyük belirsizlik: {_unc["dominant_source"]}. '
+                f'Bu bir taahhüt değil, aralıklı tahmindir.</div>'
+            )
+        else:
+            unc_html = (
+                '<div style="font-size:11px;color:#b2bec3;margin-top:4px;">'
+                'Belirsizlik aralığı hesaplanamadı.</div>'
+            )
         ann_fuel = float(sv.get('annualized_fuel_saving_tonnes', 0))
         ann_co2  = float(sv.get(
             'annualized_co2_saving_tonnes',
@@ -703,6 +722,7 @@ table.route-table th{{
                 <strong style="color:#00b894;">
                     ${ann_cost:,.0f}/yıl
                 </strong>
+                {unc_html}
             </li>
         </ul>
     </div>
@@ -895,6 +915,9 @@ table.route-table th{{
             <div class="sbox-item">
                 <div class="sv">${ann_cost:,.0f}</div>
                 <div class="sl">maliyet / yıl</div>
+                <div class="sl" style="font-size:10px;color:#95a5a6;">
+                    {_unc.get('low_usd', 0):,.0f} – {_unc.get('high_usd', 0):,.0f}
+                </div>
             </div>
             <div class="sbox-item">
                 <div class="sv">{ann_co2:,.0f}</div>

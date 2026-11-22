@@ -240,6 +240,61 @@ def _detect_partial_flight(
 # ANA SINIF
 # ═══════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════
+# BELİRSİZLİK ARALIĞI (denetim #29)
+# ═══════════════════════════════════════════════════════════
+
+def _uncertainty_block(annualized_cost_usd: float) -> dict:
+    """
+    Yıllık tasarruf projeksiyonunun belirsizlik aralığını üret.
+
+    sensitivity.py'nin hesapladığı toplam belirsizliği (RSS) kullanır.
+    Hesaplanamazsa `available: False` döner — sessizce sıfır
+    belirsizlik iddia etmek yanıltıcı olur.
+
+    Args:
+        annualized_cost_usd: Tek nokta yıllık tasarruf ($)
+
+    Returns:
+        dict: {available, total_uncertainty_pct, low_usd, high_usd,
+               dominant_source, dominant_effect_pct, note}
+    """
+    try:
+        from src.analysis.sensitivity import SensitivityAnalyzer
+        rep = SensitivityAnalyzer().full_sensitivity_report({
+            'weight_kg'   : 65000,
+            'distance_nm' : 1240,
+            'altitude_ft' : 37000,
+            'mach'        : 0.78,
+            'saving_kg'   : 155,
+        })
+        pct = float(rep['total_uncertainty_pct'])
+    except Exception as exc:  # noqa: BLE001
+        return {
+            'available'            : False,
+            'message'              : f'Belirsizlik hesaplanamadı: {exc}',
+            'total_uncertainty_pct': None,
+        }
+
+    low  = annualized_cost_usd * (1 - pct / 100.0)
+    high = annualized_cost_usd * (1 + pct / 100.0)
+    return {
+        'available'            : True,
+        'total_uncertainty_pct': round(pct, 1),
+        'low_usd'              : round(low),
+        'high_usd'             : round(high),
+        'dominant_source'      : rep['dominant_source'],
+        'dominant_effect_pct'  : round(float(rep['dominant_effect_pct']), 1),
+        'note'                 : (
+            f'Yıllık tasarruf ${annualized_cost_usd:,.0f} ± %{pct:.1f} '
+            f'(RSS). En büyük belirsizlik kaynağı: '
+            f'{rep["dominant_source"]} '
+            f'(±%{rep["dominant_effect_pct"]:.1f}). '
+            f'Bu bir taahhüt değil, aralıklı bir tahmindir.'
+        ),
+    }
+
+
 class FleetAnalyzer:
     """
     Filo bazlı analiz ve raporlama.
@@ -1128,6 +1183,17 @@ class FleetAnalyzer:
                     f'Ortalama yakıt fiyatı: '
                     f'${avg_fuel_price_usd_per_kg:.2f}/kg.'
                 ),
+                # ══════════════════════════════════════════════════════
+                # DENETİM #29 — BELİRSİZLİK ARALIĞI RAPORA GİRMİYORDU
+                # ══════════════════════════════════════════════════════
+                # sensitivity.py ±%26,7 toplam belirsizlik hesaplıyor
+                # (rüzgâr ±%20,5 baskın) ama bu hiçbir çıktıya
+                # yazılmıyordu. Panel/rapor "$1.425.376" diyordu —
+                # tek nokta değeri, belirsizlik yok.
+                #
+                # Ticari olarak bu ciddi: müşteri "±%27" bilgisini
+                # görmeden rakamı taahhüt sanabilir.
+                'uncertainty': _uncertainty_block(annualized_cost),
             },
             'data_quality': {
                 'quality_grade'      : quality_report['quality_grade'],
@@ -1394,13 +1460,50 @@ def validate_fleet_analyzer() -> bool:
     else:
         fail("Yakıt tasarrufu", f"{sv['total_fuel_saving_kg']} ≠ {expected_fuel_save}")
 
-    # yıllık maliyet
-    expected_annual = sum(f[9] for f in demo_flights)
+    # ══════════════════════════════════════════════════════════
+    # DENETİM #65 — BU TEST HİÇ ÇALIŞMIYORDU VE BAYATTI
+    # ══════════════════════════════════════════════════════════
+    # Eski beklenti `sum(f[9] for f in demo_flights)` = 1.644.522
+    # idi. Kod ise rota bazında ORTALAMA alıyor (mükerrer uçuşları
+    # iki kez saymamak için: rota frekansı `realistic_annual_usd`
+    # içinde zaten hesaba katılmış). Doğru çıktı 1.191.284.
+    #
+    #   Σ rota ortalaması = 1.191.284  ← kod (DOĞRU)
+    #   Σ ham toplam      = 1.644.522  ← eski test (YANLIŞ)
+    #
+    # Fark: LTFM-EGLL 2, LTFM-EDDF 2, LTFM-LTAC 2 kez geçiyor;
+    # her rotanın ortalaması alınır, ham toplam değil.
+    #
+    # İki hata bir aradaydı:
+    #   (a) test beklentisi bayattı → her çalıştırmada FAIL
+    #   (b) `tests/` altında dosya yoktu → test hiç çalışmıyordu
+    #       ve bayatlık fark edilmemişti
+    #
+    # Bu blok artık tests/test_fleet_analyzer.py'den çağrılıyor.
+    from collections import defaultdict as _dd
+    _route_annual: dict[str, list[float]] = _dd(list)
+    for _f in demo_flights:
+        _route_annual[f"{_f[0]}-{_f[1]}"].append(_f[9])
+    expected_annual = sum(
+        sum(v) / len(v) for v in _route_annual.values()
+    )
     tests += 1
     if abs(sv['annualized_cost_saving_usd'] - expected_annual) < 10:
-        ok(f"Yıllık tasarruf: ${sv['annualized_cost_saving_usd']:,} ✓")
+        ok(f"Yıllık tasarruf (rota ort.): "
+           f"${sv['annualized_cost_saving_usd']:,} ✓")
     else:
-        fail("Yıllık tasarruf", f"${sv['annualized_cost_saving_usd']:,} ≠ ${expected_annual:,}")
+        fail("Yıllık tasarruf",
+             f"${sv['annualized_cost_saving_usd']:,} ≠ "
+             f"${expected_annual:,.0f} (rota ort.)")
+
+    # Mükerrer sayım koruması: ham toplam KULLANILMAMALI
+    _raw_total = sum(f[9] for f in demo_flights)
+    tests += 1
+    if abs(sv['annualized_cost_saving_usd'] - _raw_total) > 10:
+        ok(f"Mükerrer uçuş iki kez sayılmıyor "
+           f"(${_raw_total:,.0f} ham → ${expected_annual:,.0f} rota ort.)")
+    else:
+        fail("Mükerrer sayım", "ham toplam kullanılmış — rota frekansı iki kez")
 
     # annualized_fuel_saving_tonnes tutarlı mı?
     tests += 1

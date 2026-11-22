@@ -899,7 +899,9 @@ en büyük belirsizlik kaynağı, elimizde gerçek verisi olmayan şey.
 Buna karşılık yıllık tasarruf projeksiyonu bu belirsizliği
 **raporlamıyor** — bkz. §8.29.
 
-### 8.29 Açık kalan: belirsizlik rapora girmiyor (P1, düzeltilmedi)
+### 8.29 Açık kalan: belirsizlik rapora girmiyor (P1)
+
+> **→ §8.29 KAPANDI** (aşağıdaki bölüm, 10. tur)
 
 `sensitivity.py` doğru çalışıyor ve ±%26,7 toplam belirsizlik
 hesaplıyor. Ama:
@@ -925,4 +927,111 @@ Test dosyası   : 16 → 17 · 0 hata
 sensitivity    : 40 (modül içi) + 22 (yeni dosya)
 Toplam bulgu   : #1–59 gerçek, #62–63 yeni, #36/#60/#61 yanlış pozitif
 Açık           : #29 belirsizlik rapora girmiyor
+```
+
+### 8.29 KAPANDI — belirsizlik aralığı artık rapor ve panelde
+
+§8.29'da "P1, düzeltilmedi" diye açık bıraktığım bulgu kapatıldı.
+
+**Yapılan:**
+
+`fleet_analyzer._uncertainty_block()` — `sensitivity.py`'nin
+hesapladığı RSS belirsizliğini yıllık tasarrufa uygular.
+Hesaplanamazsa `available: False` döner; **sessizce sıfır
+belirsizlik iddia etmez**.
+
+`savings_potential.uncertainty`:
+```
+{available, total_uncertainty_pct, low_usd, high_usd,
+ dominant_source, dominant_effect_pct, note}
+```
+
+`report_generator`: yıllık tasarruf kutusunun altına aralık
+yazılıyor + **"Bu bir taahhüt değil, aralıklı tahmindir."**
+Boş özet `uncertainty` taşımıyorsa "Belirsizlik aralığı
+hesaplanamadı" yazıyor (sessiz 0 yok).
+
+`web/app.py` `/api/summary`: `annual_uncertainty` alanı.
+
+**Uçtan uca doğrulama (canlı panel :8051, 14 uçuş):**
+
+```
+annual_realistic_usd : $1.835.013
+annual_uncertainty   : available True
+                       total ±%26.6
+                       low   $1.347.817
+                       high  $2.322.209
+                       dominant_source wind (±%22.0)
+                       note "Taahhüt değil, aralık."
+```
+
+HTML raporda da görünüyor:
+`Aralık: $31.576 – $54.557 (±%26.7). En büyük belirsizlik: wind.
+Bu bir taahhüt değil, aralıklı tahmindir.`
+
+| Değişen | Ne |
+|---|---|
+| `fleet_analyzer.py` | `_uncertainty_block()` + `savings_potential.uncertainty` |
+| `report_generator.py` | HTML'e aralık + "taahhüt değil" |
+| `web/app.py` | `/api/summary → annual_uncertainty` |
+| `tests/test_fleet_analyzer.py` | [C] 7 kontrol (sınır matematiği, kapsama, not) |
+
+### 8.31 Test dosyası olmayan iki büyük modül (#64) + bayat test (#65)
+
+`fleet_analyzer.py` (1.400+ satır) ve `report_generator.py` (1.192
+satır) için `tests/` altında **hiç dosya yoktu**. Modül içi
+doğrulama fonksiyonları vardı ama hiçbir tarama adımında
+çalışmıyordu.
+
+**#65 — bayat test beklentisi:**
+
+```
+❌ Yıllık tasarruf: $1.191.284 ≠ $1.644.522
+```
+
+Test `validate_fleet_analyzer()` **her çalıştırmada FAIL**
+veriyordu. Sebep: beklenti `sum(f[9] for f in demo_flights)`
+(ham toplam) iken kod **rota bazında ortalama** alıyor:
+
+```
+Σ rota ortalaması = 1.191.284   ← kod (DOĞRU)
+Σ ham toplam      = 1.644.522   ← eski test (YANLIŞ)
+```
+
+Kodun davranışı **doğru**: rota frekansı `realistic_annual_usd`
+içinde zaten hesaba katılmış; mükerrer uçuşları bir daha saymak
+tasarrufu **şişirir**. Testin beklentisi bayattı.
+
+**Düzeltme:** beklenti rota ortalamasına çevrildi **ve** yeni bir
+kontrol eklendi — "ham toplam kullanılmıyor mu?" (mükerrer sayım
+koruması). fleet validate 36 → **38 kontrol**, hepsi geçiyor.
+
+**Not:** Bu bulgu, "testi var" ile "testi çalışıyor" arasındaki
+farkın somut kanıtı. Test dosyası olmadığı için 38 kontrollük
+doğrulama sessizce bayatlamıştı.
+
+### 8.32 10. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 62 | sensitivity `None`/sıfır girdide çökme | ✅ |
+| 63 | sensitivity test dosyası yok | ✅ |
+| 64 | fleet_analyzer + report_generator test dosyası yok | ✅ |
+| 65 | fleet validate bayat beklenti → her tur FAIL | ✅ |
+| 29 | belirsizlik rapora/panale girmiyor | ✅ **KAPANDI** |
+
+```
+Test dosyası : 17 → 18 · 0 hata
+fleet        : 36 → 38 (rota ort. + mükerrer koruması)
+sensitivity  : 40 (modül içi) + 22 (yeni dosya)
+fleet/report : 38 + 22 (modül içi) + 20 (yeni dosya)
+
+Düzeltilen dosyalar:
+  src/analysis/sensitivity.py
+  src/analysis/fleet_analyzer.py
+  src/reporting/report_generator.py
+  web/app.py
+Yeni testler:
+  tests/test_sensitivity.py
+  tests/test_fleet_analyzer.py
 ```

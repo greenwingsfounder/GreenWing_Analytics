@@ -142,8 +142,37 @@ def summarize(rows: list[dict]) -> dict:
     synthetic_count = provenance.get('synthetic_fallback', 0) + provenance.get('demo', 0)
     unknown_count = provenance.get('BİLİNMİYOR', 0)
 
+    # ── DENETİM #29: BELİRSİZLİK ARALIĞI ────────────────────
+    # sensitivity.py ±%26,7 (rüzgâr baskın) hesaplıyor ama panel
+    # tek nokta değeri gösteriyordu. Müşteri "$1.4M" rakamını
+    # taahhüt sanabilir. Aralık da dönüyor.
+    _unc_block: dict = {'available': False,
+                        'message': 'uçuş yok — hesaplanamadı'}
+    if n > 0:
+        try:
+            from src.analysis.sensitivity import SensitivityAnalyzer
+            _rep = SensitivityAnalyzer().full_sensitivity_report({})
+            _pct = float(_rep['total_uncertainty_pct'])
+            _unc_block = {
+                'available'            : True,
+                'total_uncertainty_pct': round(_pct, 1),
+                'low_usd'              : round(annual * (1 - _pct / 100.0), 0),
+                'high_usd'             : round(annual * (1 + _pct / 100.0), 0),
+                'dominant_source'      : _rep['dominant_source'],
+                'dominant_effect_pct'  : round(
+                    float(_rep['dominant_effect_pct']), 1),
+                'note'                 : (
+                    f'±%{_pct:.1f} — en büyük belirsizlik: '
+                    f'{_rep["dominant_source"]}. Taahhüt değil, aralık.'
+                ),
+            }
+        except Exception as _exc:  # noqa: BLE001
+            _unc_block = {'available': False,
+                          'message': f'hesaplanamadı: {_exc}'}
+
     return {
         'flight_count': n,
+        'annual_uncertainty': _unc_block,
         'saving_breakdown': {k: round(v, 2) for k, v in breakdown.items()},
         'data_provenance': {
             'real': real_count,
