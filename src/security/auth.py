@@ -36,6 +36,22 @@ Parola hash'i üretmek için:
 
 from __future__ import annotations
 
+# ── ROLLER VE KİRACILAR (denetim #84 — ticarileşme P0) ─────────────
+# Ticari üründe her müşteri bir "kiracı"dır (tenant) ve her kullanıcının
+# bir rolü vardır. Bunlar olmadan:
+#   • Bir müşteri diğerinin uçuş/yakıt verisini görebilir → KVKK/GDPR ihlali
+#   • Yakıt müdürü ile stajyer aynı yetkiye sahip olur
+#   • "Bu raporu kim üretti" sorusu cevapsız kalır
+#
+# Rol yetkileri (küçükten büyüğe):
+#   viewer  : yalnızca okuma (rapor görüntüleme)
+#   analyst : okuma + analiz çalıştırma + kalibrasyon
+#   admin   : tam yetki (kullanıcı yönetimi, veri silme, sırlar)
+ROLES = ('viewer', 'analyst', 'admin')
+ROLE_LEVEL = {'viewer': 1, 'analyst': 2, 'admin': 3}
+DEFAULT_TENANT = 'varsayilan'
+
+
 import base64
 import hashlib
 import hmac
@@ -115,12 +131,13 @@ class DashboardAuth:
 
         Hiçbiri yoksa AuthConfigError — dashboard açılmaz.
         """
-        raw_users: dict[str, str] = {}
+        raw_users: dict[str, object] = {}
 
         env_users = os.environ.get('GREENWING_USERS', '').strip()
         if env_users:
             try:
-                raw_users = {str(k): str(v) for k, v in json.loads(env_users).items()}
+                raw_users = {str(k): str(v)
+                             for k, v in json.loads(env_users).items()}
             except json.JSONDecodeError as exc:
                 raise AuthConfigError(
                     f'GREENWING_USERS geçerli JSON değil: {exc}') from exc
@@ -134,8 +151,19 @@ class DashboardAuth:
             try:
                 import yaml
                 data = yaml.safe_load(_SECRETS_FILE.read_text(encoding='utf-8')) or {}
-                raw_users = {str(k): str(v)
-                             for k, v in (data.get('users') or {}).items()}
+                # Değer düz hash VEYA {hash, role, tenant} olabilir.
+                # Ticari kurulumda rol/kiracı BURADAN gelir.
+                parsed: dict[str, object] = {}
+                for k, v in (data.get('users') or {}).items():
+                    if isinstance(v, dict):
+                        parsed[str(k)] = {
+                            'hash': str(v.get('hash') or v.get('password') or ''),
+                            'role': str(v.get('role') or 'admin').lower(),
+                            'tenant': str(v.get('tenant') or DEFAULT_TENANT),
+                        }
+                    else:
+                        parsed[str(k)] = str(v)
+                raw_users = parsed
             except Exception as exc:  # noqa: BLE001
                 raise AuthConfigError(
                     f'{_SECRETS_FILE} okunamadı — geçerli YAML ve users: '
@@ -236,10 +264,16 @@ class DashboardAuth:
         username = (username or '').strip()
         if self.is_locked(username, ip):
             return False
-        stored = self.users.get(username)
-        if not stored:
+        stored_raw = self.users.get(username)
+        if not stored_raw:
             # Kullanıcı yoksa da hash süresi harcayarak enumeration'ı zorlaştır
             self._verify_hash(password or '', self.hash_password('dummy'))
+            self._register_failure(username, ip)
+            return False
+        # Kullanıcı kaydı düz string (eski biçim) veya sözlük olabilir
+        stored = (stored_raw.get('hash')
+                  if isinstance(stored_raw, dict) else stored_raw)
+        if not stored:
             self._register_failure(username, ip)
             return False
         if self._verify_hash(password or '', stored):
@@ -249,6 +283,33 @@ class DashboardAuth:
         return False
 
     # ── Oturum ─────────────────────────────────────────────
+    # ── Profil (rol / kiracı) ──────────────────────────────
+    def profile(self, username: str) -> dict:
+        """
+        Kullanıcının rolü ve kiracısı.
+
+        Geriye dönük uyum: `users` değeri düz hash string ise kullanıcı
+        admin + varsayılan kiracı sayılır (tek kullanıcılı kurulum).
+        """
+        raw = self.users.get(username)
+        if isinstance(raw, dict):
+            role = str(raw.get('role') or 'admin').lower()
+            tenant = str(raw.get('tenant') or DEFAULT_TENANT)
+        else:
+            role, tenant = 'admin', DEFAULT_TENANT
+        if role not in ROLES:
+            role = 'viewer'
+        return {'username': username, 'role': role, 'tenant': tenant,
+                'level': ROLE_LEVEL[role]}
+
+    def can(self, username: str, required: str) -> bool:
+        """Kullanıcı `required` seviyesini karşılıyor mu?"""
+        return self.profile(username)['level'] >= ROLE_LEVEL.get(required, 99)
+
+    def users_of_tenant(self, tenant: str) -> list[str]:
+        """Bir kiracıya bağlı kullanıcıları listele."""
+        return [u for u in self.users if self.profile(u)['tenant'] == tenant]
+
     def issue_session(self, username: str) -> str:
         """İmzalı oturum çerezi üret (padding'siz base64url)."""
         payload = {

@@ -124,6 +124,14 @@ aircraft_types:
     K: 0.04200
     e: 0.7990
     AR: 10.280           # span²/area = 35,79²/124,6 (gerçek geometri)
+    # ── İKİ FARKLI EN-BOY ORANI (denetim #85) ─────────────────
+    # AR yukarıda: yayınlanan (WINGLET DAHİL) açıklık → geometri.
+    # AMA OpenAP poları winglet'siz kanat üzerinde fit edildi:
+    #   34.32 m (112 ft 7 in, Boeing ACAP) → AR = 9.453
+    #   e = 1/(π·9.453·0.042) = 0.8017 ≈ 0.799 ✓ (%0,3)
+    # 35.79 m ile: e = 0.7372 → %7,7 sapma. Eski 9.453 "yanlış"
+    # değildi, FARKLI bir büyüklüktü.
+    AR_aerodynamic: 9.453
 
     # ─── Motor parametreleri ─────────────────────────────
     # tsfc_cruise: Cruise SFC (Thrust Specific Fuel Consumption)
@@ -194,6 +202,14 @@ aircraft_types:
     K: 0.04200
     e: 0.7970
     AR: 10.280           # span²/area = 35,79²/124,6 (gerçek geometri)
+    # ── İKİ FARKLI EN-BOY ORANI (denetim #85) ─────────────────
+    # AR yukarıda: yayınlanan (WINGLET DAHİL) açıklık → geometri.
+    # AMA OpenAP poları winglet'siz kanat üzerinde fit edildi:
+    #   34.32 m (112 ft 7 in, Boeing ACAP) → AR = 9.453
+    #   e = 1/(π·9.453·0.042) = 0.8017 ≈ 0.799 ✓ (%0,3)
+    # 35.79 m ile: e = 0.7372 → %7,7 sapma. Eski 9.453 "yanlış"
+    # değildi, FARKLI bir büyüklüktü.
+    AR_aerodynamic: 9.453
 
     # LEAP-1B SFC: CFM56'dan %15 daha iyi
     tsfc_cruise: 0.00001573

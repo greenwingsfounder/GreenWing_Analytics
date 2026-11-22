@@ -59,19 +59,38 @@ for ac, (cd0, k, e) in OPENAP.items():
     check(f'{ac}: {p["CD0"]}/{p["K"]}/{p["e"]}', ok,
           f'beklenen {cd0}/{k}/{e}')
 
-# ── 2. Polar iç tutarlılığı: K ≈ 1/(π·AR·e) ────────────────
-print('\n2. Polar iç tutarlılığı — K ve AR·e')
+# ── 2. Polar iç tutarlılığı: K ≈ 1/(π·AR_aero·e) ────────────
+print('\n2. Polar iç tutarlılığı — K, e ve AERODİNAMİK AR')
+# DENETİM #85: burada eskiden 'AR' (span²/S, winglet DAHİL) kullanılıyordu
+# ve B738/B38M %7,7 sapma veriyordu. Kök neden: OpenAP poları
+# WINGLET'SİZ kanat üzerinde fit edilmiş (B738: 34.32 m, AR 9.453).
+# İki büyüklük ayrı tutulur:
+#   AR         = span²/S      → yayınlanan açıklık, GEOMETRİ/raporlama
+#   AR_aerodynamic = kanat fit bazı → POLAR tutarlılığı
+# Karıştırılırsa yapay çelişki doğar; bu test artık doğru olanı ölçer.
+_ar_dev = []
 for ac in OPENAP:
     p = get(ac)
-    if 'AR' not in p:
+    ar = float(p.get('AR_aerodynamic') or p.get('AR', 0))
+    if not ar:
         continue
-    ar = float(p['AR'])
     k_implied = 1.0 / (math.pi * ar * float(p['e']))
     rel = abs(k_implied - float(p['K'])) / float(p['K']) * 100
-    # AR artık OpenAP geometrisinden (span²/area) türetildi → K ile
-    # tam tutarlı olmalı. ±%2 tolerans.
-    check(f'{ac}: K={p["K"]:.4f} vs 1/(π·AR·e)={k_implied:.4f} (%{rel:.1f})',
-          rel < 2.0)
+    check(f'{ac}: K={p["K"]:.4f} vs 1/(π·AR_aero·e)={k_implied:.4f} (%{rel:.1f})',
+          rel < 2.0, f'AEOR AR={ar}')
+    if rel >= 2.0:
+        _ar_dev.append(ac)
+
+# Ayrıca: AR_aerodynamic VARSA geometrik AR'den küçük olmalı
+# (winglet eklenince açıklık artar, AR artar; polar bazı winglet'sizdir)
+for ac in ('B738', 'B38M'):
+    p = get(ac)
+    if p.get('AR_aerodynamic') and p.get('AR'):
+        check(f'{ac}: AR_aero < AR_geometrik (winglet etkisi)',
+              float(p['AR_aerodynamic']) < float(p['AR']))
+        span_eff = math.sqrt(float(p['AR_aerodynamic']) * 124.6)
+        check(f'{ac}: AR_aero → winglet\'siz açıklık ≈ 34.3 m',
+              abs(span_eff - 34.32) < 0.5, f'{span_eff:.2f} m')
 
 # ── 3. OEW / MTOW — üretici verisi ─────────────────────────
 print('\n3. OEW / MTOW — üretici (Boeing/Airbus) verisi, ±%3')

@@ -117,7 +117,7 @@ def layer_static() -> None:
 
     # 1a) Derleme
     r = subprocess.run([sys.executable, '-m', 'compileall', '-q',
-                        'src', 'scripts', 'web', 'webapp', 'config',
+                        'src', 'scripts', 'webapp', 'config',
                         'dashboard', 'tools', 'tests'],
                        cwd=ROOT, capture_output=True, text=True)
     if r.returncode == 0:
@@ -131,7 +131,7 @@ def layer_static() -> None:
         r = subprocess.run([str(ruff), 'check', '--select',
                             'E9,F63,F7,F82,F811,B006,B008',
                             '--output-format', 'concise',
-                            'src', 'web', 'webapp', 'config', 'scripts'],
+                            'src', 'webapp', 'config', 'scripts'],
                            cwd=ROOT, capture_output=True, text=True)
         lines = [ln for ln in r.stdout.splitlines() if ln.strip()
                  and 'All checks passed' not in ln]
@@ -151,9 +151,9 @@ def layer_static() -> None:
         ('verify=False', 'TLS doğrulaması kapalı'),
         ('shell=True', 'kabuk enjeksiyonu riski'),
     ]
+    # #84: web/ arşivlendi (archive/web_v1) → canlı kod taraması dışı.
     py_files = list((ROOT / 'src').rglob('*.py')) + \
-        list((ROOT / 'webapp').rglob('*.py')) + \
-        list((ROOT / 'web').rglob('*.py'))
+        list((ROOT / 'webapp').rglob('*.py'))
     for pat, why in bad_patterns:
         hits = []
         for f in py_files:
@@ -229,7 +229,8 @@ def layer_import() -> None:
                     lay.fail(f'modül {name}', f'{type(e).__name__}: {e}')
 
     # Ağır seçenekler: web ve webapp
-    for name in ('web.app', 'webapp.app'):
+    # #84: web/app.py arşivlendi → yalnızca webapp/ canlı
+    for name in ('webapp.app',):
         try:
             importlib.import_module(name)
             lay.ok()
@@ -585,6 +586,29 @@ def layer_physics() -> None:
             lay.ok()
         else:
             lay.fail(f'{tip} AR', f'{p["AR"]:.3f} vs span²/S {calc:.3f}')
+
+    # 5d-2) POLAR TUTARLILIĞI: K ≈ 1/(π · AR_aero · e)  [denetim #85]
+    # Neden ayrı bir kontrol: yukarıdaki 5d geometrik AR'yi ölçer
+    # (span²/S, winglet DAHİL). Drag poları ise WINGLET'SİZ kanat
+    # üzerinde fit edilmiştir (B738: 34.32 m → AR 9.453). İki büyüklük
+    # karıştırıldığında K/e yapay olarak %7,7 çelişiyordu.
+    # Kural: AR_aerodynamic varsa onu kullan; yoksa AR.
+    import math as _math
+    for tip, p in dbf['aircraft_types'].items():
+        if not isinstance(p, dict) or 'K' not in p or 'e' not in p:
+            continue
+        ar = p.get('AR_aerodynamic') or p.get('AR')
+        if not ar:
+            lay.warn(f'{tip} polar', 'AR_aerodynamic/AR yok — atlandı')
+            continue
+        k_imp = 1.0 / (_math.pi * float(ar) * float(p['e']))
+        rel = abs(k_imp - float(p['K'])) / float(p['K']) * 100
+        if rel < 2.0:
+            lay.ok()
+        else:
+            lay.fail(f'{tip} polar K',
+                     f'K={p["K"]} vs 1/(π·{ar}·{p["e"]})={k_imp:.4f} '
+                     f'(%{rel:.1f})')
 
     # 5e) Kütle hiyerarşisi: OEW < MTOW, max_fuel < MTOW−OEW
     for tip, p in dbf['aircraft_types'].items():

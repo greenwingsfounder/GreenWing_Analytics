@@ -16,6 +16,9 @@ per_type:
     openap_type: B738
     CD0: 0.019
     K: 0.042
+    # e, AERODİNAMİK AR ile tutarlıdır (winglet'siz 34.32 m → AR 9.453):
+    #   e = 1/(π·9.453·0.042) = 0.8017 ≈ 0.799 (denetim #85)
+    AR_aerodynamic: 9.453
     e: 0.799
     reference_kg_per_nm: 6.05
     reference_ff_kg_hr: 2752
@@ -24,6 +27,7 @@ per_type:
     openap_type: B38M
     CD0: 0.02
     K: 0.042
+    AR_aerodynamic: 9.453       # denetim #85
     e: 0.797
     reference_kg_per_nm: 5.22
     reference_ff_kg_hr: 2376

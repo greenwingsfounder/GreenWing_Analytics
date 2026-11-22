@@ -531,11 +531,12 @@ def build():
         ['<code>report_generator.py</code><br/>1.251 satır',
          'HTML/JSON rapor, CORSIA belgesi, vaka çalışması.',
          '✓ #73 düzeltmesi sonrası 0 hata.'],
-        ['<code>web/app.py</code><br/>475 satır',
-         'Şifre korumalı panel (FastAPI): uçuş listesi, tasarruf, '
-         'veri kaynağı şeffaflığı.',
-         '⚠ <b>1 bulgu düzeltildi</b> (#81): "1 gerçek" diyordu, doğrusu '
-         '0. Artık "TAMAMEN SENTETİK" yazıyor.'],
+        ['<code>webapp/app.py</code><br/>1.800 satır',
+         'Şifre korumalı 9 sayfalı site (FastAPI): Genel Bakış, Uçuşlar, '
+         'Metodoloji, Veri Kaynakları, Denetim, El Kitabı, Kullanıcılar, '
+         'Basit Anlatım, Ticari Plan. Rol + kiracı yönetimi.',
+         '✓ #81: veri kaynağı artık doğru ("0 gerçek, 14 sentetik"). '
+         '✓ #84: iki paralel uygulama (web/app.py) arşivlendi.'],
         ['<code>dashboard/app.py</code><br/>1.028 satır',
          'Plotly/Dash ile ikinci, interaktif arayüz.',
          '! Var ama panel (web/) öncelikli.'],
@@ -1152,7 +1153,7 @@ def build():
         'Şifre doğruydu; <b>panel senin tarayıcından erişilebilir bir '
         'adreste çalışmıyordu.</b> Panel bu kod çalışma ortamında '
         '(sandbox) çalışıyor, senin bilgisayarında değil. Bu yüzden '
-        '<code>localhost:8051</code> senin tarayıcında hiçbir şeye bağlanmaz.')]
+        '<code>localhost:8052</code> senin tarayıcında hiçbir şeye bağlanmaz.')]
     story += [p(
         'Çözüm: paneli bu oturumda başlattım ve sana bir <b>önizleme '
         'bağlantısı</b> verildi. O bağlantıyı kullanman gerekir.')]
@@ -1192,7 +1193,7 @@ def build():
     story += [h2('10.4 · Çalıştırma komutları'), gap(2), mono(
         '# Panel\n'
         'GREENWING_DASHBOARD_PASSWORD=\'GucluBirSifre!\' \\\n'
-        '  python -m uvicorn web.app:app --host 0.0.0.0 --port 8051\n\n'
+        '  python -m uvicorn webapp.app:app --host 0.0.0.0 --port 8052\n\n'
         '# Boru hattı\n'
         'python scripts/01_collect_data.py\n'
         'python scripts/02_analyze_and_optimize.py\n'

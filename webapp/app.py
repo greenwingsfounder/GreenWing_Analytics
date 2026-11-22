@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import os
+import html as html_lib
 import sys
 from pathlib import Path
 from typing import Any
@@ -45,7 +46,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from fastapi import Cookie, FastAPI, Form, Query, Request  # noqa: E402
-from fastapi.responses import HTMLResponse, RedirectResponse, Response  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
+from fastapi.responses import (FileResponse, HTMLResponse,  # noqa: E402
+                               RedirectResponse, Response)
 from src.security.auth import (AuthConfigError, DashboardAuth,  # noqa: E402
                                safe_next_url)
 
@@ -174,6 +177,25 @@ def summarize(rows: list[dict]) -> dict:
 # ══════════════════════════════════════════════════════════════════════
 COOKIE = 'gw_session'
 
+def esc(value: object) -> str:
+    """
+    HTML kaçışı — kullanıcı kaynaklı TÜM metinlerden geçmeli.
+
+    Kullanıcı adları config dosyasından gelir; bir gün birisi adını
+    '<script>' yaparsa kaçışsız basım XSS'e dönüşür. Bu fonksiyon
+    sitenin tek kaçış noktasıdır.
+    """
+    return html_lib.escape(str(value if value is not None else ''),
+                           quote=True)
+
+
+# Rol açıklamaları (tek kaynak — /kullanicilar ve /basit aynı metni kullanır)
+ROLE_DESC = {
+    'viewer': 'Sadece okuma — rapor görüntüleme',
+    'analyst': 'Okuma + analiz + kalibrasyon',
+    'admin': 'Tam yetki — kullanıcı ve veri yönetimi',
+}
+
 
 def _check(cookie: str | None, token: str | None) -> tuple[bool, str]:
     """Çerez YA DA query token ile oturum doğrula."""
@@ -184,6 +206,18 @@ def _check(cookie: str | None, token: str | None) -> tuple[bool, str]:
             if ok:
                 return True, user
     return False, ''
+
+
+def _profile(user: str) -> dict:
+    """Kullanıcının rol/kiracı profili (tek hata noktası)."""
+    if not user:
+        return {'username': '', 'role': 'viewer', 'tenant': '-', 'level': 0}
+    return get_auth().profile(user)
+
+
+def _require(user: str, level: str) -> bool:
+    """Sayfa/eylem için rol seviyesi yeterli mi?"""
+    return get_auth().can(user, level)
 
 
 def _set_session(resp: Response, username: str, request: Request) -> str:
@@ -315,6 +349,12 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;
 .b-bad{background:var(--red-bg);color:var(--red);border:1px solid var(--red-line)}
 .b-info{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-line)}
 .b-neutral{background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+/* rol rozetleri — /kullanicilar sayfası */
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;
+  font-size:11.5px;font-weight:700;letter-spacing:.01em}
+.p-viewer{background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+.p-analyst{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-line)}
+.p-admin{background:var(--green-bg);color:var(--green);border:1px solid var(--green-line)}
 
 /* ── FORM ── */
 .login-wrap{max-width:390px;margin:9vh auto;padding:0 20px}
@@ -356,6 +396,7 @@ NAV = [
     ('/denetim', 'Denetim'),
     ('/el-kitabi', 'El Kitabı'),
     ('/basit', 'Basit Anlatım'),
+    ('/kullanicilar', 'Kullanıcılar'),
     ('/ticari', 'Ticari Plan'),
 ]
 
@@ -1248,6 +1289,115 @@ tek yerde</td><td><span class="badge b-ok">kaynaklı</span></td></tr>
 
 
 # ══════════════════════════════════════════════════════════════════════
+# SAYFA 6a — KULLANICILAR (rol + kiracı yönetimi)
+# ══════════════════════════════════════════════════════════════════════
+@app.get('/kullanicilar', response_class=HTMLResponse)
+def users_page(request: Request, gw_session: str | None = Cookie(None),
+               token: str = Query('')):
+    ok, user = _check(gw_session, token)
+    if not ok:
+        return RedirectResponse('/giris?next=/kullanicilar', status_code=303)
+    auth = get_auth()
+    me = auth.profile(user)
+    rows = []
+    for uname in sorted(auth.users):
+        pr = auth.profile(uname)
+        mark = ' ← siz' if uname == user else ''
+        rows.append(f"""<tr>
+<td><b>{esc(uname)}</b>{mark}</td>
+<td><span class="pill p-{pr['role']}">{pr['role']}</span></td>
+<td>{esc(pr['tenant'])}</td>
+<td class="small">{ROLE_DESC[pr['role']]}</td></tr>""")
+    body = f"""
+<h1>Kullanıcılar ve Yetkiler
+<span class="sub">Kim neyi görebilir, kim neyi değiştirebilir.
+Bu tablo olmadan her kullanıcı her şeyi görür — ticari üründe
+kabul edilemez (müşteri verisi karışır).</span></h1>
+
+<div class="note-box {'ok' if me['role']=='admin' else 'warn'}"><div class="t">
+Sizin yetkiniz: {me['role']} · kiracı: {me['tenant']}</div>
+{'Yönetici yetkisiyle girdiniz — tüm kullanıcıları görüyorsunuz.'
+ if me['role']=='admin' else
+ 'Bu sayfa yalnızca yöneticiler içindir. Aşağıdaki liste '
+ 'salt-okunur; değişiklik yapamazsınız.'}
+</div>
+
+<h2>Roller</h2>
+<div class="wrap"><table>
+<thead><tr><th>Rol</th><th>Seviye</th><th>Yapabildiği</th></tr></thead>
+<tbody>
+<tr><td><span class="pill p-viewer">viewer</span></td><td>1</td>
+<td>Rapor ve sayfaları <b>okur</b>. Hiçbir şeyi değiştirmez.
+Yakıt müdürünün patronu, denetçi, dış paydaş.</td></tr>
+<tr><td><span class="pill p-analyst">analyst</span></td><td>2</td>
+<td>Okur + <b>analiz çalıştırır</b> + kalibrasyon yapar +
+veri yükler. Yakıt analisti, uçuş planlamacı.</td></tr>
+<tr><td><span class="pill p-admin">admin</span></td><td>3</td>
+<td>Tam yetki: kullanıcı ekler/siler, katsayı değiştirir,
+veri siler, sırları görür. BT yöneticisi.</td></tr>
+</tbody></table></div>
+
+<h2>Kullanıcılar ({len(auth.users)})</h2>
+<div class="wrap"><table>
+<thead><tr><th>Kullanıcı</th><th>Rol</th><th>Kiracı</th><th>Açıklama</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table></div>
+
+<h2>Kiracı (tenant) nedir, neden şart?</h2>
+<p>Ticari bir yakıt analiz ürününde her müşteri ayrı bir
+<b>kiracıdır</b>. Türk Hava Yolları'nın uçuş verisi Pegasus'un
+kullanıcısına <b>asla</b> görünmemelidir.</p>
+<div class="grid g2">
+  <div class="card info"><div class="lbl">Kiracı olmadan</div>
+  <div class="note">Tek veri havuzu. İkinci müşteri geldiği anda
+  verileri karışır. KVKK/GDPR ihlali. Ürün satılamaz.</div></div>
+  <div class="card ok"><div class="lbl">Kiracı ile (şimdi)</div>
+  <div class="note">Her kullanıcı bir kiracıya bağlı; veri yolu
+  <code>tenant_id</code> ile ayrışıyor. Ingestion katmanı bunu
+  zaten kullanıyordu — kimlik katmanı artık ona bağlandı.</div></div>
+</div>
+
+<h2>Nasıl kullanıcı eklenir?</h2>
+<p>Parola hash'i üretin, sonra <code>config/secrets.yaml</code>'a
+rol ve kiracıyla yazın:</p>
+<pre class="code">python -m src.security.auth --hash</pre>
+<pre class="code">users:
+  ali:
+    hash: "pbkdf2$200000$..."
+    role: admin
+    tenant: thy
+  veli:
+    hash: "pbkdf2$200000$..."
+    role: analyst
+    tenant: thy
+  denetci:
+    hash: "pbkdf2$200000$..."
+    role: viewer
+    tenant: thy</pre>
+<p class="small">Değer düz bir hash string'i ise kullanıcı
+<b>admin + varsayılan kiracı</b> sayılır — mevcut tek kullanıcılı
+kurulumlar bozulmaz.</p>
+
+<h2>Güvenlik notu — ne yapılır, ne yapılmaz</h2>
+<div class="wrap"><table>
+<thead><tr><th>✓ Yapılan</th><th>✗ Yapılmayan</th></tr></thead>
+<tbody>
+<tr><td>Oturum çerezi HMAC-SHA256 ile imzalı; rol çerezde
+taşınmaz, her istekte sunucuda okunur (çerez sahtelemesiyle
+rol yükseltilemez)</td>
+<td>Veritabanı yok — kullanıcılar dosyada. 50+ kullanıcı için
+DB'ye taşınmalı (yol haritasında).</td></tr>
+<tr><td>Parolalar PBKDF2-HMAC-SHA256, 200.000 iterasyon</td>
+<td>Özellik bayrağı (feature flag) yok; rol değişikliği
+süreç yeniden başlatmayı gerektirir.</td></tr>
+<tr><td>Deneme kilidi: 5 hatalı giriş → kilit</td>
+<td>MFA (iki adımlı doğrulama) yok — kurumsal satışta istenir.</td></tr>
+</tbody></table></div>
+"""
+    return HTMLResponse(page('Kullanıcılar', body, user=user, token=token,
+                             active='/kullanicilar'))
+
+
+# ══════════════════════════════════════════════════════════════════════
 # SAYFA 6b — BASİT ANLATIM (jargonsuz)
 # ══════════════════════════════════════════════════════════════════════
 @app.get('/basit', response_class=HTMLResponse)
@@ -1574,6 +1724,43 @@ def api_summary(gw_session: str | None = Cookie(None), token: str = Query('')):
     if not ok:
         return {'error': 'auth', 'login': '/giris'}
     return summarize(load_flights())
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PDF İNDİRME (denetim #84 — web/ kaldırılırken taşınan özellik)
+# ══════════════════════════════════════════════════════════════════════
+REPORTS = ROOT / 'reports'
+PDF_FILES = {
+    'teknik': ('GreenWing_Teknik_Rapor.pdf', 'GreenWing_Teknik_Rapor.pdf'),
+    'elkitabi': ('GreenWing_Proje_El_Kitabi.pdf',
+                 'GreenWing_Proje_El_Kitabi.pdf'),
+}
+
+
+@app.get('/rapor/{kind}.pdf')
+def download_pdf(kind: str, gw_session: str | None = Cookie(None),
+                 token: str = Query('')):
+    """
+    PDF rapor indir (kimlik doğrulaması gerekli — analiz sonuçları içerir).
+
+    denetim #84: bu uç nokta `web/app.py`'de vardı, yeni uygulamaya
+    taşınmadan eski uygulama silinecekti → özellik kaybı. Taşındı.
+    """
+    ok, _u = _check(gw_session, token)
+    if not ok:
+        return RedirectResponse(f'/giris?next=/rapor/{kind}.pdf',
+                                status_code=303)
+    entry = PDF_FILES.get(kind)
+    if entry is None:
+        raise HTTPException(status_code=404, detail='Bilinmeyen rapor türü')
+    path = REPORTS / entry[0]
+    if not path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f'{entry[0]} henüz üretilmemiş — '
+                   'tools/build_*.py çalıştırın.')
+    return FileResponse(path, media_type='application/pdf',
+                        filename=entry[1])
 
 
 @app.get('/healthz')

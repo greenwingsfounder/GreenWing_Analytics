@@ -55,7 +55,7 @@ def check(name: str, cond: bool, detail: str = '') -> None:
 
 
 PAGES = ['', 'ucuslar', 'metodoloji', 'veri', 'denetim', 'el-kitabi',
-         'basit', 'ticari']
+         'basit', 'kullanicilar', 'ticari']
 
 
 def main() -> int:
@@ -121,6 +121,11 @@ def main() -> int:
           r.text.count('Sen ne sunmalısın') >= 6)
     r = fresh.get(f'/denetim?token={token}')
     check('denetim sayfası 81 bulguyu gösteriyor', '81' in r.text)
+    r = fresh.get(f'/kullanicilar?token={token}')
+    check('kullanicilar sayfası 200', r.status_code == 200)
+    check('kullanicilar rol tablosu basıyor',
+          'viewer' in r.text and 'analyst' in r.text and 'admin' in r.text)
+    check('kullanicilar kiracı kavramını açıklıyor', 'Kiracı' in r.text)
     r = fresh.get(f'/basit?token={token}')
     check('basit anlatım jargon içermiyor',
           'Basit Anlatım' in r.text and 'Ticarileşince' in r.text)

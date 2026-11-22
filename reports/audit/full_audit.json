@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-11-22T18:20:07.993663",
-  "total_checks": 217,
-  "passed": 217,
+  "timestamp": "2026-11-22T18:27:38.304383",
+  "total_checks": 227,
+  "passed": 227,
   "fails": 0,
   "layers": [
     {
@@ -14,8 +14,8 @@
     {
       "code": "K2",
       "name": "Import bütünlüğü",
-      "checks": 57,
-      "passed": 57,
+      "checks": 56,
+      "passed": 56,
       "findings": []
     },
     {
@@ -35,8 +35,8 @@
     {
       "code": "K5",
       "name": "Fizik tutarlılığı",
-      "checks": 39,
-      "passed": 39,
+      "checks": 50,
+      "passed": 50,
       "findings": []
     },
     {
