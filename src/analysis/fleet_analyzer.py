@@ -467,7 +467,7 @@ class FleetAnalyzer:
                 'fuel_saving_potential_pct'  : round(
                     fuel_saving_kg / fuel_kg * 100, 2
                 ) if fuel_kg > 0 else 0,
-                'co2_saving_potential_kg'    : round(fuel_saving_kg * 3.16),
+                'co2_saving_potential_kg'    : round(fuel_saving_kg * EI_CO2),
                 'cost_saving_usd'            : cost_saving_usd,
                 'optimum_conditions': {
                     'altitude_ft'  : cruise_altitude_ft,
@@ -491,12 +491,12 @@ class FleetAnalyzer:
                 ),
                 'total_per_flight': {
                     'fuel_saving_kg' : round(fuel_saving_kg),
-                    'co2_saving_kg'  : round(fuel_saving_kg * 3.16),
+                    'co2_saving_kg'  : round(fuel_saving_kg * EI_CO2),
                     'cost_saving_usd': round(cost_saving_usd, 2),
                 },
                 'annual_projection': {
                     'fuel_saving_tonnes'  : round(fuel_saving_kg * 345 / 1000, 2),
-                    'co2_saving_tonnes'   : round(fuel_saving_kg * 3.16 * 345 / 1000, 2),
+                    'co2_saving_tonnes'   : round(fuel_saving_kg * EI_CO2 * 345 / 1000, 2),
                     'cost_saving_usd'     : round(annual_saving_usd),
                     'realistic_annual_usd': round(annual_saving_usd),
                 },
@@ -544,7 +544,7 @@ class FleetAnalyzer:
                     f"SAR kaybı: %{sar_loss_pct:.1f}."
                 ),
                 'estimated_fuel_saving_kg' : round(altitude_saving_kg),
-                'estimated_co2_saving_kg'  : round(altitude_saving_kg * 3.16),
+                'estimated_co2_saving_kg'  : round(altitude_saving_kg * EI_CO2),
                 'estimated_cost_saving_usd': round(altitude_saving_kg * fuel_price_usd_kg, 2),
                 'implementation'           : 'Dispatcher briefing ile uygulanabilir',
                 'difficulty'               : 'LOW',
@@ -561,7 +561,7 @@ class FleetAnalyzer:
                     f"{n_steps} step climb önerilir."
                 ),
                 'estimated_fuel_saving_kg' : round(step_climb_saving_kg),
-                'estimated_co2_saving_kg'  : round(step_climb_saving_kg * 3.16),
+                'estimated_co2_saving_kg'  : round(step_climb_saving_kg * EI_CO2),
                 'estimated_cost_saving_usd': round(step_climb_saving_kg * fuel_price_usd_kg, 2),
                 'implementation'           : 'ATC koordinasyonu gerektirir',
                 'difficulty'               : 'MEDIUM',
@@ -1001,7 +1001,7 @@ class FleetAnalyzer:
         annualized_fuel_tonnes = (
             annualized_cost / avg_fuel_price_usd_per_kg / 1000
         ) if avg_fuel_price_usd_per_kg > 0 else 0
-        annualized_co2_tonnes  = annualized_fuel_tonnes * 3.16
+        annualized_co2_tonnes  = annualized_fuel_tonnes * EI_CO2
 
         avg_fuel_per_nm = (
             total_fuel / total_distance
@@ -1070,7 +1070,7 @@ class FleetAnalyzer:
                 'total_fuel_saving_kg'          : round(total_savings_fuel),
                 'total_cost_saving_usd'         : round(total_savings_cost),
                 'total_co2_saving_kg'           : round(
-                    total_savings_fuel * 3.16
+                    total_savings_fuel * EI_CO2
                 ),
                 'annualized_cost_saving_usd'    : round(annualized_cost),
                 'annualized_fuel_saving_tonnes' : round(
@@ -1372,7 +1372,7 @@ def validate_fleet_analyzer() -> bool:
 
     # CO2 tutarlı mı?
     tests += 1
-    expected_co2_tonnes = sv['annualized_fuel_saving_tonnes'] * 3.16
+    expected_co2_tonnes = sv['annualized_fuel_saving_tonnes'] * EI_CO2
     if abs(sv['annualized_co2_saving_tonnes'] - expected_co2_tonnes) < 2:
         ok(f"Yıllık CO2 azaltma: {sv['annualized_co2_saving_tonnes']} ton ✓")
     else:

@@ -50,6 +50,7 @@ Kaynak:
 """
 
 from __future__ import annotations
+from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
 
 import numpy as np
 import pandas as pd
@@ -659,7 +660,7 @@ class SingleFlightAnalyzer:
             'optimum_estimated_fuel_kg' : round(estimated_total_optimum),
             'fuel_difference_kg'        : round(max(0, fuel_diff)),
             'fuel_saving_potential_pct'  : round(max(0, fuel_saving_pct), 1),
-            'co2_saving_potential_kg'    : round(max(0, fuel_diff) * 3.16),
+            'co2_saving_potential_kg'    : round(max(0, fuel_diff) * EI_CO2),
             'cost_saving_usd'           : round(max(0, fuel_diff) * _price, 2),
             'optimum_conditions': {
                 'altitude_ft': opt_alt,
@@ -726,7 +727,7 @@ class SingleFlightAnalyzer:
                     f"irtifasında SAR %{sar_loss:.1f} daha iyi."
                 ),
                 'estimated_fuel_saving_kg' : round(fuel_save_alt),
-                'estimated_co2_saving_kg'  : round(fuel_save_alt * 3.16),
+                'estimated_co2_saving_kg'  : round(fuel_save_alt * EI_CO2),
                 'estimated_cost_saving_usd': round(fuel_save_alt * fuel_price_usd_kg, 2),
                 'implementation'           : 'Dispatcher briefing ile uygulanabilir',
                 'difficulty'               : 'LOW',
@@ -757,7 +758,7 @@ class SingleFlightAnalyzer:
                     "200-300 Nm aralıklarla 2000 ft step climb önerilir."
                 ),
                 'estimated_fuel_saving_kg' : round(fuel_save_step),
-                'estimated_co2_saving_kg'  : round(fuel_save_step * 3.16),
+                'estimated_co2_saving_kg'  : round(fuel_save_step * EI_CO2),
                 'estimated_cost_saving_usd': round(fuel_save_step * fuel_price_usd_kg, 2),
                 'implementation'           : 'ATC koordinasyonu gerektirir',
                 'difficulty'               : 'MEDIUM',
@@ -779,7 +780,7 @@ class SingleFlightAnalyzer:
                     f"Direct routing talep edilmesi önerilir."
                 ),
                 'estimated_fuel_saving_kg' : round(fuel_save_route),
-                'estimated_co2_saving_kg'  : round(fuel_save_route * 3.16),
+                'estimated_co2_saving_kg'  : round(fuel_save_route * EI_CO2),
                 'estimated_cost_saving_usd': round(fuel_save_route * fuel_price_usd_kg, 2),
                 'implementation'           : 'ATC ile direkt rota talebi',
                 'difficulty'               : 'LOW',
@@ -798,7 +799,7 @@ class SingleFlightAnalyzer:
                     f"holding tespit edildi. Slot yönetimi ile azaltılabilir."
                 ),
                 'estimated_fuel_saving_kg' : round(holding_fuel),
-                'estimated_co2_saving_kg'  : round(holding_fuel * 3.16),
+                'estimated_co2_saving_kg'  : round(holding_fuel * EI_CO2),
                 'estimated_cost_saving_usd': round(holding_fuel * fuel_price_usd_kg, 2),
                 'implementation'           : 'Operasyonel planlama iyileştirmesi',
                 'difficulty'               : 'MEDIUM',
@@ -820,7 +821,7 @@ class SingleFlightAnalyzer:
                               if s['category'] == 'HOLDING_AVOIDANCE'), 0)
 
         total_fuel_saving = fuel_optimization + route_saving + holding_saving
-        total_co2_saving  = total_fuel_saving * 3.16
+        total_co2_saving  = total_fuel_saving * EI_CO2
         total_cost_saving = total_fuel_saving * fuel_price_usd_kg
 
         # Yıllık projeksiyon
@@ -1104,9 +1105,9 @@ def validate_flight_analyzer() -> bool:
         fail("CO2", "sıfır")
 
     tests += 1
-    expected_co2 = fa['estimated_total_fuel_kg'] * 3.16
+    expected_co2 = fa['estimated_total_fuel_kg'] * EI_CO2
     if abs(em['emissions']['CO2_kg'] - expected_co2) < 100:
-        ok(f"CO2 = fuel × 3.16 tutarlı")
+        ok(f"CO2 = fuel × EI_CO2 tutarlı")
     else:
         fail("CO2 tutarlılık", f"{em['emissions']['CO2_kg']} ≠ {expected_co2:.0f}")
 

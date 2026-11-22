@@ -43,7 +43,7 @@ KULLANIM:
     fuel   = UncertainValue(12450, uncertainty_pct=8.0, source="model")
 
     # Hesapla (belirsizlik otomatik yayılır)
-    co2 = fuel.multiply_scalar(3.16)
+    co2 = fuel.multiply_scalar(3.16)   # EI_CO2
     # co2 = 39342 ± 3147 kg (±8.0%)
 
     cost = fuel.multiply_scalar(0.85)
@@ -67,6 +67,7 @@ Kaynak:
 """
 
 from __future__ import annotations
+from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
 
 import numpy as np
 from typing import Optional
@@ -91,7 +92,7 @@ class UncertainValue:
 
     Kullanım:
         fuel = UncertainValue(12450, 8.0, "model_estimate", "kg")
-        co2  = fuel.multiply_scalar(3.16)
+        co2  = fuel.multiply_scalar(EI_CO2)
         print(fuel)  # "12,450 ± 996 kg (±8.0%)"
     """
 
@@ -165,7 +166,7 @@ class UncertainValue:
 
         Örnekler:
             fuel = UncertainValue(12450, 8.0, unit="kg")
-            co2  = fuel.multiply_scalar(3.16, result_unit="kg")
+            co2  = fuel.multiply_scalar(EI_CO2, result_unit="kg")
             # co2.value = 39342, co2.uncertainty_pct = 8.0%
         """
         new_value  = self.value * scalar
@@ -379,7 +380,7 @@ class UncertaintyTracker:
         tracker = UncertaintyTracker()
         tracker.track("weight", UncertainValue(72000, 5.0, "assumption", "kg"))
         tracker.track("fuel", UncertainValue(12450, 8.0, "model", "kg"))
-        tracker.track("co2", UncertainValue(39342, 8.0, "fuel×3.16", "kg"))
+        tracker.track("co2", UncertainValue(39342, 8.0, "fuel×EI_CO2", "kg"))
         tracker.track("saving", UncertainValue(442, 12.5, "optimization", "USD"))
 
         summary = tracker.get_summary()
@@ -576,7 +577,7 @@ def validate_uncertainty() -> bool:
     # ─── [2] Scalar çarpma ────────────────────────────────
     print("\n  [2] Scalar Çarpma")
 
-    co2 = fuel.multiply_scalar(3.16, result_unit="kg CO2")
+    co2 = fuel.multiply_scalar(EI_CO2, result_unit="kg CO2")
 
     check("co2 value", co2.value, 39342, 1.0)
     check("co2 uncertainty", co2.uncertainty_pct, 8.0, 0.01)
@@ -681,7 +682,7 @@ def validate_uncertainty() -> bool:
     tracker.track("fuel_flow", UncertainValue(2347, 6.8, "drag×SFC", "kg/hr"))
     tracker.track("cruise_fuel", UncertainValue(7488, 7.5, "FF×time", "kg"))
     tracker.track("total_fuel", UncertainValue(12450, 8.0, "all_phases", "kg"))
-    tracker.track("co2", UncertainValue(39342, 8.0, "fuel×3.16", "kg"))
+    tracker.track("co2", UncertainValue(39342, 8.0, "fuel×EI_CO2", "kg"))
     tracker.track("saving_usd", UncertainValue(442, 12.5, "optimization", "USD"))
 
     tests += 1
@@ -756,7 +757,7 @@ def validate_uncertainty() -> bool:
     # weight → fuel → co2 → cost zinciri
     w    = UncertainValue(72000, 5.0, "weight_assumption", "kg")
     f    = UncertainValue(12450, 8.0, "fuel_model", "kg")
-    c    = f.multiply_scalar(3.16, result_unit="kg CO2", result_source="CO2=fuel×3.16")
+    c    = f.multiply_scalar(EI_CO2, result_unit="kg CO2", result_source="CO2=fuel×EI_CO2")
     cost = f.multiply_scalar(0.85, result_unit="USD", result_source="cost=fuel×price")
 
     # CO2 belirsizliği = fuel belirsizliği (sabit çarpan)

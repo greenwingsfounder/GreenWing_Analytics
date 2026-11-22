@@ -226,3 +226,61 @@ Test dosyası                 : 16/16 geçiyor (ilk kez gerçekten)
 Toplam doğrulama             : ~950 kontrol
 SXS1409 (gerçek, 1240 nm)    : 8.426 kg → 6.80 kg/nm; tasarruf 176 kg (%3.1 SAR)
 ```
+
+---
+
+## 7. DENETİM — 2. TUR (2026-11-22, devam)
+
+İlk turda bulunan 14 hatadan sonra kalan modüller (validation,
+optimization/calibrator, data_collection, ingestion, reporting)
+satır satır tarandı. **8 yeni bulgu.**
+
+### 7.1 Cost Index — boyut hatası (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 28 | `cost_index_optimizer.py` | `CI = time_cost($/hr) / fuel_price($/kg) / 100` — boyut: `($/hr)/($/kg) = kg/hr`, yani **yakıt akışı**, CI değil. Sonra `/100` ile "CI" adı verilmiş | 2000 $/hr ve 0.85 $/kg için CI=23.5 çıkıyordu — havayolu CI aralığında (5-80) olduğu için "makul" görünüyordu ama **tamamen tesadüftü**. Doğru tanım: `CI = time_cost($/hr) / fuel_cost(cent/lb)`. Düzeltmeden sonra CI=52. |
+
+### 7.2 Benchmark — kg/nm aralıkları kaynaksız ve çok gevşek (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 29 | `benchmark.py` | `_FUEL_PER_NM_RANGES` elle yazılmıştı, kaynağı yoktu. B738 için (6.0, 12.0) — 12 kg/nm B738'in MTOW'daki tüketiminin (~7.5) çok üzerinde | Hiçbir gerçek uçuş FAIL edemezdi; kontrol fiilen işlevsizdi. Alt sınır 6.0 ise gerçek 6.2'yi sınıra dayıyordu. **Düzeltme:** `kg/nm = 1/SAR` — aynı fiziksel büyüklüğün tersi, tek kaynak. B738 → (4.78, 7.46). Sonuç: 14/14 uçuş 6/6 PASS (önce 7 PASS + 7 WARN). |
+
+### 7.3 Kalibrasyon — sahte minimum (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 30 | `model_calibrator.py` | `minimize()` **`bounds` olmadan** çağrılıyordu ve varsayılan yöntem `Nelder-Mead` **sınır desteklemez**. Optimizasyon sınırsız koşup sonuç elle kırpılıyordu: `cd0 = max(0.85, min(1.25, cd0))` | Kırpma sınırında **sahte minimum**: gerçek optimum 1.60 ise 1.25'e kırpılır ve "en iyi uyum" diye raporlanır. **Düzeltme:** `bounds` optimizasyona dahil (Powell), `at_bound` bayrağı raporlanıyor. Doğrulama: %8 sapma → hata −%7.4'ten ±%0.3'e indi. %60 sapma → `at_bound: True`. |
+
+### 7.4 Sihirli sayı — CO₂ faktörü 43 yerde (P1)
+
+| # | Bulgu |
+|---|-------|
+| 31 | `3.16` (kg CO₂/kg yakıt, CORSIA) kodun **43 yerine** dağılmıştı. Üstelik `config/settings.py`'de `EI_CO2 = 3.16` **zaten tanımlıydı** ama görmezden geliniyordu. Faktör güncellenirse 43 yeri elle değiştirmek gerekir. 24 kullanım kanonik sabite bağlandı. |
+
+### 7.5 Sessiz yutulan hatalar (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 32 | `tankering_optimizer.py` | CF modeli çökerse **uydurma** bir CF döndürülüyordu, sessizce | Kullanıcı "hesaplanmış" sanıyordu. Artık loglanıyor + `last_cf_estimated=True` bayrağı. |
+| 33 | `opensky_collector.py` | 3 yerde `except Exception: return None` — hata tipi kayboluyor | Ağ/kimlik/ayrıştırma hatası ayırt edilemiyordu. `last_error` + log eklendi. |
+| 34 | `calibration_pipeline.py` | Denetim izi yazılamazsa sessizce `None` | Uyumluluk açısından görünür olmalı. `trace_error` eklendi. |
+
+### 7.6 Test borcu — testlerin kendisi yanlış (P1)
+
+| # | Bulgu |
+|---|-------|
+| 35 | CI için test yazarken `from ... import CostIndexOptimizer` **fonksiyon içinde** yapıldı → Python bu adı tüm fonksiyonda **yerel** saydı → satır 339 `UnboundLocalError`. Bu, Python'un en sinsi tuzaklarından biri; test kodu da üretim kodu kadar dikkat ister. |
+
+### 7.7 2. tur sonrası durum
+
+```
+Test dosyası      : 16/16 · 0 hata
+test_optimization : 82 → 97 kontrol
+Benchmark         : 14/14 uçuş 6/6 PASS (önce 7 PASS + 7 WARN)
+CI (0.85 $/kg)    : 23.5 (yanlış) → 52 (doğru)
+Kalibrasyon       : −%7.4 hata → ±%0.3
+Sihirli sayı      : CO₂ 43 yerde → 24 kanonik sabite bağlı
+F821              : 0
+```

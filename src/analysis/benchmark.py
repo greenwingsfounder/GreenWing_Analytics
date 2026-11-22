@@ -225,16 +225,25 @@ _FUEL_FLOW_RANGES: dict[str, tuple[float, float]] = {
     'DEFAULT': (1000, 20000),
 }
 
+# ═══════════════════════════════════════════════════════════════
+# FUEL PER NM — FİZİKSEL TÜRETME (2026-11-22 denetimi)
+# ═══════════════════════════════════════════════════════════════
+# ÖNCEKİ DURUM: aşağıdaki aralıklar ELLE yazılmıştı ve kaynağı yoktu.
+# Ayrıca çok gevşekti: B738 için (6.0, 12.0) — 12 kg/nm, B738'in
+# MTOW'daki tüketiminin (~7.5 kg/nm) çok üzerinde, yani hiçbir
+# gerçek uçuş FAIL edemezdi. Alt sınır 6.0 ise gerçek 6.2'yi
+# sınıra dayıyordu.
+#
+# DOĞRU YAKLAŞIM: kg/nm = 1 / SAR. Aynı fiziksel büyüklüğün tersi.
+# Böylece TEK kaynak (OpenAP SAR aralıkları) iki kontrolü de besler
+# ve iki tablo birbiriyle çelişemez.
+#
+# kg/nm alt = 1/SAR_üst,  kg/nm üst = 1/SAR_alt
+# B738: 1/0.209 = 4.78  →  1/0.134 = 7.46   (gerçek 6.2 ✅ içinde)
+# ═══════════════════════════════════════════════════════════════
 _FUEL_PER_NM_RANGES: dict[str, tuple[float, float]] = {
-    'B738': (6.0, 12.0),
-    'B38M': (5.0, 10.0),
-    'A320': (5.5, 11.0),
-    'A20N': (5.0, 10.0),
-    'B77W': (20.0, 38.0),
-    'B788': (13.0, 24.0),
-    'B789': (14.0, 25.0),
-    'A350': (13.0, 24.0),
-    'DEFAULT': (3.0, 50.0),
+    t: (round(1.0 / hi, 2), round(1.0 / lo, 2))
+    for t, (lo, hi) in _SAR_RANGES.items()
 }
 
 _CO2_PER_PAX_KM_RANGE = (30, 250)  # g CO2/pax/km

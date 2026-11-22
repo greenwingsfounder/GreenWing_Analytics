@@ -41,6 +41,10 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
+
+from src.logging_config import get_logger
+
+logger = get_logger(__name__)
 from dotenv import load_dotenv
 
 # ═══════════════════════════════════════════════════════════
@@ -181,7 +185,12 @@ class OpenSkyCollector:
         try:
             response = self.session.get(url, headers=headers, params=params, timeout=_TIMEOUT_S)
             return response
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            # Hata tipi KAYBOLMAMALI: ağ / kimlik / ayrıştırma hatası
+            # aynı şekilde None dönerse tanılama imkânsızlaşır.
+            logger.warning('OpenSky isteği başarısız: %s: %s',
+                           type(exc).__name__, exc)
+            self.last_error = f'{type(exc).__name__}: {exc}'
             return None
 
     def _request(
@@ -225,10 +234,16 @@ class OpenSkyCollector:
                     time.sleep(wait)
                     continue
 
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
                 if attempt < retries:
+                    logger.warning(
+                        'OpenSky denemesi %d/%d başarısız (%s: %s) — yeniden',
+                        attempt + 1, retries + 1, type(exc).__name__, exc)
                     time.sleep(_RETRY_WAIT_S)
                 else:
+                    logger.error('OpenSky tüm denemeler tükendi: %s: %s',
+                                 type(exc).__name__, exc)
+                    self.last_error = f'{type(exc).__name__}: {exc}'
                     return None
 
         return None

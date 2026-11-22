@@ -27,6 +27,7 @@ KULLANIM:
 """
 
 from __future__ import annotations
+from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
 
 from src.validation.data_validator import ValidationResult
 
@@ -345,7 +346,7 @@ class BusinessValidator:
             )
 
         # CO2 tutarlılığı
-        expected_co2 = fuel_kg * 3.16
+        expected_co2 = fuel_kg * EI_CO2
         if abs(expected_co2 - co2_kg) / expected_co2 > 0.01:
             result.add_warning(
                 f"CO2 tutarsızlık: hesaplanan={expected_co2:.0f} kg, "

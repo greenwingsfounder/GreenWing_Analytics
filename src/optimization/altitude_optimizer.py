@@ -1,6 +1,7 @@
 
 
 from __future__ import annotations
+from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
 
 """
 GreenWing Analytics — İrtifa ve Step Climb Optimizasyonu
@@ -593,7 +594,7 @@ class AltitudeOptimizer:
         saving_vs_baseline = baseline_fuel - total_step_fuel
         saving_pct = (saving_vs_baseline / baseline_fuel * 100) if baseline_fuel > 0 else 0.0
         cost_saving = saving_vs_baseline * 0.85
-        co2_saving = saving_vs_baseline * 3.16
+        co2_saving = saving_vs_baseline * EI_CO2
 
         daily_flights = Assumptions.daily_frequency(distance_nm)
         op_days = OPERATIONAL_DAYS_PER_YEAR

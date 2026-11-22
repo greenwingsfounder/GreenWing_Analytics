@@ -275,13 +275,44 @@ class CostIndexOptimizer:
         # Min time (CI=999 eşdeğeri)
         min_time = min(results, key=lambda x: x['flight_time_hr'])
 
-        # CI değeri hesapla (basitleştirilmiş)
-        # CI ∝ time_cost / fuel_cost
+        # ═══════════════════════════════════════════════════════════
+        # COST INDEX — BOYUT DÜZELTMESİ (2026-11-22 denetimi)
+        #
+        # ÖNCEKİ HATA: ci = time_cost($/hr) / fuel_price($/kg) / 100
+        #   Boyut: ($/hr) / ($/kg) = kg/hr  →  bu bir YAKIT AKIŞIDIR,
+        #   cost index değil. Sonra /100 ile "CI" adı verilmişti.
+        #   Sonuç: 2000 $/hr ve 0.85 $/kg için CI=23.5 — havayolu
+        #   CI'ları tipik 5–80 aralığında olduğu için "makul"
+        #   görünüyordu ama tamamen tesadüftü.
+        #
+        # DOĞRU TANIM (Boeing/Airbus ortak):
+        #   CI = (zaman maliyeti, $/saat) / (yakıt maliyeti, cent/lb)
+        #
+        #   Yakıt maliyeti $/kg → cent/lb çevrimi:
+        #       1 kg = 2.20462 lb
+        #       1 $ = 100 cent
+        #       $x/kg = 100·x/2.20462 cent/lb = 45.36·x cent/lb
+        #
+        #   B738 tipik: 2000 $/hr, 0.85 $/kg (= 38.6 cent/lb)
+        #       CI = 2000 / 38.6 = 51.8  →  gerçekçi CI ✅
+        #
+        # Sınır: Boeing CI 0–999, Airbus 0–99 aralığında tanımlı.
+        # ═══════════════════════════════════════════════════════════
         if fuel_price_usd_per_kg > 0:
-            ci_value = round(time_cost_usd_per_hr / fuel_price_usd_per_kg / 100)
+            # $/kg → cent/lb
+            fuel_cost_cent_per_lb = fuel_price_usd_per_kg * 100.0 / 2.20462
+            ci_value = round(time_cost_usd_per_hr / fuel_cost_cent_per_lb)
             ci_value = max(0, min(999, ci_value))
+            # Tanılama için çevrimi de raporla
+            ci_basis = {
+                'time_cost_usd_per_hr'     : round(time_cost_usd_per_hr, 1),
+                'fuel_price_usd_per_kg'    : round(fuel_price_usd_per_kg, 4),
+                'fuel_cost_cent_per_lb'    : round(fuel_cost_cent_per_lb, 2),
+                'formula': 'CI = time_cost($/hr) / fuel_cost(cent/lb)',
+            }
         else:
             ci_value = 50
+            ci_basis = {'formula': 'yakıt fiyatı geçersiz → varsayılan CI'}
 
         # ─── Karşılaştırma ───────────────────────────────
         fuel_diff_vs_fastest = min_time['fuel_kg'] - best['fuel_kg']
@@ -317,6 +348,7 @@ class CostIndexOptimizer:
                 'time_cost_usd' : best['time_cost_usd'],
                 'flight_time_hr': best['flight_time_hr'],
                 'flight_time_min': best['flight_time_min'],
+                'ci_basis'      : ci_basis,
             },
 
             'comparison': {

@@ -199,22 +199,48 @@ class ModelCalibrator:
         # Başlangıç noktası: her ikisi 1.0 (standart)
         x0 = [1.0, 1.0]
 
-        # Sınırlar: CD0 %85-125, SFC %90-115
-        # (Fiziksel olarak mantıklı aralık)
+        # ═══════════════════════════════════════════════════════════
+        # SINIRLAR — GERÇEK KISIT (2026-11-22 denetimi)
+        #
+        # ÖNCEKİ HATA: minimize() 'bounds' olmadan çağrılıyordu ve
+        # varsayılan yöntem 'Nelder-Mead' SINIR DESTEKLEMEZ.
+        # Optimizasyon sınırsız koşuyor, sonra sonuç elle kırpılıyordu:
+        #     cd0 = max(0.85, min(1.25, cd0))
+        # Bu, kırpma sınırında SAHTE bir minimum üretir: gerçek
+        # optimum 1.60 ise 1.25'e kırpılır ve "en iyi uyum" gibi
+        # raporlanır — oysa o noktada gradyan hâlâ aşağıyı gösterir.
+        #
+        # DÜZELTME: sınırlar optimizasyona DAHİL edilir. Powell
+        # yöntemi [0.85, 1.25] × [0.90, 1.15] kutusunda arar;
+        # sonuç zaten kutunun içindedir, kırpma gerekmez.
+        #
+        # CD0 %85-125 ve SFC %90-115: yaşlı uçak / bakımsız motor
+        # için fiziksel olarak makul aralık.
+        # ═══════════════════════════════════════════════════════════
+        bounds = [(0.85, 1.25), (0.90, 1.15)]
+
+        # Bounds desteklemeyen yöntemler sessizce sınırsız koşar →
+        # bu yüzden destekleyen bir yönteme zorla.
+        _bounds_methods = {'Powell', 'L-BFGS-B', 'TNC', 'SLSQP'}
+        if method not in _bounds_methods:
+            method = 'Powell'
+
         try:
             result = minimize(
                 objective,
                 x0=x0,
                 method=method,
-                options={'xatol': 0.001, 'fatol': 0.0001, 'maxiter': 500},
+                bounds=bounds,
+                options={'xtol': 0.001, 'ftol': 0.0001, 'maxiter': 500},
             )
 
-            cd0_factor = float(result.x[0])
-            sfc_factor = float(result.x[1])
-
-            # Fiziksel sınırlara kısıtla
-            cd0_factor = max(0.85, min(1.25, cd0_factor))
-            sfc_factor = max(0.90, min(1.15, sfc_factor))
+            cd0_factor = float(np.clip(result.x[0], 0.85, 1.25))
+            sfc_factor = float(np.clip(result.x[1], 0.90, 1.15))
+            # Sınıra dayandı mı? Raporla — sessiz kırpma yanıltıcıdır.
+            at_bound_cd0 = bool(abs(cd0_factor - 0.85) < 1e-3
+                                or abs(cd0_factor - 1.25) < 1e-3)
+            at_bound_sfc = bool(abs(sfc_factor - 0.90) < 1e-3
+                                or abs(sfc_factor - 1.15) < 1e-3)
 
         except Exception as e:
             return {
@@ -399,6 +425,13 @@ class ModelCalibrator:
             'calibration_factors': {
                 'cd0_factor': round(cd0_factor, 4),
                 'sfc_factor': round(sfc_factor, 4),
+                # Sınıra dayandıysa gerçek optimum kutunun dışında:
+                # kalibrasyon güvenilir DEĞİL, daha fazla veri gerek.
+                'at_bound': {
+                    'cd0': at_bound_cd0,
+                    'sfc': at_bound_sfc,
+                    'bounds': {'cd0': [0.85, 1.25], 'sfc': [0.90, 1.15]},
+                },
             },
 
             'accuracy': {

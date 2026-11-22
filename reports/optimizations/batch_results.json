@@ -23,7 +23,7 @@
     "altitude_saving_kg": 0,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 15,
+    "optimum_ci": 34,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 229.1,
@@ -56,7 +56,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.865,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:41:58.179804"
+    "timestamp": "2026-11-22T13:05:56.486662"
   },
   {
     "filename": "ARR_PGT_PGT501_20261122_121559.csv",
@@ -82,7 +82,7 @@
     "altitude_saving_kg": 149,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 15,
+    "optimum_ci": 34,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 341.0,
@@ -115,7 +115,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.816,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:41:58.599632"
+    "timestamp": "2026-11-22T13:05:56.933247"
   },
   {
     "filename": "ARR_PGT_PGT802_20261122_121651.csv",
@@ -141,7 +141,7 @@
     "altitude_saving_kg": 170,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 15,
+    "optimum_ci": 34,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 238.05,
@@ -173,8 +173,8 @@
     },
     "is_partial_flight": false,
     "fuel_per_nm": 5.515,
-    "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:41:58.940206"
+    "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
+    "timestamp": "2026-11-22T13:05:57.370672"
   },
   {
     "filename": "ARR_SXS_SXS1409_20261122_121559.csv",
@@ -200,7 +200,7 @@
     "altitude_saving_kg": 176,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 15,
+    "optimum_ci": 33,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 248.69,
@@ -233,7 +233,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:41:59.451246"
+    "timestamp": "2026-11-22T13:05:57.944771"
   },
   {
     "filename": "ARR_SXS_SXS1409_LTAI_EDDF.csv",
@@ -259,7 +259,7 @@
     "altitude_saving_kg": 176,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 15,
+    "optimum_ci": 33,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 248.69,
@@ -292,7 +292,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:41:59.938389"
+    "timestamp": "2026-11-22T13:05:58.637609"
   },
   {
     "filename": "ARR_SXS_SXS5720_20261122_121612.csv",
@@ -318,7 +318,7 @@
     "altitude_saving_kg": 229,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 15,
+    "optimum_ci": 33,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 244.78,
@@ -350,8 +350,8 @@
     },
     "is_partial_flight": false,
     "fuel_per_nm": 5.872,
-    "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:00.365866"
+    "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
+    "timestamp": "2026-11-22T13:05:59.225618"
   },
   {
     "filename": "ARR_SXS_SXS6381_20261122_121559.csv",
@@ -377,7 +377,7 @@
     "altitude_saving_kg": 157,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 15,
+    "optimum_ci": 33,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 275.86,
@@ -409,8 +409,8 @@
     },
     "is_partial_flight": false,
     "fuel_per_nm": 5.843,
-    "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:00.781664"
+    "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
+    "timestamp": "2026-11-22T13:05:59.731562"
   },
   {
     "filename": "ARR_THY_THY1011_20261122_121638.csv",
@@ -436,7 +436,7 @@
     "altitude_saving_kg": 0,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 28,
+    "optimum_ci": 62,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 84.4,
@@ -468,8 +468,8 @@
     },
     "is_partial_flight": false,
     "fuel_per_nm": 5.634,
-    "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:01.484819"
+    "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
+    "timestamp": "2026-11-22T13:06:00.508682"
   },
   {
     "filename": "ARR_THY_THY1587_20261122_121559.csv",
@@ -495,7 +495,7 @@
     "altitude_saving_kg": 209,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 28,
+    "optimum_ci": 62,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 346.22,
@@ -528,7 +528,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.808,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:01.951322"
+    "timestamp": "2026-11-22T13:06:01.032323"
   },
   {
     "filename": "ARR_THY_THY1629_20261122_121612.csv",
@@ -554,7 +554,7 @@
     "altitude_saving_kg": 183,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 28,
+    "optimum_ci": 62,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 342.2,
@@ -586,8 +586,8 @@
     },
     "is_partial_flight": false,
     "fuel_per_nm": 5.737,
-    "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:02.393591"
+    "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
+    "timestamp": "2026-11-22T13:06:01.422503"
   },
   {
     "filename": "ARR_THY_THY1865_20261122_121651.csv",
@@ -613,7 +613,7 @@
     "altitude_saving_kg": 164,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 28,
+    "optimum_ci": 62,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 242.19,
@@ -645,8 +645,8 @@
     },
     "is_partial_flight": true,
     "fuel_per_nm": 5.482,
-    "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:02.736599"
+    "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
+    "timestamp": "2026-11-22T13:06:01.771461"
   },
   {
     "filename": "ARR_THY_THY1951_20261122_121625.csv",
@@ -672,7 +672,7 @@
     "altitude_saving_kg": 171,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 28,
+    "optimum_ci": 62,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 234.25,
@@ -704,8 +704,8 @@
     },
     "is_partial_flight": false,
     "fuel_per_nm": 5.97,
-    "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:03.193291"
+    "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
+    "timestamp": "2026-11-22T13:06:02.329659"
   },
   {
     "filename": "ARR_THY_THY501_20261122_121559.csv",
@@ -731,7 +731,7 @@
     "altitude_saving_kg": 209,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 28,
+    "optimum_ci": 62,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 346.03,
@@ -764,7 +764,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.771,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:03.670504"
+    "timestamp": "2026-11-22T13:06:02.778883"
   },
   {
     "filename": "ARR_THY_THY764_20261122_121612.csv",
@@ -790,7 +790,7 @@
     "altitude_saving_kg": 179,
     "step_climb_saving_kg": 0,
     "step_plan": [],
-    "optimum_ci": 28,
+    "optimum_ci": 62,
     "optimum_mach": 0.815,
     "tankering_amount_kg": 3000,
     "tankering_saving_usd": 342.01,
@@ -823,6 +823,6 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.894,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:42:04.035318"
+    "timestamp": "2026-11-22T13:06:03.206146"
   }
 ]

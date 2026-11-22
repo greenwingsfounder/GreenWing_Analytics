@@ -159,8 +159,12 @@ class CalibrationPipeline:
                 )
                 self.last_result["trace_file"] = trace_path
                 self.last_result["tracer_summary"] = tracer.get_trace()["summary"]
-            except Exception:
+            except Exception as _trace_exc:  # noqa: BLE001
+                # Sessiz yutma YOK: iz yazilamazsa nedenini raporla.
                 self.last_result["trace_file"] = None
+                self.last_result["trace_error"] = (
+                    f"{type(_trace_exc).__name__}: {_trace_exc}"
+                )
 
         return self.last_result
 

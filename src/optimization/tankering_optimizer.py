@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from src.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 """
 GreenWing Analytics — Yakıt Tankering Optimizasyonu
 ════════════════════════════════════════════════════
@@ -86,6 +90,11 @@ class TankeringOptimizer:
     # Yardımcı: Carriage Factor
     # ──────────────────────────────────────────────────────
 
+    # Carriage factor modeli çöktüğünde True olur — rapor katmanı
+    # bu değerin TAHMİNİ olduğunu göstermeli.
+    last_cf_estimated: bool = False
+    last_cf_error: str | None = None
+
     def _estimate_carriage_factor(
         self,
         distance_nm: float,
@@ -137,9 +146,23 @@ class TankeringOptimizer:
             cf = (fuel_b - fuel_a) / extra_fuel_kg
             # Fiziksel sınır: %0-15. Bunun dışı model hatasıdır.
             return float(max(0.0, min(cf, 0.12)))
-        except Exception:
-            # Model çalışmazsa: fiziksel olarak makul ve MUHAFAZAKÂR
-            # tek bir değer (mesafeyle hafif artan), kutu tablo değil.
+        except Exception as exc:  # noqa: BLE001
+            # ═══════════════════════════════════════════════════════
+            # ÖNCEKİ DAVRANIŞ: hata sessizce yutuluyor, yerine
+            # UYDURMA bir CF döndürülüyordu. Kullanıcı bunu
+            # "hesaplanmış değer" sanıyordu — sessiz yanlış sayı.
+            #
+            # YENİ: hata loglanır ve sonuç "tahmini" olarak
+            # işaretlenir. Rapor katmanı bu etiketi göstermeli.
+            # ═══════════════════════════════════════════════════════
+            logger.warning(
+                'Carriage factor modeli çalışmadı (%s: %s) — '
+                'fiziksel model yerine YAKLAŞIK formül kullanılıyor. '
+                'Bu değer doğrulanmış değildir.',
+                type(exc).__name__, exc,
+            )
+            self.last_cf_estimated = True
+            self.last_cf_error = f'{type(exc).__name__}: {exc}'
             cf = 0.03 + 0.000004 * distance_nm
             return float(min(cf, 0.10))
 
