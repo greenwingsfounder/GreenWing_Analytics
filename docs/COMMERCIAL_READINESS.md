@@ -779,3 +779,37 @@ Test dosyası   : 16/16 · 0 hata
 tail           : 18 → 25 → 30
 Toplam bulgu   : #1–59
 ```
+
+### 8.25 YANLIŞ POZİTİF #60 — "kenar etkisi" (geri alındı)
+
+`phase_segmentation.py` denetiminde `np.convolve(mode='same')`
+yumuşatmasını "kenar etkisi faz atamasını bozuyor" diye
+işaretledim ve `edge` dolgusuna çevirdim. **Yanlıştı; değişiklik
+geri alındı.**
+
+**Neden yanlıştı:**
+
+```
+vr = [0, 0, 2000, 2100, 2050, ...]     w=5
+mode='same' → [400, 820, 1230, 1630, 2020, ...]
+```
+
+`i = 2` için `(0+0+2000+2100+2050)/5 = 1230` — bu **doğru
+merkezli hareketli ortalama**. Ben "2000 → 1230 düştü" diye
+okudum; oysa 1230, sinyalin kendi düzleştirilmiş değeri.
+Kenarlar (`0,1` ve `-2,-1`) zaten orijinalden geri yazılıyor.
+
+**Doğrulama (bu kez yaptım):**
+
+| i | mode='same' | elle merkezli ortalama | eşit |
+|---|---|---|---|
+| 2 | 1230,0 | 1230,0 | ✓ |
+| 3 | 1630,0 | 1630,0 | ✓ |
+| 4 | 2020,0 | 2020,0 | ✓ |
+
+**Ders (üçüncü tekrar):** ICAO yoğunluk referansında da aynı
+hataya düşmüştüm — "kodun ne yaptığını" hesapla doğrulamadan
+"hata" demek. Bu sefer doğrulamayı denetim sırasında yaptım ve
+yanlış bulguyu geri aldım. **Bulguların da doğrulanması gerekir.**
+
+---
