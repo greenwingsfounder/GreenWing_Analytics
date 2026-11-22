@@ -1270,3 +1270,79 @@ L/D 14,1 çıkıyor, gerçek 18–20. Bu, polar katsayılarının
 (CD0/K) kalibrasyon sorunu ve **ayrı bir iş kalemi** — bu turda
 dokunulmadı çünkü #69/#70 ile karıştırmak etkileri ayrıştırılamaz
 hale getirirdi.
+
+### 8.40 #71 KAPATILDI — "B77W L/D düşük" iddiası DOĞRULANAMADI
+
+§8.39'da açık bıraktığım #71'i ("B77W L/D 14,1 vs gerçek
+18-20") kaynak taramasıyla sınamak istedim. **Sonuç: iddiamı
+doğrulayamadım — kod değiştirmedim.**
+
+**Modelin verdiği (B77W, 250 t, FL350, M0.78):** L/D ≈ 14–15,6
+
+**Kaynak taraması (2026-11-22):**
+
+| Kaynak | Değer | Modelle uyum |
+|---|---|---|
+| `aircraftinvestigation.info` B777-300ER | Oswald e = **0,689**; **maks L/D = 15,68**; ekonomik cruise L/D = 13,09 | **UYUMLU** |
+| Kretov & Tiniakov (MDPI Aerospace 2022) | λ = 9,6; indüklenmiş drag CD_i = 0,01337; toplam CD = 0,02782 | uyumlu mertebe |
+| HAW Hamburg (Seeckt, B777 ön tasarım) | cruise e_cr ≈ **0,85** | **ÇELİŞİYOR** |
+| Yaygın havacılık kaynakları | cruise L/D 18–20 | **ÇELİŞİYOR** |
+
+Yani literatür **kendi içinde çelişiyor** (e = 0,689 vs 0,85).
+En azından bir bağımsız kaynak modelin değerini birebir
+destekliyor (maks L/D 15,68 vs model 15,55).
+
+**Karar: kod değişmedi.** Elimde modelin yanlış olduğunu
+kanıtlayan bir ölçüm yok — yalnızca çelişen ikincil kaynaklar
+var. Bir katsayıyı "gerçek şu olmalı" diye değiştirmek, tam da
+bu denetimin kovaladığı hatayı (kanıtsız düzeltme) tekrarlamak
+olurdu.
+
+**Ne yapıldı:** Çelişki ve kaynaklar yukarıda kayıtlı. #71
+"doğrulanamadı" olarak kapatıldı, **açık araştırma kalemi
+olarak bırakılmadı** — çünkü bir sonraki tur aynı belirsizliği
+sıfırdan yaşamasın.
+
+### 8.41 4. yanlış pozitif adayı — ve neden "yanlış" demiyorum
+
+#71 için ilk iddiam ("L/D 18-20 olmalı, %15-22 düşük") bir
+kaynak tarafından destekleniyor, bir başkası tarafından
+çürütülüyor. Bu yüzden:
+
+- #36 (ICAO ρ), #60 (convolve), #61 (TAT) → **kesin yanlış
+  pozitif**, hesap yapınca kod doğru çıktı, geri alındı.
+- #71 → **doğrulanamayan iddia**, ne düzeltme ne ret; kaynak
+  çelişkisi kayda geçti.
+
+Bu ayrım önemli: "Doğrulayamadım" demek, "yanlıştı" demekten
+farklı. İkisi de dürüst; ama karıştırılırsa bilanço yalan
+söyler.
+
+```
+Yanlış pozitif (kesin) : 3  (#36, #60, #61)
+Doğrulanamayan iddia   : 1  (#71)
+Gerçek bulgu           : 70 (#1–70, #72)
+```
+
+### 8.42 11. tur kapanış
+
+| Bulgu | Konu | Karar |
+|-------|------|-------|
+| 67 | MMO iki kaynağa bölünmüş | ✅ düzeltildi |
+| 68 | Float karşılaştırma MMO'yu eliyor | ✅ düzeltildi |
+| 69 | Dalga sürüklemesi 46 kat zayıf | ✅ düzeltildi (A=200) |
+| 70 | TSFC Mach bağımlılığı ters | ✅ düzeltildi |
+| 71 | B77W L/D "düşük" | ⚠️ **doğrulanamadı**, dokunulmadı |
+| 72 | `validate_fuel_model()` 7 testten düşüyordu | ✅ düzeltildi |
+
+**Yeni test:** `tests/test_mach_physics.py` — 14 kontrol
+(TSFC işareti + büyüklüğü, U eğrisi, gerçek oranlar, köşe
+çözümü, MMO kaynağı).
+
+**Yeniden üretilen çıktılar:** `batch_results.json`,
+`case_study_20261122.json`, HTML rapor, panel, teknik PDF
+(16 sayfa, 127.573 B).
+
+**Ticari özet:** önerilen yıllık tasarruf **$1.835.013 →
+$1.549.998** (−%15,5). Tankering bileşeni değişmedi
+(fizikten bağımsız). Giden rakam şişirilmişti.
