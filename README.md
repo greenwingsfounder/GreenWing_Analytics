@@ -135,10 +135,45 @@ pip install -r requirements.txt
 Environment Variables
 Bash
 copy .env.example .env
+(Windows)  # veya:  cp .env.example .env
 Then edit .env if you have OpenSky credentials:
 env
+OPENSKY_CLIENT_ID=your_client_id
+OPENSKY_CLIENT_SECRET=your_client_secret
+# veya Basic auth:
 OPENSKY_USERNAME=your_username
 OPENSKY_PASSWORD=your_password
+🔐 Security
+Never commit secrets, tokens, or credentials. This project follows
+strict secret hygiene:
+
+```
+# ✅ DO — use environment variables / .env (gitignored)
+OPENSKY_CLIENT_SECRET=...        # .env only, never committed
+
+# ❌ DON'T — never hardcode or commit credentials
+# credentials.json, *.pem, *.key, .env are gitignored
+```
+
+Rules enforced in code and tests (`tests/test_security.py`):
+
+- No secrets in source: credentials come only from environment variables
+  (`config/secrets.py`).
+- `.env`, `credentials.json`, `*.pem`, `*.key` are gitignored — a secret
+  scanner test fails the suite if any leak back in.
+- Dashboard debug mode defaults to `False` (prevents remote code execution
+  via the Werkzeug debugger). Set `DASHBOARD_DEBUG=false` in production.
+- User-facing inputs (callsigns, report names) are validated to block
+  path traversal and HTML injection.
+- Run security checks locally:
+
+```bash
+pip install bandit pip-audit
+bandit -r src scripts config dashboard -ll
+pip-audit -r requirements.txt
+python tests/test_security.py
+```
+
 Run Core Module Tests
 Bash
 python -m config.settings

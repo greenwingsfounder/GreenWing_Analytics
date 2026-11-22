@@ -30,6 +30,7 @@ KULLANIM:
 """
 
 import os
+import re
 import sys
 import time
 import argparse
@@ -39,11 +40,34 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+# ── GÜVENLİK: TLS doğrulaması (açık ve merkezi) ────────────
+# requests varsayılan olarak sertifika+hostname doğrular. Ek olarak
+# burada açıkça verify=True geçiyoruz ve HTTP URL'lerini reddediyoruz.
+
+# Kimlik/rota enjeksiyonunu önleyen callsign deseni (IATA/ICAO: 3-8 alfanumerik)
+_CALLSIGN_RE = re.compile(r"^[A-Z0-9]{3,8}$")
+
+
+def sanitize_callsign(callsign: str) -> str:
+    """
+    Kullanıcı/CLI girdisi callsign'ı doğrula.
+
+    NEDEN: callsign hem URL yoluna hem de dosya adına giriyordu.
+    '../../etc/passwd' gibi girdiler path traversal / SSRF'e yol açabilir.
+    """
+    cleaned = (callsign or "").strip().upper()
+    if not _CALLSIGN_RE.match(cleaned):
+        raise ValueError(
+            f"Geçersiz callsign: {callsign!r}. Beklenen: 3-8 karakter, yalnız A-Z ve 0-9."
+        )
+    return cleaned
+
 def get_live_aircraft_data(callsign: str) -> dict | None:
     """ADSB.lol API üzerinden uçağın canlı durumunu sorgular."""
     url = f"https://api.adsb.lol/v2/callsign/{callsign.upper().strip()}"
     try:
-        response = requests.get(url, timeout=10)
+        # GÜVENLİK: HTTPS + açık sertifika doğrulaması zorunlu
+        response = requests.get(url, timeout=10, verify=True, allow_redirects=False)
         if response.status_code == 200:
             data = response.json()
             if data.get("total", 0) > 0 and data.get("ac"):
@@ -54,7 +78,8 @@ def get_live_aircraft_data(callsign: str) -> dict | None:
         return None
 
 def start_scrapping(callsign: str, interval_s: int = 30):
-    callsign = callsign.upper().strip()
+    # GÜVENLİK: callsign doğrulanır (URL + dosya adı enjeksiyonu engellenir)
+    callsign = sanitize_callsign(callsign)
     save_dir = "data/raw/opensky"
     os.makedirs(save_dir, exist_ok=True)
     

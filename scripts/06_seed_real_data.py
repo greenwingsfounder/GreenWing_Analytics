@@ -1,24 +1,29 @@
 # scripts/06_seed_real_data.py
 
 """
-GreenWing Analytics — Gerçek Uçuş Veri Havuzu (Data Seeder)
-═══════════════════════════════════════════════════════════
+GreenWing Analytics — Sentetik Uçuş Yolu Üreteci (Synthetic Data Seeder)
+═══════════════════════════════════════════════════════════════════════════
 
-Bu script, OpenSky Network API'sinin kesintiye uğraması veya rate-limit (HTTP 429)
-vermesi durumunda kullanılmak üzere, havacılık veri arşivlerinden derlenmiş
-100% gerçekçi ve anomalili (holding pattern, step climb, rüzgar sapması) 
-uçuş yolu (trajectory) dosyaları üretir ve 'data/archive/opensky_real/' klasörüne kaydeder.
+⚠️  ÖNEMLİ / DÜRÜSTLÜK NOTU:
+    Bu script GERÇEK radar/ADS-B verisi toplamaz. Matematiksel olarak
+    SENTETİK (simüle) uçuş yolları ÜRETİR ve bunları test/demo amacıyla
+    'data/archive/opensky_real/' klasörüne yazar.
 
-BU VERİLERİN YAPAY SİMÜLASYONDAN FARKI NEDİR?
-─────────────────────────────────────────────
-    Yapay simülasyonlar pürüzsüz ve düz çizgilerden oluşur. Gerçek radar (QAR/ADS-B)
-    verilerinde ise:
-        1. Holding Pattern (Bekleme Turu): İniş yoğunluğu nedeniyle havalimanı üzerinde daireler çizme.
-        2. Rüzgar ve Türbülans Gürültüsü: GPS koordinatlarında küçük, rastgele sapmalar.
-        3. ATC Hız ve İrtifa Kısıtları: Kademeli alçalma ve tırmanma basamakları.
-        4. Hız Değişimleri: Yaklaşma sırasında flap açılması ve iniş takımı açılması nedeniyle yavaşlama.
+    Eski sürüm bu verileri "Gerçek Uçuş Veri Havuzu" ve "%100 gerçek"
+    olarak tanımlıyordu. Bu yanıltıcıydı ve düzeltildi.
 
-Bu script, bu 4 havacılık anomalisini de barındıran 15 adet "Gerçek Rota Kaydı" üretir.
+    Gerçek veri için: OpenSkyCollector (OpenSky API) veya
+    scripts/07_live_flight_scrapper.py (ADSB.lol canlı radar) kullanın.
+
+NE ÜRETİR?
+──────────
+    Gerçekçilik katmak için 4 havacılık anomalisini simüle eder:
+        1. Holding Pattern (Bekleme Turu)
+        2. Rüzgar/Türbülans gürültüsü (rastgele GPS sapması)
+        3. ATC hız ve irtifa kısıtları (kademeli alçalma/tırmanma)
+        4. Yaklaşma sırasında hız değişimleri
+
+    Çıktı: 15 adet SENTETİK rota kaydı (test/demo amaçlı).
 """
 
 import os

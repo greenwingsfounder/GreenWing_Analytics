@@ -83,7 +83,8 @@ class FlightMatcher:
             dt1 = datetime.strptime(d1[:10], "%Y-%m-%d")
             dt2 = datetime.strptime(d2[:10], "%Y-%m-%d")
             return (dt1-dt2).days
-        except: return 999
+        except (ValueError, TypeError, IndexError):
+            return 999
 
     def get_match_statistics(self, m):
         return {"total_matched": len(m)}

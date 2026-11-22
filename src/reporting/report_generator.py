@@ -22,6 +22,34 @@ except ImportError:
 
 from config.settings import SYSTEM_NAME, SYSTEM_VERSION
 
+# GÜVENLİK: Rapor HTML'i f-string ile üretiliyor. Dışarıdan gelen
+# serbest metinler (havayolu adı, dönem) HTML'e kaçışsız girerse
+# XSS'e (CWE-79) yol açar. Aşağıdaki yardımcı tüm serbest metinleri kaçışlar.
+import html as _html_mod
+import re as _re_mod
+
+
+def escape_html(value) -> str:
+    """Serbest metni HTML-güvenli hale getir (XSS savunması)."""
+    return _html_mod.escape("" if value is None else str(value), quote=True)
+
+
+_SAFE_FILENAME_RE = _re_mod.compile(r"[^A-Za-z0-9._-]+")
+
+
+def sanitize_filename(name: str, fallback: str = "report") -> str:
+    """
+    Dosya adını güvenli hale getir (path traversal savunması, CWE-22).
+
+    '/' , '..' ve benzeri karakterler temizlenir; boş/tehlikeli
+    sonuç fallback'e düşer.
+    """
+    base = os.path.basename(str(name or ""))
+    base = _SAFE_FILENAME_RE.sub("_", base).strip("._")
+    if not base or base in {".", ".."}:
+        return fallback
+    return base[:150]
+
 
 class ReportGenerator:
 
@@ -133,6 +161,12 @@ class ReportGenerator:
             reporting_period = (
                 f"Analiz Raporu — {datetime.now().strftime('%B %Y')}"
             )
+
+        # GÜVENLİK: serbest metinler HTML'e girmeden önce kaçışlanır (XSS),
+        # dosya adı ise path traversal'a karşı temizlenir.
+        airline_name = escape_html(airline_name)
+        reporting_period = escape_html(reporting_period)
+        output_filename = sanitize_filename(output_filename, "GreenWing_Fleet_Report")
 
         # ── Veri blokları ────────────────────────────────
         fs   = fleet_summary.get('fleet_summary', {})

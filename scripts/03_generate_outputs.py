@@ -498,6 +498,34 @@ def main():
     avg_annual   = float(np.mean([r['annual_realistic_usd'] for r in results])) if results else 0
     total_co2    = sum(r.get('co2_kg', 0) for r in results)
 
+def _resolve_data_source_subtitle(results: list) -> str:
+    """
+    Vaka çalışması alt başlığını, gerçek veri kaynağına göre üret.
+
+    Eski davranış: koşulsuz "Based on Real ADS-B Flight Data".
+    Yeni davranış: kayıtların collection_method alanına bakılır;
+    sentetik/simülasyon verisi varsa bunu DÜRÜSTÇE belirtir.
+    """
+    methods = {str(r.get("collection_method", "") or "").lower() for r in results}
+    methods.discard("")
+
+    real_methods = {"arrivals", "departures", "active_flight", "opensky_adsb"}
+    synthetic_markers = {"demo_simulation", "synthetic_fallback", "mock", "simulation"}
+
+    has_synthetic = bool(methods & synthetic_markers) or any(
+        "sim" in m or "mock" in m or "demo" in m for m in methods
+    )
+    has_real = bool(methods & real_methods)
+
+    if has_synthetic and has_real:
+        return "Mixed Data: Real ADS-B + Synthetic Simulation (see provenance)"
+    if has_synthetic:
+        return "Synthetic Simulation Data — Not Real Flight Records"
+    if has_real:
+        return "Based on Real ADS-B Flight Data (OpenSky Network)"
+    return "Data Provenance Undetermined"
+
+
     airlines = {}
     for r in results:
         code = r.get('airline_code', 'UNK')
@@ -516,7 +544,10 @@ def main():
 
     case_study = {
         'title'      : 'Aviation Fuel Optimization — Demonstrative Case Study',
-        'subtitle'   : 'Based on Real ADS-B Flight Data (OpenSky Network)',
+        # GÜVENLİK/DOĞRULUK: Alt başlık artık veri kaynağını DİNAMİK olarak yansıtır.
+        # Eski sabit "Real ADS-B" ifadesi, batch_results 'demo_simulation' içerdiğinde
+        # yanlış beyandı (greenwashing/false advertising riski).
+        'subtitle'   : _resolve_data_source_subtitle(results),
         'generated'  : datetime.now().isoformat(),
         'methodology': (
             'OpenSky ADS-B + ICAO ISA Performance Model + '

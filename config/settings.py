@@ -307,12 +307,19 @@ Varsayılan: 8050 (Dash default).
 Başka uygulama bu portu kullanıyorsa değiştir.
 """
 
-DASHBOARD_DEBUG = os.getenv("DASHBOARD_DEBUG", "True").lower() in ("true", "1", "yes")
+DASHBOARD_DEBUG = os.getenv("DASHBOARD_DEBUG", "False").lower() in ("true", "1", "yes")
 """
 Dashboard debug modu.
-True  = Geliştirme (hot reload, detaylı hatalar)
-False = Production (sessiz hatalar, performans)
-.env dosyasından override edilebilir.
+
+GÜVENLİK NOTU (CWE-94 / CWE-489):
+    Dash/Flask debug=True, hata sayfasında ETKİLEŞİMLİ HATA AYIKLAYICI
+    (Werkzeug debugger) açar. Bu, uzaktan keyfi KOD ÇALIŞTIRMA (RCE)
+    riski taşır. Bu nedenle varsayılan artık False'tur.
+
+    True  = Geliştirme (hot reload, detaylı hatalar — ASLA internete açma)
+    False = Production (güvenli varsayılan)
+
+    Yerelde geliştirirken: DASHBOARD_DEBUG=true (.env içinde)
 """
 
 

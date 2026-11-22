@@ -128,7 +128,7 @@ def reset_for_real_data(backup_root: Path):
                     try:
                         f.unlink()
                         deleted += 1
-                    except:
+                    except OSError:
                         pass
 
     # 3. batch_results.json'i KORU (önemli: trajectory kaynağı)
@@ -143,7 +143,7 @@ def reset_for_real_data(backup_root: Path):
                 try:
                     f.unlink()
                     deleted += 1
-                except:
+                except OSError:
                     pass
 
     # 5. Runtime data dir'leri temiz tut (ama silme, sadece içeriği)
@@ -159,7 +159,21 @@ def reset_for_real_data(backup_root: Path):
     print("  ⚠️  PRE-REAL → REAL geçişi: Sadece live ingestion + real adapters kalacak.")
     print("="*72 + "\n")
 
-def clean_and_backup(mode="clean", target=""):
+def clean_and_backup(mode="clean", target="", yes_i_am_sure: bool = False):
+    """
+    Veri temizleme / yedekleme.
+
+    GÜVENLİK: Veri SİLEN modlar artık varsayılan olarak onay ister.
+    Eski sürümde 'clean' modu, yanlışlıkla çalıştırıldığında geri
+    dönüşü olmayan veri kaybına yol açabiliyordu.
+    """
+    DESTRUCTIVE_MODES = {"clean", "clean-demos", "reset-for-real"}
+    if mode in DESTRUCTIVE_MODES and not yes_i_am_sure:
+        print(f"\n  ⛔ '{mode}' modu veri SİLER ve onay gerektirir.")
+        print(f"     Onaylamak için: --yes-i-am-sure bayrağını ekleyin.")
+        print(f"     Önce yedek almak için: --mode backup\n")
+        return
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_root = _PROJECT_ROOT / "data" / "archive"
     backup_root.mkdir(parents=True, exist_ok=True)
@@ -186,7 +200,7 @@ def clean_and_backup(mode="clean", target=""):
             for f in raw_files:
                 try:
                     f.unlink()
-                except:
+                except OSError:
                     pass
             print("  ✅ data/raw/opensky/ temizlendi")
 
@@ -201,5 +215,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="GreenWing Enterprise Clean & Reset Tool")
     p.add_argument("--mode", default="clean", choices=["clean", "backup", "restore", "clean-demos", "reset-for-real"])
     p.add_argument("--target", default="")
+    p.add_argument("--yes-i-am-sure", action="store_true",
+                   help="Veri silen modlar için zorunlu onay bayrağı")
     args = p.parse_args()
-    clean_and_backup(args.mode, args.target)
+    clean_and_backup(args.mode, args.target, yes_i_am_sure=args.yes_i_am_sure)
