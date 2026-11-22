@@ -284,8 +284,9 @@ def section_toc():
         ('', '4.2', 'Yakıt akışı: 11 uçak tipi'),
         ('', '4.3', 'Sürükleme poları: neden düzeltmedik?'),
         ('', '4.4', 'Adım tırmanışı fiziği'),
-        ('', '4.5', 'Cost Index — boyut analizi'),
-        ('', '4.6', 'Maliyet modeli ve sınırları'),
+        ('', '4.5', 'Atmosfer modeli — ICAO Doc 7488'),
+        ('', '4.6', 'Cost Index — boyut analizi'),
+        ('', '4.7', 'Maliyet modeli ve sınırları'),
         ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
         ('6', 'Satır satır denetim — 20 gerçek hata', '41.656 satır, 2 tur'),
@@ -743,7 +744,34 @@ def section_correctness():
         ['Ağır + kısa (74 t, 500 nm)', 'kârsız (−196 kg)', 'kârsız', 'EVET'],
     ], [56 * mm, 40 * mm, 34 * mm, 20 * mm])
 
-    h2('4.5 Cost Index — boyut analizi')
+    h2('4.5 Atmosfer modeli — ICAO Doc 7488 doğrulaması')
+
+    p('Her sürükleme, itki ve Mach hesabı atmosfer modeline dayanır. '
+      'Bu yüzden model, ICAO\'nun resmî Standart Atmosfer tablosuyla '
+      '8 noktada karşılaştırıldı:')
+
+    table([
+        ['İrtifa', 'T model', 'T ICAO', 'p model', 'p ICAO', 'Durum'],
+        ['0 ft', '15,00 °C', '15,00 °C', '1013,25 hPa', '1013,25 hPa', 'tam'],
+        ['10.000 ft', '−4,81 °C', '−4,81 °C', '696,81 hPa', '696,81 hPa', 'tam'],
+        ['20.000 ft', '−24,62 °C', '−24,62 °C', '465,63 hPa', '465,63 hPa', 'tam'],
+        ['35.000 ft', '−54,34 °C', '−54,34 °C', '238,42 hPa', '238,42 hPa', 'tam'],
+        ['36.089 ft', '−56,50 °C', '−56,50 °C', '226,32 hPa', '226,32 hPa', 'tam'],
+        ['50.000 ft', '−56,50 °C', '−56,50 °C', '115,97 hPa', '115,97 hPa', 'tam'],
+    ], [26 * mm, 28 * mm, 28 * mm, 32 * mm, 32 * mm, 32 * mm], fs=8)
+
+    callout(
+        'Denetimde öğrenilen ders',
+        'Bu tabloyu kurarken ilk denemede iki değeri yanlış referanstan '
+        'okudum ve modeli "hatalı" sandım. Doğrusu: ρ(20.000 ft) = 0,6527 '
+        '(0,5927 değil) ve p(50.000 ft) = 11.597 Pa (7.978 değil). '
+        '<b>Referansı doğrulamadan "hata" demek de bir hatadır.</b> '
+        'Bu yüzden tablo artık test dosyasında kayıtlı — hem model hem '
+        'referans aynı yerde.',
+        color=NAVY, bg='#EFF6FF',
+    )
+
+    h2('4.6 Cost Index — boyut analizi')
 
     p('Cost Index (CI), havayolunun "zaman mı yakıt mı" tercihidir. '
       'Denetimde burada <b>boyut hatası</b> bulundu:')
@@ -761,7 +789,7 @@ def section_correctness():
       '<code>0.85 $/kg × 100 ÷ 2.20462 = 38.56 cent/lb</code>, '
       'dolayısıyla <code>CI = 2000 ÷ 38.56 = 52</code>.')
 
-    h2('4.6 Maliyet modeli — ve sınırları')
+    h2('4.7 Maliyet modeli — ve sınırları')
 
     p('Sistem iki ayrı para kaynağı üretir ve bunları <b>asla '
       'toplamaz</b>:')
@@ -796,7 +824,7 @@ def section_tests():
 
     table([
         ['Test dosyası', 'Kontrol', 'Durum', 'Ne doğrular'],
-        ['test_atmosphere.py', '64', 'EVET', 'ISA sıcaklık/basınç/yoğunluk'],
+        ['test_atmosphere.py', '84', 'EVET', 'ISA + ICAO Doc 7488 referansı'],
         ['test_fuel_model.py', '76', 'EVET', 'Yakıt akışı, Breguet, faz yakıtı'],
         ['test_performance.py', '59', 'EVET', 'Sürükleme poları, L/D, CL'],
         ['test_emission.py', '118', 'EVET', 'CO₂/NOx, CORSIA'],
@@ -919,6 +947,9 @@ def section_audit():
         ['20', 'opensky_collector.py', '3 yerde <code>except: return None</code> '
          '— hata tipi kayboluyor',
          'Ağ/kimlik/ayrıştırma hatası ayırt edilemiyordu'],
+        ['21', 'scripts/02', 'Rüzgâr kaynağı (gerçek ADS-B / mevsimsel tahmin) '
+         'yalnız konsola basılıyordu',
+         'Raporda hangi rüzgârın kullanıldığı bilinmiyordu'],
     ]
     table(audit, [7 * mm, 34 * mm, 60 * mm, 65 * mm], fs=7.5)
 
