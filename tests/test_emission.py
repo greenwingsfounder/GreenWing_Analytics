@@ -399,6 +399,48 @@ def run_tests():
     )
 
     # ═══════════════════════════════════════════════════════
+    # 18b. [SA] MOTOR VERİMİ ETKİSİ — denetim #41 regresyonu
+    # ═══════════════════════════════════════════════════════
+    print("\n  [18b] [SA] Motor verimi contrail eşiğini kaydırmalı")
+
+    # DENETİM #41: engine_efficiency parametresi HİÇ kullanılmıyordu
+    # (0.20 ile 0.55 aynı sonucu veriyordu). Ayrıca fonksiyon "tam
+    # Schmidt-Appleman" değildir — eşik tabanlı yaklaşımdır ve
+    # docstring artık bunu söylüyor. Bu testler verim etkisini kilitler.
+
+    # (a) Sınır sıcaklığında verim sonucu DEĞİŞTİRMELİ
+    _sa_low  = calc.schmidt_appleman_criterion(35000, -42.0, 0.5, 0.20)
+    _sa_high = calc.schmidt_appleman_criterion(35000, -42.0, 0.5, 0.50)
+    check_true(
+        f"SA verim etkisi: eta=0.20 contrail={_sa_low['contrail_formation_likely']} "
+        f"≠ eta=0.50 contrail={_sa_high['contrail_formation_likely']}",
+        _sa_low['contrail_formation_likely'] != _sa_high['contrail_formation_likely']
+    )
+
+    # (b) Yön doğru: yüksek verim → egzoz daha az ısı → contrail daha kolay
+    check_true(
+        f"SA yüksek verimde contrail daha kolay "
+        f"(eta 0.50 → {_sa_high['contrail_formation_likely']})",
+        _sa_high['contrail_formation_likely'] is True
+    )
+
+    # (c) Çok soğukta verim fark etmez — hep contrail
+    _sa_cold_low  = calc.schmidt_appleman_criterion(35000, -60.0, 0.5, 0.20)
+    _sa_cold_high = calc.schmidt_appleman_criterion(35000, -60.0, 0.5, 0.50)
+    check_true(
+        "SA -60°C'de verimden bağımsız contrail",
+        _sa_cold_low['contrail_formation_likely']
+        and _sa_cold_high['contrail_formation_likely']
+    )
+
+    # (d) Sıcak havada verim yüksek olsa bile contrail yok
+    _sa_warm = calc.schmidt_appleman_criterion(35000, -20.0, 0.9, 0.50)
+    check_true(
+        f"SA -20°C'de contrail yok (T={_sa_warm['temperature_C']})",
+        not _sa_warm['contrail_formation_likely']
+    )
+
+    # ═══════════════════════════════════════════════════════
     # 19. SAF — TEMEL (%6 HEFA)
     # ═══════════════════════════════════════════════════════
     print("\n  [19] SAF — Temel (%6 HEFA)")
@@ -407,6 +449,40 @@ def run_tests():
 
     check_range("SAF CO₂ azaltım %", saf['co2_reduction_pct'], 1.0, 10.0)
     check_true(f"Net benefit hesaplandı", 'net_benefit_usd' in saf)
+
+    # ═══════════════════════════════════════════════════════
+    # 19b. [SAF] ANAHTAR NORMALİZASYONU — denetim #42 regresyonu
+    # ═══════════════════════════════════════════════════════
+    print("\n  [19b] [SAF] Tip adı normalizasyonu + bilinmeyen tip")
+
+    # DENETİM #42: Tabloda 'FT_SPK' var, docstring 'FT-SPK' yazıyordu.
+    # `.get(x, 0.72)` SESSİZCE HEFA'ya düşüyordu → %90 yerine %72
+    # azaltım, hiç uyarı yok. Bu test üç yazımı da kilitler.
+
+    _ft_canon = calc.calculate_saf_impact(10000, 50, 'FT_SPK')
+    check("SAF FT_SPK kanonik factor", _ft_canon['reduction_factor'], 0.90, 0.001)
+
+    for _spelling in ('FT-SPK', 'FT SPK', 'ft-spk', 'Ft_Spk'):
+        _r = calc.calculate_saf_impact(10000, 50, _spelling)
+        check_true(
+            f"SAF {_spelling!r} → 0.90 (normalize edildi: "
+            f"{_r['reduction_factor']})",
+            abs(_r['reduction_factor'] - 0.90) < 0.001
+        )
+
+    # Bilinmeyen tip SESSİZCE kabul edilmemeli
+    _raised = False
+    try:
+        calc.calculate_saf_impact(10000, 50, 'SAÇMA_TİP_XYZ')
+    except ValueError:
+        _raised = True
+    check_true("SAF bilinmeyen tip ValueError veriyor", _raised)
+
+    # Azaltım yüzdesi = blend × reduction_factor (kütle bazlı)
+    # %50 × 0.90 = %45.0 ; %50 × 0.72 = %36.0
+    check("SAF FT_SPK %50 blend azaltım", _ft_canon['co2_reduction_pct'], 45.0, 0.05)
+    _hefa = calc.calculate_saf_impact(10000, 50, 'HEFA')
+    check("SAF HEFA %50 blend azaltım", _hefa['co2_reduction_pct'], 36.0, 0.05)
 
     # ═══════════════════════════════════════════════════════
     # 20. SAF — MİKTAR DOĞRULAMA
@@ -552,6 +628,60 @@ def run_tests():
     check_true(
         "Her kayıtta quality_flag var",
         all('quality_flag' in r for r in records)
+    )
+
+    # ═══════════════════════════════════════════════════════
+    # 26b. [CORSIA] BOZUK VERİ — denetim #44/#45 regresyonu
+    # ═══════════════════════════════════════════════════════
+    print("\n  [26b] [CORSIA] Bozuk veri reddedilmeli, çökmemeli")
+
+    # DENETİM #44: fuel_kg='abc' → TypeError; -500 → toplama
+    # giriyordu; eksik → sessizce 0. DENETİM #45: rapor
+    # "2 uçuş" diyor ama yakıt 1 uçuşluk, fark görünmüyordu.
+
+    _dirty = [
+        {'flight_number': 'OK1',  'date': '2024-01-01', 'fuel_kg': 12000},
+        {'flight_number': 'STR1', 'date': '2024-01-02', 'fuel_kg': 'abc'},
+        {'flight_number': 'NEG1', 'date': '2024-01-03', 'fuel_kg': -500},
+        {'flight_number': 'MISS1'},
+        {'flight_number': 'HUGE1','date': '2024-01-05', 'fuel_kg': 900000},
+    ]
+
+    _mon = calc.corsia_compliance.monitoring_report(_dirty)
+
+    # Çökmemeli ve yalnız geçerli kaydı saymalı
+    check("CORSIA bozuk veri: doğrulanmış kayıt", _mon['verified_flights'], 1, 0.01)
+    check("CORSIA bozuk veri: reddedilen kayıt", _mon['rejected_flights'], 4, 0.01)
+    check("CORSIA bozuk veri: yakıt yalnız geçerli", _mon['total_fuel_kg'], 12000, 1.0)
+    check("CORSIA bozuk veri: toplam kayıt", _mon['total_flights'], 5, 0.01)
+
+    # Reddetme nedenleri görünmeli
+    _reasons = {r['flight_id']: r['reason'] for r in _mon['rejection_details']}
+    check_true(f"CORSIA 'abc' → MISSING ({_reasons.get('STR1')})",
+               _reasons.get('STR1') == 'MISSING')
+    check_true(f"CORSIA -500 → INVALID ({_reasons.get('NEG1')})",
+               'INVALID' in str(_reasons.get('NEG1')))
+    check_true(f"CORSIA 900t → SUSPECT ({_reasons.get('HUGE1')})",
+               'SUSPECT' in str(_reasons.get('HUGE1')))
+
+    # Raporda düşen kayıt sayısı AÇIKÇA yazmalı
+    _rep = calc.corsia_compliance.reporting_document(_mon, 'Test Air', 2024)
+    check("CORSIA raporda verified_flights", _rep['emissions']['verified_flights'], 1, 0.01)
+    check("CORSIA raporda rejected_flights", _rep['emissions']['rejected_flights'], 4, 0.01)
+    check_true(
+        "CORSIA raporda veri kalitesi notu var",
+        'reddedildi' in _rep['emissions']['data_quality_note']
+    )
+
+    # Temiz veride rejected = 0, note nötr olmalı
+    _clean = calc.corsia_compliance.monitoring_report(
+        [{'flight_number': 'C1', 'date': '2024-01-01', 'fuel_kg': 5000}]
+    )
+    check("CORSIA temiz veri: rejected 0", _clean['rejected_flights'], 0, 0.01)
+    _rep_clean = calc.corsia_compliance.reporting_document(_clean, 'Test', 2024)
+    check_true(
+        "CORSIA temiz veride not nötr",
+        'Tüm kayıtlar doğrulandı' in _rep_clean['emissions']['data_quality_note']
     )
 
     # ═══════════════════════════════════════════════════════

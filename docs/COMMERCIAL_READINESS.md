@@ -421,3 +421,74 @@ Düzeltme: `Assumptions.fuel_price('DEFAULT')`. Not: `fleet_analyzer.py`
 zaten doğru yapıdaydı (tek `_DEFAULT_FUEL_PRICE_USD_PER_KG` + enjeksiyon);
 `flight_analyzer.py` de `Assumptions` kullanıyordu. Sorun yalnızca
 dashboard'daydı.
+
+### 8.10 Schmidt–Appleman — adı SA, içi eşik tablosu (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 41 | `emission_model.py` | `schmidt_appleman_criterion(...)` docstring'inde "Schmidt-Appleman kriteri" yazıyor, üç akademik kaynak (Schmidt 1941, Appleman 1953, Schumann 1996) listeliyordu. İçinde ise **iki sabit eşik** vardı: `T < -40 °C & RH > %40`, `T < -45 °C & RH > %70`. `engine_efficiency` parametresi **hiç kullanılmıyordu** (0,20 ile 0,55 aynı sonuç). | Gerçek SA'da contrail eşiği motor verimine ve ortam basıncına bağlıdır. Ayrıca fonksiyon **hiçbir üretim kodundan çağrılmıyordu** — yalnız testlerden. Yani docstring'deki "bu analizi sunan çok az firma var" iddiası, kullanılmayan bir fonksiyona dayanıyordu. |
+
+**Düzeltme (dürüst yaklaşım):** Tam SA termodinamiği yazılmadı —
+çünkü `G = EI_H2O·LHV/(cp·η)` ve `T_LA` katsayısını **doğrulanmış
+bir kaynaktan teyit edemedim**. (ICAO yoğunluk hatasında düştüğüm
+tuzağın aynısı: hafızadan referans alıp koda gömmek.) Bunun yerine:
+
+- `engine_efficiency` artık kullanılıyor: `ΔT = 2,5 °C × (η−0,30)/0,10`
+  (fizik yönü doğru: η ↑ → egzoz daha az ısı → contrail daha kolay)
+- Fonksiyon adı/docstring dürüstleştirildi: "SA **yaklaşımı**,
+  tam SA hesabı değil"
+- "Çok az firma var" iddiası kaldırıldı
+- §18b: 4 regresyon testi (verim etkisi, yön, soğukta etkisiz,
+  sıcakta yok)
+
+### 8.11 SAF tipi anahtar uyuşmazlığı (P0 — sessiz varsayılan)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 42 | `emission_model.py` | Tabloda `'FT_SPK'` (alt çizgi); docstring ve kullanıcı `'FT-SPK'` (tire) yazıyor. `_SAF_REDUCTION_FACTORS.get(saf_type, 0.72)` **sessizce HEFA'ya** düşüyordu. | FT-SPK için %90 yerine **%72** azaltım; %50 blend'de %45 yerine %36. Üstelik `'SAÇMA_TİP'` bile HEFA kabul edilip rapora "50% SAÇMA_TİP SAF" diye yazılıyordu. |
+
+**Düzeltme:** Tip adı normalize ediliyor (büyük harf, tire/boşluk →
+alt çizgi); bilinmeyen tip **`ValueError`** veriyor. Test §19b:
+4 farklı yazım + bilinmeyen tip + azaltım yüzdesi (45/36).
+
+### 8.12 CORSIA MRV bozuk veride çöküyordu (P0 — resmî uyum)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 43 | `emission_model.py` | `CORSIACompliance.__init__`: `self._calc = EmissionCalculator` — **sınıf** atanmış, örnek değil. Üstelik hiç kullanılmıyor (ölü kod). | Yanıltıcı: okuyan "bu bir hesaplayıcı tutuyor" sanır. |
+| 44 | `emission_model.py` | `monitoring_report()`: `flight.get('fuel_kg', 0)` üzerinden `round(fuel_kg * _EI_CO2, 2)`. | `'abc'` → **`TypeError`** (rapor hiç üretilemiyor). `-500` → toplama **giriyor**. Eksik → sessizce 0, `quality_flag='ESTIMATED'` ama kimse görmüyor. |
+| 45 | `emission_model.py` | `reporting_document()` yalnız `total_flights` yazıyordu. | 2 kayıt girip 1'i düşünce rapor "2 uçuş" diyor ama yakıt 1 uçuşluk oluyordu — **denetçi farkı göremezdi.** CORSIA Annex 16 Vol IV'e aykırı. |
+
+**Düzeltme:** CORSIA MRV'de eksik kayıt normaldir (iptal, gecikme).
+Doğru davranış: kaydı **reddetmek değil, işaretlemek ve toplamdan
+hariç tutmak**, sonra raporlamada kaç kaydın düştüğünü göstermek.
+
+```
+quality_flag: VERIFIED | MISSING | INVALID (≤0) | SUSPECT (>500 t)
+çıktı       : verified_flights, rejected_flights, rejection_details[]
+rapor       : data_quality_note ("N kayıt reddedildi…")
+```
+
+Test §26b: 12 kontrol (çökmeme, reddetme nedenleri, toplamdan hariç
+tutma, raporda görünürlük, temiz veride nötr not).
+
+### 8.13 4. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| **4** | **38–45** | **BFFM2, SA, SAF anahtarı, CORSIA MRV** |
+
+**En önemli desen:** #38, #41, #43'te aynı hata sınıfı —
+**"parametre var, kullanılmıyor"**. Fonksiyon adı bir şey iddia
+ediyor, gövdesi başka şey yapıyor. Üçü de testlerden kaçmıştı
+çünkü testler "değer makul aralıkta mı" diye bakıyordu, "girdiye
+tepki veriyor mu" diye bakmıyordu.
+
+```
+Test dosyası      : 16/16 · 0 hata
+emission          : 118 → 149 kontrol
+Yeni regresyon    : §7b (7) + §18b (4) + §19b (6) + §26b (12) = 29
+```
