@@ -14,8 +14,21 @@ FİZİKSEL VE TERMODİNAMİK TEMEL:
        gerçek sıcaklığı (Static Air Temperature - SAT) çok soğuk olsa da, kanat yüzeyinin hissettiği
        sıcaklık (TAT) daha yüksektir:
        
-       TAT = SAT * (1 + 0.2 * r * Mach²)
-       (Burada r = Kurtarma Faktörü / Recovery Factor, dar gövdede ~0.89 alınır).
+       TAT_K = SAT_K * (1 + r * (γ-1)/2 * Mach²)
+
+       (γ-1)/2 = 0.2 (hava için sabit); r = Kurtarma Faktörü, ~0.89.
+
+       ÖNEMLİ: formül KELVIN ile çalışır. Santigrat ile çarpmak
+       yanlış sonuç verir (sıfır ve negatif değerlerde ölçek bozulur).
+       Docstring'deki eski yazım `TAT = SAT * (1 + 0.2*r*M²)` idi;
+       bu, "SAT" sanki °C gibi okunabiliyordu. Kod K ile çalışıyordu
+       (doğru), ama okuru yanıltıyordu — netleştirildi.
+
+       SAYISAL KONTROL (denetim): SAT -56.5 °C, M0.78, r=0.89
+         → ram rise = 0.89 × 0.2 × 0.78² × 216.65 K = 23.5 K
+         → TAT = -33.0 °C
+       FL380'de gerçek TAT değerleri -30…-35 °C arasındadır; uyumlu.
+       (Tam kurtarma r=1.0 olsaydı 26.4 K → -30.1 °C.)
        
     2. Yakıt Soğuma Hızı (Fuel Thermal Cooling Rate):
        Kanat tanklarındaki yakıt, dış ortama (TAT) doğru ısı kaybeder. Soğuma hızı Newton'un Soğuma

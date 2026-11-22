@@ -813,3 +813,50 @@ hataya düşmüştüm — "kodun ne yaptığını" hesapla doğrulamadan
 yanlış bulguyu geri aldım. **Bulguların da doğrulanması gerekir.**
 
 ---
+
+### 8.26 YANLIŞ POZİTİF #61 — TAT "3 kat fazla" (kod doğruydu)
+
+`fuel_thermal_model.calculate_tat()` için "ram rise 3 kat fazla,
+`0.2 × r` çift sayım" dedim. **Yanlıştı.** Bağımsız doğrulama:
+
+```
+SAT = -56.5 °C, M = 0.78, r = 0.89
+SAT_K = 216.65 K
+ram rise = r × 0.2 × M² × SAT_K = 0.89 × 0.2 × 0.6084 × 216.65
+         = 23.5 K
+TAT     = -56.5 + 23.5 = -33.0 °C
+```
+
+**FL380'de gerçek TAT değerleri −30…−35 °C arasındadır.** Yani
+model doğru ve muhafazakâr (`r=1.0` olsaydı 26.4 K → −30.1 °C).
+
+`(γ−1)/2 = 0.2` hava için sabittir; `r` bunu **azaltır**, çift
+sayım değildir. Benim "−48.5 °C olmalı" beklentim hatalıydı.
+
+**Yapılan (kod değişmedi):**
+- Docstring'deki `TAT = SAT * (1 + 0.2*r*M²)` yazımı
+  `TAT_K = SAT_K * (1 + r*(γ−1)/2*M²)` olarak netleştirildi ve
+  "KELVIN ile çalışır" uyarısı eklendi — kod zaten K kullanıyordu,
+  ama yazım okuru yanıltıyordu.
+- Sayısal kontrol docstring'e yazıldı (23.5 K → −33.0 °C).
+- Test §1b: 4 referans (FL380, statik, SAT ile ram rise artışı,
+  r=1.0 üst sınır). thermal 7 → **11** kontrol.
+
+### 8.27 Yanlış pozitif bilançosu
+
+| # | Konu | Sonuç |
+|---|------|-------|
+| 36 | ICAO atmosfer ρ(20k), p(50k) | **Kod doğru**, referansım yanlıştı |
+| 60 | `np.convolve(mode='same')` kenar etkisi | **Kod doğru**, okumam yanlıştı |
+| 61 | TAT ram rise "3 kat fazla" | **Kod doğru**, beklentim yanlıştı |
+
+Üçünde de ortak desen: **hesabı yapmadan sezgiyle "hata" demek**.
+Bilanço: 59 gerçek bulgu / 3 yanlış pozitif — ve üçü de
+belgelendi, çünkü yanlış bulguyu sessizce silmek de bir tür
+gizleme olur.
+
+```
+Test dosyası   : 16/16 · 0 hata
+thermal        : 7 → 11
+Toplam bulgu   : #1–59 (gerçek) + #36/#60/#61 (yanlış pozitif)
+```
