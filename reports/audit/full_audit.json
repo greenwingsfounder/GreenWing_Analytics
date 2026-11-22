@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-11-22T18:18:08.125203",
+  "total_checks": 217,
+  "passed": 217,
+  "fails": 0,
+  "layers": [
+    {
+      "code": "K1",
+      "name": "Statik analiz",
+      "checks": 10,
+      "passed": 10,
+      "findings": []
+    },
+    {
+      "code": "K2",
+      "name": "Import bütünlüğü",
+      "checks": 57,
+      "passed": 57,
+      "findings": []
+    },
+    {
+      "code": "K3",
+      "name": "Sınıf örnekleme",
+      "checks": 45,
+      "passed": 45,
+      "findings": []
+    },
+    {
+      "code": "K4",
+      "name": "Çağrı izi (public API)",
+      "checks": 28,
+      "passed": 28,
+      "findings": []
+    },
+    {
+      "code": "K5",
+      "name": "Fizik tutarlılığı",
+      "checks": 39,
+      "passed": 39,
+      "findings": []
+    },
+    {
+      "code": "K6",
+      "name": "Uçtan uca akış",
+      "checks": 28,
+      "passed": 28,
+      "findings": []
+    },
+    {
+      "code": "K7",
+      "name": "Arayüz",
+      "checks": 10,
+      "passed": 10,
+      "findings": []
+    }
+  ]
+}

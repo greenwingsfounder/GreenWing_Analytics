@@ -73,7 +73,31 @@ logger = get_logger(__name__)
 # ═══════════════════════════════════════════════════════════
 
 _GRAVITY = 9.80665   # m/s²
-_AIRCRAFT_DB_CACHE = None  # TODO: add reload/invalidation for production (thread-safety issue noted in review)
+# ── UÇAK VERİTABANI ÖNBELLEĞİ (denetim #83) ─────────────────────
+# Eski bir işaret vardı: "reload/invalidation ve thread-safety eksik".
+# Kapatıldı. Neden önemliydi:
+#   • API sunucusu çok iş parçacıklı çalışır (uvicorn worker'ları).
+#     İki iş parçacığı aynı anda ilk çağrıyı yaparsa YAML iki kez
+#     okunur ve kısmen dolu bir dict görülebilir.
+#   • Uzun süre çalışan süreçte YAML güncellenirse (kalibrasyon
+#     sonrası) önbellek BAYAT kalır — sessizce eski katsayılar
+#     kullanılmaya devam eder. Bu, "kalibrasyon çalışmadı" gibi
+#     görünen ama aslında süreç yeniden başlatılmadığı için oluşan
+#     bir hatadır.
+# ÇÖZÜM: kilit + dosya mtime tabanlı otomatik invalidation +
+#         elle temizleme fonksiyonu.
+import threading as _threading
+_DB_LOCK = _threading.Lock()
+_AIRCRAFT_DB_CACHE = None
+_AIRCRAFT_DB_MTIME = None
+
+
+def reload_aircraft_database() -> None:
+    """Önbelleği elle geçersiz kıl (kalibrasyon sonrası çağır)."""
+    global _AIRCRAFT_DB_CACHE, _AIRCRAFT_DB_MTIME
+    with _DB_LOCK:
+        _AIRCRAFT_DB_CACHE = None
+        _AIRCRAFT_DB_MTIME = None
 
 
 # ═══════════════════════════════════════════════════════════
@@ -192,19 +216,29 @@ class FuelModel:
             ValueError: Bilinmeyen uçak tipi
             FileNotFoundError: YAML dosyası bulunamadı
         """
-        global _AIRCRAFT_DB_CACHE
-        if _AIRCRAFT_DB_CACHE is None:
-            config_path = os.path.join(
-                os.path.dirname(__file__), '..', '..', 'config', 'aircraft_database.yaml'
+        global _AIRCRAFT_DB_CACHE, _AIRCRAFT_DB_MTIME
+        config_path = os.path.join(
+            os.path.dirname(__file__), '..', '..', 'config', 'aircraft_database.yaml'
+        )
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(
+                f"aircraft_database.yaml bulunamadı: {config_path}"
             )
 
-            if not os.path.exists(config_path):
-                raise FileNotFoundError(
-                    f"aircraft_database.yaml bulunamadı: {config_path}"
-                )
-
-            with open(config_path, 'r', encoding='utf-8') as f:
-                _AIRCRAFT_DB_CACHE = yaml.safe_load(f)
+        mtime = os.path.getmtime(config_path)
+        # Çift kontrollü kilit: hızlı yol kilitsiz, yavaş yol kilitli.
+        if _AIRCRAFT_DB_CACHE is None or _AIRCRAFT_DB_MTIME != mtime:
+            with _DB_LOCK:
+                if _AIRCRAFT_DB_CACHE is None or _AIRCRAFT_DB_MTIME != mtime:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        loaded = yaml.safe_load(f)
+                    if not isinstance(loaded, dict) or \
+                            'aircraft_types' not in loaded:
+                        raise ValueError(
+                            'aircraft_database.yaml geçersiz: '
+                            "'aircraft_types' anahtarı yok")
+                    _AIRCRAFT_DB_CACHE = loaded     # atomik atama
+                    _AIRCRAFT_DB_MTIME = mtime
 
         db = _AIRCRAFT_DB_CACHE
 
