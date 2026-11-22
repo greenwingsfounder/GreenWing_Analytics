@@ -38,10 +38,19 @@ FİLTRELER:
     python dashboard/app.py
     → Tarayıcıda http://localhost:8050 aç
 
+GÜVENLİK (v2.1 — eklendi):
+─────────────────────────
+    Bu panel artık KİMLİK DOĞRULAMASIZ AÇILMAZ. CLI'da çalıştırıldığında
+    src/security/auth.py üzerinden oturum tabanlı doğrulama kurulur ve
+    tarayıcı bir giriş formu gösterir (Flask/Dash route guard).
+
+    Yeni, önerilen panel: web/app.py (FastAPI + imzalı oturum + gerçek veri)
+        ./web/run.sh
+
 VERİ KAYNAĞI:
 ─────────────
-    Şu an: generate_demo_data() ile simüle veri üretir.
-    Müşteri gelince: Gerçek JSON/CSV ile değiştirilecek.
+    reports/optimizations/batch_results.json varsa GERÇEK veri yüklenir.
+    Yoksa generate_demo_data() ile simüle veri üretilir (yalnızca geliştirme).
 
 KULLANIM:
 ─────────
@@ -926,10 +935,89 @@ def update_all(start_date, end_date, aircraft_type, route):
 # ═══════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    # ── KİMLİK DOĞRULAMA KAPISI ──────────────────────────────
+    # Bu panel müşteri verisi gösterir. Kimlik doğrulama
+    # yapılandırılmadan AÇILMAZ (fail-closed).
+    from src.security.auth import AuthConfigError, DashboardAuth
+
+    try:
+        _auth = DashboardAuth.from_env()
+    except AuthConfigError as exc:
+        print("\n" + "=" * 64)
+        print("  ⛔ PANEL AÇILMADI — kimlik doğrulama yapılandırılmamış")
+        print("=" * 64)
+        print(str(exc))
+        print("\n" + "=" * 64 + "\n")
+        raise SystemExit(1) from exc
+
+    # Dash, Flask WSGI'si üzerinde çalışır → before_request ile kapı.
+    _wrapped = getattr(app.server, '_gw_auth_wrapped', False)
+    if not _wrapped:
+        from flask import redirect, request
+        _server = app.server
+
+        @_server.before_request
+        def _require_login():
+            """Tüm istekler oturum çerezi olmadan /login'e yönlenir."""
+            if request.path in ('/login', '/logout', '/_dash-logout'):
+                return None
+            if request.path.startswith('/assets/'):
+                return None
+            ok, _ = _auth.validate_session(request.cookies.get(_auth.cookie_name))
+            if not ok:
+                return redirect('/login?next=' + request.path)
+            return None
+
+        @_server.route('/login', methods=['GET', 'POST'])
+        def _login():
+            from flask import make_response, request as rq
+            from markupsafe import escape
+            from src.security.auth import safe_next_url
+            if rq.method == 'POST':
+                ip = rq.headers.get('X-Forwarded-For', rq.remote_addr or '').split(',')[0]
+                if _auth.verify(rq.form.get('username', ''),
+                                rq.form.get('password', ''), ip):
+                    resp = make_response(redirect(safe_next_url(rq.form.get('next'))))
+                    resp.set_cookie(
+                        _auth.cookie_name, _auth.issue_session(rq.form.get('username')),
+                        max_age=8 * 3600, httponly=True, samesite='Lax',
+                        secure=_auth.secure_cookie, path='/')
+                    return resp
+                err = '<p style="color:#ff6b6b">Kullanıcı adı veya parola hatalı.</p>'
+            else:
+                err = ''
+            nxt = escape(safe_next_url(rq.args.get('next')))
+            return (
+                '<!doctype html><html lang="tr"><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                '<title>Giriş</title><body style="font:15px system-ui;'
+                'background:#0b1220;color:#e8eefc;display:grid;place-items:center;'
+                'height:100vh;margin:0">'
+                '<form method="post" style="background:#151f33;padding:26px;'
+                'border-radius:14px;border:1px solid #243149;min-width:320px">'
+                '<h2 style="margin:0 0 14px">GreenWing Analytics</h2>'
+                f'<input type="hidden" name="next" value="{nxt}">'
+                '<label style="font-size:12px;color:#93a4c4">Kullanıcı adı</label>'
+                '<input name="username" required autofocus style="width:100%;'
+                'margin:5px 0 12px;padding:9px;border-radius:8px;border:1px solid '
+                '#243149;background:#0e1726;color:#e8eefc">'
+                '<label style="font-size:12px;color:#93a4c4">Parola</label>'
+                '<input name="password" type="password" required style="width:100%;'
+                'margin:5px 0 16px;padding:9px;border-radius:8px;border:1px solid '
+                '#243149;background:#0e1726;color:#e8eefc">'
+                '<button style="width:100%;padding:10px;border:0;border-radius:8px;'
+                'background:#39d98a;font-weight:700">Giriş</button>' + err +
+                '</form></body></html>')
+
+        _server._gw_auth_wrapped = True
+
     print("\n" + "=" * 60)
-    print(f"  🚀 {SYSTEM_NAME} Dashboard")
+    print(f"  🚀 {SYSTEM_NAME} Dashboard (kimlik doğrulamalı)")
     print(f"  📡 http://{DASHBOARD_HOST}:{DASHBOARD_PORT}")
-    print(f"  📊 {'Gerçek veri yüklendi' if os.path.exists(os.path.join(REPORTS_OPTIMIZATIONS, 'batch_results.json')) else 'Demo veri kullanılıyor'}")
+    print("  🔐 Parola: GREENWING_DASHBOARD_PASSWORD veya config/secrets.yaml")
+    _has_real = os.path.exists(
+        os.path.join(REPORTS_OPTIMIZATIONS, 'batch_results.json'))
+    print(f"  📊 {'Gerçek veri yüklendi' if _has_real else 'Demo veri kullanılıyor'}")
     print("=" * 60 + "\n")
 
     app.run(

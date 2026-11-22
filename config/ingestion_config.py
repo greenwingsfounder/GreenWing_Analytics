@@ -47,8 +47,16 @@ class IngestionConfig:
         return hashlib.sha256(data.encode('utf-8')).hexdigest()[:16]
 
     def validate(self) -> None:
-        assert self.MIN_FLIGHTS_FOR_CALIBRATION >= 12
-        assert self.MIN_IMPROVEMENT_PCT >= 2.0
+        # `assert` KULLANILMAZ: python -O ile tamamen kaldırılır ve
+        # doğrulama sessizce kaybolur. Ticari kodda açık raise.
+        if self.MIN_FLIGHTS_FOR_CALIBRATION < 12:
+            raise ValueError(
+                'MIN_FLIGHTS_FOR_CALIBRATION en az 12 olmalı, '
+                f'gelen: {self.MIN_FLIGHTS_FOR_CALIBRATION}')
+        if self.MIN_IMPROVEMENT_PCT < 2.0:
+            raise ValueError(
+                'MIN_IMPROVEMENT_PCT en az 2.0 olmalı, '
+                f'gelen: {self.MIN_IMPROVEMENT_PCT}')
 
 DEFAULT_INGESTION_CONFIG = IngestionConfig()
 DEFAULT_INGESTION_CONFIG.validate()

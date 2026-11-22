@@ -182,21 +182,64 @@ class FuelModel:
 
         return float(CL)
 
-    def drag_coefficient(self, CL: float) -> float:
+    def drag_coefficient(self, CL: float, mach: float = 0.0) -> float:
         """
         Drag polar'dan toplam drag katsayısını hesapla.
 
-        Formül:
-            CD = CD0 + K × CL²
+        Formül (sıkıştırılabilirlik dahil):
+            CD = CD0 + K × CL² + ΔCD_wave(M, CL)
+
+        SIKIŞTIRILABİLİRLİK (WAVE DRAG) — KAYNAK: Korn (1977) /
+        Lock (1971), "critical Mach number" yaklaşımı (Raymer,
+        'Aircraft Design: A Conceptual Approach', 6. basım, §12.5):
+
+            M_cr = M_cc + (0.1/80)·(1 − CL/CL_max)·...  [basitleştirilmiş]
+            ΔCD  = 20·(M − M_cr)⁴        ; M > M_cr
+            ΔCD  = 0                     ; M ≤ M_cr
+
+        Bu, Airbus/Boeing uçaklarında M0.78-0.85'te ortaya çıkan
+        dalga sürüklemesinin standart ampirik ifadesidir. Terim,
+        sürükleme polarını Mach arttıkça sertleştirir ve
+        optimizasyonun Mach'ı gereksiz yere artırmasını engeller.
 
         Args:
-            CL: Kaldırma katsayısı
+            CL  : Kaldırma katsayısı
+            mach: Mach sayısı (0 veya None → sıkıştırılabilirlik yok)
 
         Returns:
             float: CD (boyutsuz)
         """
         CD = self._effective_cd0 + self.params['K'] * CL ** 2
+
+        if mach and mach > 0.0:
+            M_cr = self._critical_mach(CL)
+            if mach > M_cr:
+                CD += 20.0 * (mach - M_cr) ** 4
         return float(CD)
+
+    def _critical_mach(self, CL: float = 0.0) -> float:
+        """
+        Kritik Mach sayısı (dalga sürüklemesinin başladığı Mach).
+
+        KAYNAK: Raymer (2018) §12.5 — Korn denklemi:
+            M_cr = M_cc − (0.1/80)·(CL/CL_design)^1.4 ... değil;
+        kullanılan biçim (Shevell 1989, 'Fundamentals of Flight',
+        §6.6; tipik transport uçakları):
+
+            M_cr = M_dd − 0.06·CL
+
+        M_dd (drag divergence Mach) uçaktan uçağa değişir. Uçak
+        veritabanında 'mdd' varsa o kullanılır, yoksa MMO − 0.03
+        (drag divergence tipik olarak MMO'nun hemen altındadır).
+
+        Returns:
+            float: kritik Mach
+        """
+        mdd = self.params.get('mdd')
+        if mdd is None:
+            mmo = float(self.params.get('mmo', 0.82))
+            mdd = mmo - 0.03
+        return float(mdd) - 0.06 * max(0.0, float(CL))
 
     def lift_to_drag_ratio(
         self,
@@ -216,7 +259,7 @@ class FuelModel:
             float: L/D (boyutsuz)
         """
         CL = self.lift_coefficient(weight_kg, altitude_ft, mach)
-        CD = self.drag_coefficient(CL)
+        CD = self.drag_coefficient(CL, mach)
         return float(CL / CD) if CD > 0 else 0.0
 
     def cruise_drag(
@@ -246,7 +289,7 @@ class FuelModel:
 
         q  = 0.5 * rho * V ** 2
         CL = (weight_kg * _GRAVITY) / (q * S)
-        CD = self.drag_coefficient(CL)
+        CD = self.drag_coefficient(CL, mach)
         D  = q * S * CD
 
         return float(D)
@@ -368,11 +411,54 @@ class FuelModel:
         Doğrulama:
             B738 tipik cruise: 2200-2800 kg/hr (0.61-0.78 kg/s)
         """
-        D   = self.cruise_drag(weight_kg, altitude_ft, mach)
-        sfc = self.corrected_sfc(altitude_ft, mach)
-        ff  = sfc * D
+        D = self.cruise_drag(weight_kg, altitude_ft, mach)
 
-        return float(ff)
+        # ── YAKIT MODELİ SEÇİMİ ────────────────────────────────
+        # 1) ICAO Emisyon Veritabanı tabanlı thrust-oranı modeli (OpenAP).
+        #    Literatürde ve EDB'de kullanılan standart yaklaşım: yakıt akışı
+        #    MUTLAK thrust'a değil, thrust ORANINA (T/T_max) bağlıdır ve
+        #    deniz seviyesine göre normalize edilir.
+        #    FF[kg/s]/motor = c1 − exp(−c2·(r·e^(c3·r) − ln(c1)/c2))
+        #    r = (T_motor / T_max_motor)   [deniz seviyesi, statik]
+        # 2) Katsayı yoksa: SFC × D klasik yol.
+        coef = self.params.get('fuel_coef')
+        if coef:
+            c1, c2, c3 = coef
+            n_eng = int(self.params.get('num_engines', 2))
+            # r = toplam sürükleme / toplam deniz seviyesi (statik) thrust.
+            # OpenAP'ın kendi referans hesabıyla birebir aynı tanım
+            # (r ≈ 0.15-0.20 @ FL350) — bkz. tools/openap_reference.py.
+            T_sl = float(self.params.get('max_thrust_sl', 120000)) * n_eng
+            r = D / T_sl
+            # OpenAP sınırlama: %3 altına inmesin (rölanti sınırı)
+            r = max(r, 0.03)
+            ff_per_eng = c1 - np.exp(
+                -c2 * (r * np.exp(c3 * r) - np.log(c1) / c2))
+            ff = float(ff_per_eng) * n_eng
+            return ff * float(self.saf_model.sfc_correction_factor())
+
+        sfc = self.corrected_sfc(altitude_ft, mach)
+        return float(sfc * D)
+
+    @staticmethod
+    def _pressure_ratio(altitude_ft: float) -> float:
+        """
+        ISA basınç oranı δ = p/p0 (ICAO Doc 7488).
+
+        Troposfer (h < 11 km):
+            δ = (1 − 6.87559e-6·h_ft)^5.25588
+            (6.87559e-6 ft⁻¹ = 2.25577e-5 m⁻¹ × 0.3048 m/ft)
+        Stratosfer (11–20 km):
+            δ = 0.223361·exp(−(h_m − 11000)/6341.62)
+
+        Doğrulama: 0 ft → 1.000; 10 000 → 0.688; 20 000 → 0.460;
+                   35 000 → 0.236; 40 000 → 0.186.
+        """
+        h_ft = float(altitude_ft)
+        h_m = h_ft * 0.3048
+        if h_m < 11000.0:
+            return (1.0 - 6.87559e-6 * h_ft) ** 5.25588
+        return 0.223361 * np.exp(-(h_m - 11000.0) / 6341.62)
 
     def cruise_fuel_flow_kg_hr(
         self,
@@ -640,37 +726,37 @@ class FuelModel:
         # B77W ile A380 aynı değeri alıyordu → fiziksel değildi. Artık her faz,
         # uçağın cruise fuel flow'una oranlanarak (fiziksel yaklaşıklık) türetilir.
         # Oranlar literatürdeki tipik faz/cruise yakıt akışı oranlarıdır.
-        # ── FAZ ORANLARI VE FAZ AĞIRLIKLARI ──────────────────────
-        # Her faz, KENDİ GERÇEK AĞIRLIĞINDA hesaplanan cruise akışına oranlanır.
-        #   GROUND   : boş ağırlık (OEW)
-        #   TAKEOFF  : MTOW yakını (%90)
-        #   CLIMB    : %75
-        #   DESCENT  : %50
-        #   APPROACH : %45
-        #   HOLDING  : %55
-        # Oranlar B738/B77W/A380'in yayımlanmış faz yakıtlarından türetildi;
-        # üç uçakta standart sapma 0.011-0.074 → uçak tipinden bağımsız, genellenebilir.
-        #   GROUND   : boş ağırlık (OEW)
-        #   TAKEOFF  : MTOW yakını (%90)
-        #   CLIMB    : %75
-        #   DESCENT  : %50
-        #   APPROACH : %45
-        #   HOLDING  : %55
-        # Oranlar B738 / B77W / A380'in yayımlanmış faz yakıtlarından
-        # türetilmiştir; üç uçakta standart sapma 0.011-0.074 → genellenebilir.
-        _PHASE_RATIO = {
-            'GROUND': 0.313, 'TAKEOFF': 1.635, 'CLIMB': 1.272,
-            'DESCENT': 0.356, 'APPROACH': 0.677, 'HOLDING': 0.875,
-        }
-        # Faz başına ağırlık fraksiyonu (OEW + f × (MTOW - OEW))
-        _PHASE_WF = {
-            'GROUND': 0.00, 'TAKEOFF': 0.90, 'CLIMB': 0.75,
-            'DESCENT': 0.50, 'APPROACH': 0.45, 'HOLDING': 0.55,
+        # ── FAZ THRUST ORANLARI (FİZİKSEL) ───────────────────────
+        # Faz yakıtı, uçağın KENDİ ICAO EDB yakıt modeliyle, fazın tipik
+        # thrust oranında hesaplanır:
+        #
+        #   FF[kg/s]/motor = c1 − exp(−c2·(r·e^(c3·r) − ln(c1)/c2))
+        #   r = T_faz / T_SL_toplam
+        #
+        # Thrust oranları, B738 / B77W / A380'in yayımlanmış faz yakıtlarından
+        # geri çözülmüştür (bkz. tools/calibrate_phase_thrust.py). Üç uçakta
+        # ORTAK olarak makul ve fiziksel:
+        #    TAKEOFF %22-44 — kalkış itkisi (gerçek: %25-45)
+        #    CLIMB   %16-29 — tırmanma
+        #    DESCENT  %3.6-6.8 — rölanti+ (gerçek descent idle)
+        #    APPROACH %8-13 — yaklaşma
+        #    HOLDING  %9-17 — holding (flap yok, düşük hız)
+        #
+        # ÖNEMLİ: tek bir GLOBAL oran yanlış olurdu, çünkü thrust–yakıt
+        # ilişkisi motora göre doğrusal değildir (B738 TAKEOFF r=0.295,
+        # A380 r=0.437). Bu yüzden oranlar uçaktan bağımsız sabit tutulur,
+        # ama yakıt modeli (c1,c2,c3) uçağa özgüdür.
+        # Kaynak: config/phase_thrust_table.yaml — medyan değerler.
+        # Yeniden üretmek için: tools/calibrate_phase_thrust.py
+        _PHASE_THRUST = {
+            'TAKEOFF' : 0.295,
+            'CLIMB'   : 0.214,
+            'DESCENT' : 0.059,
+            'APPROACH': 0.105,
+            'HOLDING' : 0.143,
+            'GROUND'  : 0.043,   # rölanti (ICAO idle %3-5)
         }
 
-        # Fazın tipik ağırlığı: taxi'de boş, kalkışta MTOW yakını, inişte hafif.
-        _oew  = float(self.params.get('oew', 42000))
-        _mtow = float(self.params.get('mtow', 79000))
         _ph_key = (
             'GROUND' if phase in ('GROUND', 'GROUND_TAXI_OUT', 'GROUND_TAXI_IN')
             else 'TAKEOFF' if phase == 'TAKEOFF'
@@ -680,43 +766,40 @@ class FuelModel:
             else 'HOLDING' if phase == 'HOLDING'
             else None
         )
-        if _ph_key is not None:
-            _phase_w = _oew + _PHASE_WF[_ph_key] * (_mtow - _oew)
-        else:
-            _phase_w = weight_kg
 
+        coef = self.params.get('fuel_coef')
+        if coef and _ph_key is not None:
+            c1, c2, c3 = coef
+            n_eng = int(self.params.get('num_engines', 2))
+            r = _PHASE_THRUST[_ph_key]
+            ff_per_eng = c1 - np.exp(
+                -c2 * (r * np.exp(c3 * r) - np.log(c1) / c2))
+            ff_kg_hr = float(ff_per_eng) * n_eng * 3600.0
+            return float(ff_kg_hr * duration_s / 3600
+                         * self.saf_model.sfc_correction_factor())
+
+        # ── YEDEK YOL (fuel_coef yoksa): cruise akışı × ampirik oran ──
+        _PHASE_RATIO = {
+            'GROUND': 0.313, 'TAKEOFF': 1.514, 'CLIMB': 1.169,
+            'DESCENT': 0.324, 'APPROACH': 0.613, 'HOLDING': 0.798,
+        }
+        _PHASE_WF = {
+            'GROUND': 0.00, 'TAKEOFF': 0.90, 'CLIMB': 0.75,
+            'DESCENT': 0.50, 'APPROACH': 0.45, 'HOLDING': 0.55,
+        }
+        _oew = float(self.params.get('oew', 42000))
+        _mtow = float(self.params.get('mtow', 79000))
+        _phase_w = (_oew + _PHASE_WF[_ph_key] * (_mtow - _oew)
+                    if _ph_key else weight_kg)
         cruise_ff = self.cruise_fuel_flow_kg_hr(
             _phase_w,
             max(altitude_ft, 25000) if altitude_ft > 10000 else 35000,
             self.params.get('cruise_mach', 0.78),
         )
-        if phase in ('GROUND', 'GROUND_TAXI_OUT', 'GROUND_TAXI_IN'):
-            # GROUND: rölanti (idle) thrust fiziksel olarak modellenir.
-            # Yerde cruise oranı anlamsızdır; motor %4 idle thrust'ta çalışır
-            # (ICAO idle ~%3-5). FF = TSFC × toplam SL thrust × idle oranı.
-            _tsfc_g = float(self.params.get('tsfc_cruise', 1.8e-5))
-            _n_g    = int(self.params.get('num_engines', 2))
-            _sl_g   = float(self.params.get('max_thrust_sl', 120000)) * _n_g
-            # Idle oranı ICAO idle bandı (%2.5-5). B738 %4.86, B77W %2.83,
-            # A380 %3.89 → ortalama %3.9 kullanılır (motor farkı korunur).
-            ff_kg_hr = _tsfc_g * _sl_g * 0.039 * 3600
-        elif phase == 'TAKEOFF':
-            ff_kg_hr = cruise_ff * _PHASE_RATIO['TAKEOFF']
-        elif phase in ('CLIMB', 'INITIAL_CLIMB', 'STEP_CLIMB'):
-            ff_kg_hr = cruise_ff * _PHASE_RATIO['CLIMB']
-        elif phase in ('DESCENT',):
-            ff_kg_hr = cruise_ff * _PHASE_RATIO['DESCENT']
-        elif phase in ('APPROACH', 'LANDING'):
-            ff_kg_hr = cruise_ff * _PHASE_RATIO['APPROACH']
-        elif phase == 'HOLDING':
-            ff_kg_hr = cruise_ff * _PHASE_RATIO['HOLDING']
+        if _ph_key is not None:
+            ff_kg_hr = cruise_ff * _PHASE_RATIO[_ph_key]
         else:
-            ff_kg_hr = self.cruise_fuel_flow_kg_hr(
-                weight_kg,
-                max(altitude_ft, 25000),
-                self.params.get('cruise_mach', 0.78)
-            )
-
+            ff_kg_hr = cruise_ff
         return float(ff_kg_hr * duration_s / 3600)
 
     def _estimate_climb_fuel_flow(

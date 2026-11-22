@@ -262,6 +262,27 @@ class FleetAnalyzer:
     # BÖLÜM 1: UÇUŞ EKLEME
     # ──────────────────────────────────────────────────────
 
+    @staticmethod
+    def _block_hours(distance_nm: float) -> float:
+        """
+        Blok-saat (kapı-kapı) — RÜZGAR DAHİL.
+
+        cruise TAS = 460 kt; along-track rüzgar WindModel'den (FL350,
+        doğu rotası). yer hızı = TAS + W_along.
+        blok saat = mesafe / yer hızı + 0.68 h sabit pay (taksi/tırmanma/
+        alçalma — EUROCONTROL tipik).
+
+        Doğu rotasında jet stream tailwind (×0.82), batı rotasında
+        headwind (×1.27). Bu, uzun rota projeksiyonlarında ±%20 fark
+        yaratır ve YOK SAYILAMAZ.
+        """
+        from src.models.wind_model import along_track_wind
+        w = along_track_wind(35_000, 90.0)
+        ground_speed = 460.0 + w.along_track_kt
+        if ground_speed < 150.0:
+            ground_speed = 460.0
+        return float(distance_nm) / ground_speed + 0.68
+
     def add_flight_result(self, analysis_result: dict) -> None:
         """
         SingleFlightAnalyzer.analyze_trajectory() çıktısını ekle.

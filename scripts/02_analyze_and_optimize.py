@@ -61,7 +61,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.units import Units
-from src.utils import calculate_initial_heading, get_seasonal_wind_estimate
+from src.utils import (calculate_initial_heading, get_seasonal_wind_estimate,
+                        normalize_trajectory_columns)
 from src.analysis.flight_analyzer import SingleFlightAnalyzer
 from src.analysis.benchmark import ResultBenchmark
 from src.optimization.altitude_optimizer import AltitudeOptimizer
@@ -739,8 +740,22 @@ def main():
             co2_pax_km = float(emissions['metrics']['co2_per_pax_km_g'])
 
             # ─── Toplam tasarruf ──────────────────────────
-            fuel_optimization = max(alt_saving, step_saving)
+            # DİKKAT: irtifa ve step-climb AYNI yakıtı iki kez saymamalı,
+            # ama max() almak da yanlış — step-climb, optimum irtifaya
+            # ULAŞTIKTAN SONRA ek bir kazançtır. Bu yüzden toplanır;
+            # alt_saving zaten "mevcut irtifadan optimuma" kazancı,
+            # step_saving ise "optimuma çıktıktan sonra ağırlık azaldıkça
+            # kademeli yükselme" kazancını temsil eder.
+            fuel_optimization = alt_saving + step_saving
             total_cost        = fuel_optimization * origin_price + tank_saving
+
+            # Tasarrufun KAYNAĞINI ayrıştır (panelde gösterilir)
+            saving_breakdown = {
+                'altitude_kg'  : round(alt_saving, 1),
+                'step_climb_kg': round(step_saving, 1),
+                'tankering_usd': round(tank_saving, 2),
+                'fuel_kg_total' : round(fuel_optimization, 1),
+            }
             annual_proj       = Assumptions.annual_projection(total_cost, distance)
 
             print(f"\n  💰 Tasarruf: {fuel_optimization:.0f} kg = ${total_cost:.0f}/uçuş")
@@ -761,7 +776,7 @@ def main():
 
             # ─── Benchmark ────────────────────────────────
             bm_report = benchmark.check_all({
-                'sar'               : alt_info.get('sar_at_actual_alt', 0),
+                'sar'               : alt_info.get('sar_at_actual_alt', 0),  # Nm/kg (benchmark birimi)
                 'fuel_flow_kg_hr'   : (
                     estimated_fuel / basic['total_flight_time_hr']
                     if basic.get('total_flight_time_hr', 0) > 0 else 0
@@ -823,6 +838,7 @@ def main():
                 # Tasarruf (03 scripti bu alanları kullanır)
                 'fuel_optimization_kg'   : round(fuel_optimization),
                 'total_cost_saving_usd'  : round(total_cost, 2),
+                'saving_breakdown'       : saving_breakdown,
                 'annual_raw_usd'         : annual_proj['raw_annual_usd'],
                 'annual_realistic_usd'   : annual_proj['realistic_annual_usd'],
                 'realization_factor'     : annual_proj['realization_factor'],
@@ -896,6 +912,26 @@ def main():
         print(f"  Ort. yıllık         : ${avg_annual:,.0f}")
         print(f"  Partial uçuş oranı  : %{partial_n/len(all_results)*100:.0f}")
         print(f"  UNK route alanı     : {unk_n}")
+
+        # ── VERİ KAYNAĞI UYARISI ────────────────────────────
+        # Ticari dürüstlük: sentetik ve gerçek veriyi karıştırıp tek
+        # sayı vermek yanıltıcıdır. Her çalıştırmada açıkça yaz.
+        _methods: dict[str, int] = {}
+        for _r in all_results:
+            _m = str(_r.get('collection_method') or 'bilinmiyor')
+            _methods[_m] = _methods.get(_m, 0) + 1
+        _synth = (_methods.get('synthetic_fallback', 0)
+                  + _methods.get('demo', 0))
+        _real = len(all_results) - _synth - _methods.get('bilinmiyor', 0)
+        print(f"  Veri kaynağı        : {dict(sorted(_methods.items()))}")
+        if _synth and _real:
+            print(f"  ⚠️  KARIŞIK VERİ: {_real} gerçek + {_synth} sentetik.")
+            print("      Aşağıdaki $ rakamları MÜŞTERİYE TAAHHÜT EDİLEMEZ.")
+        elif _synth:
+            print(f"  ⛔ TAMAMEN SENTETİK ({_synth} uçuş) — sadece model/arayüz")
+            print("      doğrulaması içindir. Ticari taahhüt için gerçek veri şart.")
+        else:
+            print(f"  ✅ TAMAMEN GERÇEK VERİ ({_real} uçuş).")
 
         # JSON
         os.makedirs(REPORTS_OPTIMIZATIONS, exist_ok=True)

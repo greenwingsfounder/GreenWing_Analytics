@@ -54,71 +54,74 @@ from typing import Optional
 # UÇAK PARAMETRELERİ
 # ═══════════════════════════════════════════════════════════
 
-# Operating Empty Weight (OEW) — kg
-# Kaynak: Boeing/Airbus Aircraft Characteristics Airport & Maintenance Planning
-# Not: Her havayolunun konfigürasyonu farklı olabilir.
+# ── TEK DOĞRULUK KAYNAĞI ─────────────────────────────────
+# Aşağıdaki OEW / MTOW / MAX_FUEL / SEATS değerleri DOĞRUDAN
+# config/aircraft_database.yaml'dan okunur. Önceden burada ikinci bir
+# kopya vardı ve zamanla veritabanından SAPTI (B38M OEW 44 280 vs
+# 45 070; A380 max_fuel 320 000 vs 253 983 kg → %26 hata).
+# İki kaynak tutmanın doğurduğu bu tür sessiz sapmalar, "hangi sayı
+# doğru?" sorusunu cevapsız bırakır. Artık tek kaynak var.
+#
+# Kaynak: Boeing/Airbus Aircraft Characteristics Manual + EASA/FAA TCDS,
+#         OpenAP v3 (tools/sync_openap_params.py ile senkronize edilir).
+
+def _load_aircraft_facts() -> dict:
+    """config/aircraft_database.yaml'ı oku (tek doğruluk kaynağı)."""
+    from pathlib import Path as _Path
+    import yaml as _yaml
+    _p = _Path(__file__).resolve().with_name('aircraft_database.yaml')
+    if not _p.exists():          # savunmacı: paketlenmiş kurulumlar
+        return {}
+    with _p.open(encoding='utf-8') as _f:
+        _db = _yaml.safe_load(_f) or {}
+    return _db.get('aircraft_types', _db)
+
+
+_AIRCRAFT_FACTS: dict = _load_aircraft_facts()
+
+# Geri uyumluluk: eski kod _OEW[...] gibi sözlük erişimi kullanıyor.
 _OEW: dict[str, int] = {
-    'B738': 41413,
-    'B38M': 44280,
-    'A320': 42600,
-    'A20N': 44300,
-    'A321': 48500,
-    'A21N': 50100,
-    'B77W': 167829,
-    'B788': 120000,
-    'B789': 128850,
-    'A350': 142400,
-    'A380': 277000,
-}
-
-# Maximum Takeoff Weight (MTOW) — kg
-# Kaynak: EASA/FAA Type Certificate Data Sheet
+    ac: int(v['oew']) for ac, v in _AIRCRAFT_FACTS.items() if 'oew' in v}
 _MTOW: dict[str, int] = {
-    'B738': 79016,
-    'B38M': 82191,
-    'A320': 78000,
-    'A20N': 79000,
-    'A321': 93500,
-    'A21N': 97000,
-    'B77W': 352441,
-    'B788': 228000,
-    'B789': 254011,
-    'A350': 280000,
-    'A380': 575000,
-}
-
-# Maksimum yakıt kapasitesi — kg
+    ac: int(v['mtow']) for ac, v in _AIRCRAFT_FACTS.items() if 'mtow' in v}
 _MAX_FUEL: dict[str, int] = {
-    'B738': 20894,
-    'B38M': 20894,
-    'A320': 18900,
-    'A20N': 19100,
-    'A321': 23860,
-    'A21N': 26730,
-    'B77W': 145538,
-    'B788': 101323,
-    'B789': 126920,
-    'A350': 158791,
-    'A380': 320000,
-}
-
-# Tipik oturak kapasitesi (varsayılan konfigürasyon)
+    ac: int(v['max_fuel']) for ac, v in _AIRCRAFT_FACTS.items()
+    if 'max_fuel' in v}
 _TYPICAL_SEATS: dict[str, int] = {
-    'B738': 162,
-    'B38M': 172,
-    'A320': 150,
-    'A20N': 150,
-    'A321': 180,
-    'A21N': 180,
-    'B77W': 365,
-    'B788': 242,
-    'B789': 296,
-    'A350': 315,
-    'A380': 555,
-}
+    ac: int(v['passengers_typical']) for ac, v in _AIRCRAFT_FACTS.items()
+    if 'passengers_typical' in v}
+
+# Veritabanı okunamazsa (dosya yok) eski sabitlere düş — ama UYARI bas.
+if not _OEW:
+    import warnings as _w
+    _w.warn('config/aircraft_database.yaml okunamadı; gömülü yedek '
+            'değerler kullanılıyor. Bu durumda değerler senkronize '
+            'OLMAYABİLİR.', RuntimeWarning)
+    _OEW = {'B738': 41413, 'B38M': 45070, 'A320': 42600, 'A20N': 44300,
+            'A321': 48500, 'A21N': 50900, 'B77W': 167829, 'B788': 119950,
+            'B789': 128850, 'A350': 142400, 'A380': 277145}
+    _MTOW = {'B738': 79016, 'B38M': 82191, 'A320': 78000, 'A20N': 79000,
+             'A321': 93500, 'A21N': 97000, 'B77W': 351534, 'B788': 227930,
+             'B789': 254011, 'A350': 280000, 'A380': 575000}
+    _MAX_FUEL = {'B738': 20894, 'B38M': 20894, 'A320': 18900,
+                 'A20N': 19100, 'A321': 23860, 'A21N': 26730,
+                 'B77W': 145538, 'B788': 101323, 'B789': 126920,
+                 'A350': 158791, 'A380': 253983}
+    _TYPICAL_SEATS = {'B738': 162, 'B38M': 178, 'A320': 165, 'A20N': 150,
+                      'A321': 185, 'A21N': 180, 'B77W': 365, 'B788': 242,
+                      'B789': 296, 'A350': 315, 'A380': 555}
+
+# ═══════════════════════════════════════════════════════════
 
 # Kişi başı ağırlık (yolcu + bagaj + kişisel eşya) — kg
-# Kaynak: EASA standardı
+#
+# Kaynak: EASA CS-25 / EU-OPS 1.620 standart yolcu ağırlıkları.
+# EASA 2022 güncellemesi (COVID sonrası bagaj artışı):
+#   • erkek 88.4 kg, kadın 70.2 kg, çocuk 35 kg → karışım ≈ 84 kg
+#   • el bagajı +6 kg, kayıtlı bagaj ortalama +16 kg
+#   • kısa/orta/uzun mesafe farkı: bagaj ağırlığı artar
+# Aşağıdaki 95/100/105 kg değerleri bu bileşenleri İÇERİR ve
+# muhafazakârdır (EASA saf yetişkin ortalamasından yüksek).
 _PAX_WEIGHT_KG: dict[str, int] = {
     'short_haul' : 95,
     'medium_haul': 100,
@@ -131,6 +134,16 @@ _PAX_WEIGHT_KG: dict[str, int] = {
 # ═══════════════════════════════════════════════════════════
 
 # Havalimanı bazlı yakıt fiyatları — USD/kg
+#
+# ⚠ BU BİR TAHMİNDİR — canlı piyasa verisi DEĞİLDİR.
+# Kaynak: IATA Jet Fuel Price Monitor genel eğilimi (2025-Q1 bandı),
+#         bölgesel vergi/lojistik farkları için sektör deneyimi.
+# Doğruluk: ±%10 günlük piyasa; müşteri kontrat fiyatı ±%30 farklı olabilir.
+#
+# TÜM $ KPI'LARI BU DEĞERE DOĞRUSAL BAĞLIDIR. Ticari kullanımda
+# müşterinin gerçek kontrat fiyatı girilmelidir (Assumptions.override
+# veya entegrasyonla). Bu tablo yalnızca varsayılan/örnek değerdir.
+#
 # Tarih: 2025-Q1 tahmini. Aylık kontrol önerilir.
 _FUEL_PRICES_USD_PER_KG: dict[str, float] = {
     # Türkiye
@@ -178,6 +191,12 @@ _COUNTRY_FUEL_DEFAULTS: dict[str, float] = {
 
 # Havayolu tipi bazlı zaman maliyeti — USD/saat
 # Bileşenler: mürettebat + bakım + leasing + fırsat maliyeti
+#
+# ⚠ TAHMİN. Kaynak: ATAG (Aviation Benefits Report) ve IATA Aircraft
+# Economics dokümanlarındaki tipik DOC (Direct Operating Cost) aralıkları.
+# Havayoluna göre ±%20 değişir (mürettebat anlaşmaları, leasing oranları).
+# Cost Index optimizasyonunun hassasiyetini belirler: CI bu değere
+# doğrusal bağlıdır, dolayısıyla sonuç ±%20 taşır.
 _TIME_COST_USD_PER_HR: dict[str, int] = {
     'ultra_lcc' : 800,
     'lcc'       : 1200,
@@ -201,6 +220,10 @@ _AIRLINE_TIME_COST_MAP: dict[str, str] = {
 }
 
 # Tipik load factor
+#
+# Kaynak: IATA World Air Transport Statistics (WATS) — sektör ortalaması
+# 2024: %83.5 (network), LCC'lerde %87-90. Aşağıdaki değerler bu
+# aralığa oturur. ±%5 mevsimsel/yıllık dalgalanma.
 _TYPICAL_LOAD_FACTOR: dict[str, float] = {
     'lcc'    : 0.87,
     'network': 0.83,
@@ -216,9 +239,30 @@ _TYPICAL_LOAD_FACTOR: dict[str, float] = {
 # ═══════════════════════════════════════════════════════════
 
 # Yıllık operasyonel gün sayısı
+#
+# KAYNAK: IATA / Airbus Global Market Forecast ve tipik havayolu
+# kullanım oranı: uçak yılda ~330-350 gün operasyonel, kalan gün
+# planlı bakım (A-check ~her 500 FH, C-check yıllık). 345 gün = %94.5
+# dispatch availability. Bu, endüstri standardına uygundur.
 OPERATIONAL_DAYS_PER_YEAR: int = 345
 
+# Yıllık AZAMİ blok-saat (uçak başına) — FİZİKSEL ÜST SINIR
+#
+# KAYNAK: Boeing/Airbus operatör kılavuzları tipik yüksek kullanım:
+#   • Kısa mesafe (A320/B737) : 3 000–3 800 blok-saat/yıl
+#   • Uzun mesafe (B77W/A350) : 4 500–5 200 blok-saat/yıl
+#   • Bölgesel                 : 2 500–3 000 blok-saat/yıl
+# 2019 öncesi en yoğun filolar 5 200 saat/yıl'a ulaştı (ör. Southwest
+# 737NG ~3 400 h, Emirates 777 ~4 800 h). 4 500 saat muhafazakâr üst
+# sınırdır; bunun üzerindeki projeksiyonlar fiziksel değildir.
+MAX_ANNUAL_BLOCK_HOURS: float = 4500.0
+
 # Günlük sefer frekansı — rota uzunluğuna göre
+#
+# ⚠ KAYNAKSIZ TAHMİN. OAG schedule veritabanı genel eğiliminden
+# türetilmiştir, tek tek rotalar için doğrulanmamıştır (±%30).
+# Bu yüzden annual_projection() frekansı ayrıca FİZİKSEL olarak
+# sınırlar (bkz. MAX_ANNUAL_BLOCK_HOURS) ve plate hour'ı raporlar.
 _DAILY_FREQUENCY_BY_DISTANCE: list[dict] = [
     {'max_nm':  300, 'label': 'ultra_short', 'freq': 6},
     {'max_nm':  800, 'label': 'short',       'freq': 4},
@@ -728,7 +772,7 @@ class Assumptions:
 
         Örnekler:
             Assumptions.daily_frequency(190)  → 6
-            Assumptions.daily_frequency(1560) → 2
+            Assumptions.daily_frequency(1200) → 2
             Assumptions.daily_frequency(5000) → 1
 
         Not: ±30% hata payı. Gerçek schedule önerilir.
@@ -742,6 +786,21 @@ class Assumptions:
                 return band['freq']
 
         return 1
+
+    @staticmethod
+    def _block_hours(route_nm: float) -> float:
+        """
+        Rota için blok-saat tahmini (kapı-kapı).
+
+        Yöntem: cruise süresi (TAS 460 kt varsayımı) + sabit taksi/
+        tırmanma/alçalma payı. Kısa rotada sabit pay baskındır.
+
+        KAYNAK: EUROCONTROL/ICAO tipik blok-süre bileşenleri;
+        taksi-out 12 dk + kalkış/tırmanma 8 dk + alçalma/yaklaşma 15 dk
+        + taksi-in 6 dk ≈ 41 dk sabit pay (kısa mesafe).
+        """
+        cruise_hr = float(route_nm) / 460.0
+        return cruise_hr + 0.68
 
     @staticmethod
     def annual_projection(
@@ -809,19 +868,44 @@ class Assumptions:
                 )
             rf_src = 'doğrudan parametre'
 
+        # ── FİZİKSEL ÜST SINIR ────────────────────────────────────
+        # Frekans bir TAHMİNDİR (kaynaksız, ±%30). Bu yüzden yıllık
+        # blok-saat, uçağın yıllık kapasitesini (MAX_ANNUAL_BLOCK_HOURS)
+        # aşamaz. Aşarsa frekans kırpılır ve durum raporlanır.
+        block_hr_per_flight = Assumptions._block_hours(route_nm)
+        uncapped_freq       = daily_flights
+        max_freq_by_capacity = (MAX_ANNUAL_BLOCK_HOURS
+                                / (block_hr_per_flight * OPERATIONAL_DAYS_PER_YEAR))
+        capped = False
+        if daily_flights > max_freq_by_capacity:
+            daily_flights = max_freq_by_capacity
+            capped = True
+
+        annual_block_hr = (daily_flights * OPERATIONAL_DAYS_PER_YEAR
+                           * block_hr_per_flight)
+        flight_hr_year  = annual_block_hr
+
         raw       = per_flight_saving_usd * daily_flights * OPERATIONAL_DAYS_PER_YEAR
         realistic = raw * rf
 
         return {
-            'daily_flights'        : daily_flights,
-            'operational_days'     : OPERATIONAL_DAYS_PER_YEAR,
-            'raw_annual_usd'       : round(raw),
-            'realistic_annual_usd' : round(realistic),
-            'realization_factor'   : rf,
-            'assumptions_used'     : {
-                'daily_flights_source'    : f'{daily_flights} sefer/gün ({daily_flights_src})',
+            'daily_flights'          : round(daily_flights, 2),
+            'operational_days'       : OPERATIONAL_DAYS_PER_YEAR,
+            'raw_annual_usd'         : round(raw),
+            'realistic_annual_usd'   : round(realistic),
+            'realization_factor'     : rf,
+            'annual_block_hours'     : round(annual_block_hr),
+            'block_hours_per_year'   : round(flight_hr_year),
+            'capacity_capped'        : capped,
+            'assumptions_used'       : {
+                'daily_flights_source'    : (f'{daily_flights:.2f} sefer/gün '
+                                             f'({daily_flights_src}'
+                                             + (f'; kapasite tavanı {max_freq_by_capacity:.2f}'
+                                                if capped else '') + ')'),
                 'realization_factor_source': f'%{rf*100:.0f} ({rf_src})',
                 'operational_days'        : f'{OPERATIONAL_DAYS_PER_YEAR} gün/yıl',
+                'annual_block_hours'      : (f'{annual_block_hr:,.0f} blok-saat/yıl '
+                                             f'(tavan {MAX_ANNUAL_BLOCK_HOURS:,.0f})'),
             },
         }
 

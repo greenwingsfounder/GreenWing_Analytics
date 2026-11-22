@@ -1647,8 +1647,19 @@ class Units:
         # ─── 4. YATAY HIZ ─────────────────────────────────
         if 'velocity' in df.columns:
             raw_vel = pd.to_numeric(df['velocity'], errors='coerce')
-            df['velocity_ms']  = raw_vel
-            df['velocity_kts'] = raw_vel * _MS_TO_KTS
+            # ── BİRİM TESPİTİ ────────────────────────────
+            # OpenSky API'si velocity'yi m/s verir; ancak arşivlenmiş
+            # CSV'ler kt olarak kaydedilmiş olabilir. Ticari uçak cruise
+            # hızı 400-520 kt (205-270 m/s). 90. persentil > 350 ise
+            # veri KNOT'tur → m/s'ye ÇEVİR, tekrar çarpma.
+            #
+            # Bu tespit olmadan 798 kt gibi imkânsız hız çıkıyordu
+            # (1240 nm'lik uçuşta cruise süresi yanlış hesaplanıyordu).
+            _p90 = (float(raw_vel.quantile(0.90))
+                    if raw_vel.notna().any() else 0.0)
+            _is_knots = _p90 > 350.0
+            df['velocity_ms']  = raw_vel * _KTS_TO_MS if _is_knots else raw_vel
+            df['velocity_kts'] = raw_vel if _is_knots else raw_vel * _MS_TO_KTS
         elif 'ground_speed_kts' in df.columns:
             raw_vel = pd.to_numeric(df['ground_speed_kts'], errors='coerce')
             df['velocity_kts'] = raw_vel
