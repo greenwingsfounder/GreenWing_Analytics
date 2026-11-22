@@ -200,6 +200,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(LEAP-1B27) = 1.014
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [0.950691, 1.976761, 1.395479]
     max_thrust_sl: 130280
 
@@ -284,6 +288,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(LEAP-1A26/26E1) = 0.861
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [0.807243, 1.976761, 1.395479]
     max_thrust_sl: 121400
 
@@ -360,6 +368,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(LEAP-1A35A/33/33B2/32/30) = 1.062
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [0.995694, 1.976761, 1.395479]
     max_thrust_sl: 147300
 
@@ -403,6 +415,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(GE90-115B) = 4.6
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [4.312799, 1.976761, 1.395479]
     max_thrust_sl: 513900
 
@@ -444,6 +460,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(GENX-1B70) = 2.494
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [2.338287, 1.976761, 1.395479]
     max_thrust_sl: 312000
 
@@ -482,6 +502,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(GENX-1B70) = 2.494
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [2.338287, 1.976761, 1.395479]
     max_thrust_sl: 339000
 
@@ -524,6 +548,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(TRENT XWB-84) = 2.819
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [2.642995, 1.976761, 1.395479]
     max_thrust_sl: 374000
 
@@ -570,6 +598,10 @@ aircraft_types:
     # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
     # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
     # Kaynak: ICAO EDB / OpenAP — default × ff_to(TRENT 970-84) = 2.605
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
     fuel_coef: [2.442357, 1.976761, 1.395479]
     max_thrust_sl: 311000
 

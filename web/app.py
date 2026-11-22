@@ -34,6 +34,9 @@ from __future__ import annotations
 import json
 import os
 import sys
+
+import numpy as np
+import pandas as pd
 from pathlib import Path
 from typing import Any
 
@@ -141,6 +144,53 @@ def summarize(rows: list[dict]) -> dict:
                      if k not in ('synthetic_fallback', 'demo', 'BİLİNMİYOR'))
     synthetic_count = provenance.get('synthetic_fallback', 0) + provenance.get('demo', 0)
     unknown_count = provenance.get('BİLİNMİYOR', 0)
+
+    # ── DENETİM #81 — ETİKETSİZ SENTETİK TESPİTİ ────────────
+    # `collection_method` alanı 'arrivals' olan dosya GERÇEK sayılıyordu,
+    # ama içeriği sentetik. Kanıt (data/archive/opensky_real/
+    # ARR_SXS_SXS1409_LTAI_EDDF.csv):
+    #   • zaman aralığı TAM 30.000000 saniye (tek farklı değer)
+    #   • true_track tek farklı değer (gerçek uçuşta yüzlerce)
+    #   • lat/lon 15 ondalık basamak (gerçek ADS-B ~6)
+    # Yani etiket yalan söylüyor. Etikete güvenmek yerine VERİNİN
+    # kendisine bakılır: sabit örnekleme aralığı = matematiksel üretim.
+    #
+    # Bu kontrol yalnızca altı çizili örnekleme düzenini yakalar
+    # (sentetik üreticinin imzası); gerçek ADS-B'de zaman aralığı
+    # hiçbir zaman sabit değildir.
+    def _looks_synthetic(df: pd.DataFrame) -> bool:
+        """Sabit örnekleme aralığı = matematiksel üretim imzası."""
+        col = 'time' if 'time' in df.columns else (
+            'timestamp' if 'timestamp' in df.columns else None)
+        if col is None or len(df) < 10:
+            return False
+        try:
+            t = pd.to_datetime(df[col], errors='coerce').dropna()
+        except Exception:
+            return False
+        if len(t) < 10:
+            return False
+        d = np.diff(t.values.astype('datetime64[ns]').astype('int64')) / 1e9
+        # Gerçek ADS-B'de aralıklar asla üniform değildir; sentetik
+        # üretici tam 30.000000 s gibi sabit adım atar.
+        return bool(len(d) and (d.max() - d.min()) < 1e-3)
+
+    _unlabeled_synthetic = 0
+    _raw_dir = Path('data/raw/opensky')
+    if _raw_dir.is_dir():
+        for _f in sorted(_raw_dir.glob('*.csv')):
+            try:
+                _df = pd.read_csv(_f)
+            except Exception:
+                continue
+            if 'collection_method' in _df.columns and str(
+                    _df['collection_method'].iloc[0]) in ('synthetic_fallback', 'demo'):
+                continue                       # etiketi zaten doğru
+            if _looks_synthetic(_df):
+                _unlabeled_synthetic += 1
+    if _unlabeled_synthetic:
+        real_count = max(0, real_count - _unlabeled_synthetic)
+        synthetic_count += _unlabeled_synthetic
 
     # ── DENETİM #29: BELİRSİZLİK ARALIĞI ────────────────────
     # sensitivity.py ±%26,7 (rüzgâr baskın) hesaplıyor ama panel

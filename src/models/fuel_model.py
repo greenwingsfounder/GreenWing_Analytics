@@ -53,6 +53,9 @@ from typing import Optional
 
 from src.units import Units
 from src.validation.data_validator import DataValidator
+from src.logging_config import get_logger
+
+logger = get_logger(__name__)
 # DENETİM #66: `PhysicsValidator` burada hiç kullanılmıyordu (ölü
 # import, tek geçiş = import satırı). Kaldırıldı.
 #
@@ -109,6 +112,13 @@ _AIRCRAFT_DB_CACHE = None  # TODO: add reload/invalidation for production (threa
 #     — gerçek B738 davranışıyla (~%7-8) uyumlu.
 _WAVE_DRAG_COEFF = 200.0
 
+# ── DENETİM #78 — OpenAP "default" yakıt modeli katsayıları ──────
+# data/openap/fuel/fuel_models.csv içindeki `default` satırı.
+# Bir uçak tipinin fuel_coef'i DEFAULT × ff_to yoluyla türetildiğinde
+# c2 ve c3 bu değerleri AYNEN alır → tip için gerçek EDB eğrisi yok.
+_PILLAR_C2 = 1.976761
+_PILLAR_C3 = 1.395479
+
 
 class FuelModel:
     """
@@ -152,6 +162,23 @@ class FuelModel:
         # Kalibrasyon ve SAF ısıl değer faktörlerini uygula
         self._effective_cd0  = self.params['CD0'] * cd0_factor
         self._effective_tsfc = self.params['tsfc_cruise'] * sfc_factor * self.saf_model.sfc_correction_factor()
+
+        # ── DENETİM #78 — YAKIT MODELİ TAHMİN BAYRAĞI ──────────────
+        # c2/c3, OpenAP'ın "default" satırının değerleridir. Bir tipin
+        # fuel_coef'i DEFAULT × ff_to ile türetildiyse bu iki katsayı
+        # AYNEN default'tan gelir — yani o tip için gerçek EDB eğrisi
+        # değil, kaba bir tahmin kullanılıyor demektir.
+        _fc = self.params.get('fuel_coef')
+        self.fuel_model_is_estimate: bool = bool(
+            _fc and abs(float(_fc[1]) - _PILLAR_C2) < 1e-6
+            and abs(float(_fc[2]) - _PILLAR_C3) < 1e-6
+        )
+        if self.fuel_model_is_estimate:
+            logger.warning(
+                "Yakıt modeli TAHMİN: %s ICAO EDB'de yok — "
+                "DEFAULT × ff_to türetmesi kullanılıyor (denetim #78).",
+                aircraft_type,
+            )
 
     # ──────────────────────────────────────────────────────
     # BÖLÜM 0: UÇAK PARAMETRELERİ YÜKLEME
@@ -567,6 +594,21 @@ class FuelModel:
         #    r = (T_motor / T_max_motor)   [deniz seviyesi, statik]
         # 2) Katsayı yoksa: SFC × D klasik yol.
         coef = self.params.get('fuel_coef')
+        # ── DENETİM #78 — FALLBACK TESPİTİ ─────────────────────────
+        # OpenAP fuel_models.csv'de yalnızca 15 tipin GERÇEK EDB
+        # katsayısı var (A318/A319/A320/A321/A332/A333/B737/B738/
+        # B739/CRJ9/E170/E190/E195/E75L + default).
+        #
+        # Listede olmayan tipler (B38M, A20N, A21N, B77W, B788, B789,
+        # A350, A380 — yani 11 tipin 8'i) DEFAULT × ff_to türetmesiyle
+        # modellenir ve c2/c3 sabittir (1.976761 / 1.395479).
+        #
+        # Ölçülen sapma (denetim, tipik cruise):
+        #     A20N −%17 · A21N −%8 · B38M +%1
+        #     B788 +%17 · B789 +%26 · A350 +%20 · A380 +%43 · B77W +%63
+        #
+        # Bu bir "tahmin"dir; sessizce gerçek EDB gibi sunulmamalı.
+        # Çağıran taraf `self.fuel_model_is_estimate` ile kontrol edebilir.
         if coef:
             c1, c2, c3 = coef
             n_eng = int(self.params.get('num_engines', 2))

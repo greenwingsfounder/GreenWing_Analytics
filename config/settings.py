@@ -334,6 +334,28 @@ DATA_RAW = os.path.join(_PROJECT_ROOT, 'data', 'raw')
 """Ham veri klasörü (OpenSky CSV'ler)."""
 
 DATA_RAW_OPENSKY = os.path.join(DATA_RAW, 'opensky')
+
+# ══════════════════════════════════════════════════════════════
+# DENETİM #79 — VERİ KAYNAĞI ADI YANILTICI
+# ══════════════════════════════════════════════════════════════
+# Klasör adı `opensky` AMA bu klasöre yazan üç kaynağın hiçbiri
+# OpenSky değil:
+#   • scripts/06_seed_real_data.py   → tamamen SENTETİK simülasyon
+#   • scripts/07_live_flight_scrapper.py → ADSB.lol (api.adsb.lol)
+#   • scripts/08_automated_fleet_tracker.py → ADSB.lol
+#
+# Yani "opensky" klasöründeki veri ya sentetik ya da ADSB.lol
+# kaynaklıdır. Bu ayrım raporlarda/yüzeyde doğru gösterilmelidir.
+#
+# Gerçek OpenSky verisi için src/data_collection/opensky_collector.py
+# kullanılır (kimlik bilgisi gerekir, bu ortamdan erişilemedi).
+#
+# Klasör adı geriye dönük uyumluluk için DEĞİŞTİRİLMEDİ — boru hattı
+# (01→02→03) bu yola bağlı. Doğru bilgi DATA_SOURCE_NOTE ile taşınır.
+DATA_SOURCE_NOTE = (
+    'data/raw/opensky/ içeriği OpenSky ağından GELMEZ: '
+    '06 sentetik simülasyon, 07 ve 08 ADSB.lol topluluk radarıdır.'
+)
 """OpenSky ADS-B veri klasörü."""
 
 DATA_PROCESSED = os.path.join(_PROJECT_ROOT, 'data', 'processed')

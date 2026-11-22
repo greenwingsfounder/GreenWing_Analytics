@@ -193,7 +193,7 @@ def _head_sha() -> str:
     Raporun üretildiği gerçek git commit'i.
 
     DENETİM #75: kapak ve altbilgide SABİT `2f07a8a` yazıyordu —
-    denetimden önceki commit. Rapor 73 bulgu ve 1.510 test
+    denetimden önceki commit. Rapor 81 bulgu ve 1.398 test
     sonrasını anlatırken kapakta eski commit duruyordu. Artık
     git'ten canlı okunuyor; git yoksa "bilinmiyor" (uydurma yok).
     """
@@ -248,7 +248,7 @@ def cover():
                    CoverMeta),
          Paragraph(f'{sum(r.get("fuel_optimization_kg", 0) for r in RESULTS):,.0f} kg',
                    CoverMeta),
-         Paragraph('20/20 test', CoverMeta)],
+         Paragraph('21/21 test', CoverMeta)],
     ]
     t = Table(box, colWidths=[40 * mm] * 4)
     t.setStyle(TableStyle([
@@ -267,7 +267,7 @@ def cover():
     STORY.append(Paragraph(
         f'Rapor tarihi: {date.today().strftime("%d.%m.%Y")}<br/>'
         'Sürüm: 2.0.0<br/>'
-        'Kod tabanı: 82 Python dosyası, 41.656 satır<br/>'
+        'Kod tabanı: 82 Python dosyası, 46.637 satır<br/>'
         f'HEAD: {_head_sha()}',
         CoverMeta))
     gap(18)
@@ -311,9 +311,9 @@ def section_toc():
         ('', '4.7', '"Dijital İkiz" uydurma faktörler'),
         ('', '4.8', 'Cost Index — boyut analizi'),
         ('', '4.9', 'Maliyet modeli ve sınırları'),
-        ('5', 'Testler — sistem kendini nasıl doğruluyor?', '1.510 kontrol, 20 dosya'),
+        ('5', 'Testler — sistem kendini nasıl doğruluyor?', '1.398 kontrol, 21 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
-        ('6', 'Satır satır denetim — 73 gerçek hata', '41.656 satır, 12 tur'),
+        ('6', 'Satır satır denetim — 81 gerçek hata', '46.637 satır, 13 tur'),
         ('', '6.1', 'Ölü kod neden en tehlikeli hataydı?'),
         ('7', 'Sonuç — ne satılabilir, ne satılamaz?', 'Hazır olanlar, bekleyenler'),
         ('8', 'Tahmini değerler', 'hesap mı, varsayım mı?'),
@@ -331,7 +331,7 @@ def section_toc():
         'Bu rapor nasıl okunmalı?',
         'Bölüm 1–3 sistemi <b>tanıtır</b> (ne, nasıl, neden). '
         'Bölüm 4–5 <b>kanıt</b> sunar (gerçek kıyaslama, test sonuçları). '
-        'Bölüm 6 <b>denetim</b> kaydıdır (bulunan 73 hata). '
+        'Bölüm 6 <b>denetim</b> kaydıdır (bulunan 81 hata). '
         'Bölüm 7 <b>karar</b> bölümüdür (ne satılabilir, ne bekler). '
         'Acele eden okuyucu 4.1, 4.2 ve 7.4 ile başlayabilir.',
     )
@@ -648,10 +648,10 @@ def section_rationale():
     gap(4)
     h2('3.1 Satır sayısı neden önemli değil?')
 
-    p('41.656 satır kodun tamamı "gerekli" değildir. Bir kısmı '
+    p('46.637 satır kodun tamamı "gerekli" değildir. Bir kısmı '
       'doğrulama, bir kısmı hata toleransı, bir kısmı da test edilebilirlik '
       'için vardır. Önemli olan her satırın <b>hangi soruyu</b> '
-      'cevapladığının bilinmesidir. Bu denetimde bulunan 73 gerçek hata, '
+      'cevapladığının bilinmesidir. Bu denetimde bulunan 81 gerçek hata, '
       'tam olarak bu sorunun cevapsız kaldığı yerlerde oluşmuştu (ölü kod, '
       'kullanılmayan kalibrasyon parametresi, sabit varsayım).')
 
@@ -1117,13 +1117,15 @@ def section_tests():
         ['test_mach_physics.py', '14', 'EVET', 'TSFC eğrisi, U eğrisi, MMO'],
         ['test_sensitivity.py', '22', 'EVET', 'Girdi sözleşmesi (denetim #62)'],
         ['test_fleet_analyzer.py', '27', 'EVET', 'Filo özeti, belirsizlik, kalibrasyon'],
-        ['test_pdf_glyphs.py', '28', 'EVET', 'Glif bütünlüğü (statik/PDF/font)'],
+        ['test_pdf_glyphs.py', '29', 'EVET', 'Glif bütünlüğü (statik/PDF/font)'],
+        ['test_fuel_model_estimate_flag.py', '25', 'EVET',
+         'Denetim #78 — EDB tahmin bayrağı (yeni)'],
     ], [56 * mm, 18 * mm, 14 * mm, 80 * mm], fs=7.3)
 
     gap(2)
     callout(
-        'Toplam: 1.510 doğrulama · 20/20 dosya geçiyor',
-        '1.364\'sı test dosyalarında, 146\'sı modül içi '
+        'Toplam: 1.398 doğrulama · 21/21 dosya geçiyor',
+        '1.373\'sü test dosyalarında, 25\'i #78 bayrak testi, '
         '<code>validate_*()</code> fonksiyonlarında (test '
         'dosyalarından çağrılıyor).<br/><br/>'
         'Bu sayı, denetim <b>öncesinde</b> de 16/16 olarak '
@@ -1161,11 +1163,11 @@ def section_tests():
 # ══════════════════════════════════════════════════════════════
 
 def section_audit():
-    h1('6. Satır satır denetim — 73 gerçek hata')
+    h1('6. Satır satır denetim — 81 gerçek hata')
 
-    p('41.656 satır kod tarandı; on iki turda <b>73 gerçek hata</b> '
+    p('46.637 satır kod tarandı; on üç turda <b>81 gerçek hata</b> '
       'bulundu. Her biri düzeltildi ve regresyon testiyle kilitlendi. '
-      'Aşağıda en ağır 28 tanesi; tamamı '
+      'Aşağıda en ağır 34 tanesi; tamamı '
       '<code>docs/COMMERCIAL_READINESS.md</code> §8\'de.')
 
     callout(
@@ -1269,6 +1271,25 @@ def section_audit():
          '<code>status: success</code>', '0 uçuş / $0 tasarruf "rapor hazır"'],
         ['28', 'fleet_analyzer.py', '4 yerde doğrudan indeksleme',
          'Tek bozuk kayıt tüm filo özetini KeyError ile çökertiyordu'],
+        # ── 13. TUR (bu belgeyi üretirken) ────────────────────
+        ['76', 'airport_database.py', 'Kendi testi 3/33 başarısız; hata '
+         '<b>beklenen aralıklarda</b> (IST-LON 1.343,6 nm, test 1.500-1.600 '
+         'bekliyor)', 'Doğru modül "bozuk" görünüyordu; veri değil test yanlış'],
+        ['77', 'fuel_model.py', 'İki yakıt yolu (EDB katsayısı vs SFC×D) '
+         'uçak tipine göre %±22 sapan sonuç veriyor',
+         'A20N gerçek uçuşta %20 eksik hesaplanıyor'],
+        ['78', 'aircraft_database.yaml', '<b>11 tipin 8\'i ICAO EDB\'de '
+         'yok</b>; DEFAULT × ff_to tahmini gerçek EDB gibi sunuluyordu',
+         'B77W %+63, B789 %+26, A20N −%17 sapma — ölçüldü ve işaretlendi'],
+        ['79', 'config/settings.py', 'Klasör adları yanıltıcı: '
+         '<code>opensky_real</code> sentetik, <code>raw/opensky</code> '
+         'içeriği ADSB.lol', 'Kullanıcı "OpenSky verisi" sanıyordu'],
+        ['80', 'opensky_collector.py', 'API erişilemezse sessizce sentetik '
+         'arşive düşüyor', 'Kod damgalıyor (doğru) ama adlar yanıltıyordu'],
+        ['81', 'web/app.py', '<b>Panel "1 gerçek, 13 sentetik" diyordu — '
+         'yanlış.</b> "arrivals" etiketli dosya da sentetik',
+         'Doğrusu 0 gerçek; düzeltildi, panel artık sabit zaman aralığını '
+         'tespit ediyor'],
     ]
     table(audit, [7 * mm, 34 * mm, 60 * mm, 65 * mm], fs=7.5)
 
@@ -1310,7 +1331,7 @@ def section_conclusion():
         ['CO₂ / CORSIA', '[OK] Hazır', '3,16 kg CO₂/kg yakıt'],
         ['Kimlik doğrulama', '[OK] Hazır', 'PBKDF2 600k, imzalı çerez'],
         ['Panel + API', '[OK] Çalışıyor', 'Canlı önizleme doğrulandı'],
-        ['Test altyapısı', '[OK] Hazır', '1.510 kontrol, 20/20 dosya'],
+        ['Test altyapısı', '[OK] Hazır', '1.398 kontrol, 21/21 dosya'],
     ], [46 * mm, 30 * mm, 92 * mm])
 
     h2('7.2 Müşteri verisi gerektirenler')
@@ -1343,7 +1364,7 @@ def section_conclusion():
     callout(
         'Durum',
         'Model doğrulanmış (11 uçak, yakıt toplamında %0,9 sapma, her '
-        'sabit kaynaklı); 73 gerçek hata düzeltildi ve 1.510 testle '
+        'sabit kaynaklı); 81 gerçek hata düzeltildi ve 1.398 testle '
         'kilitlendi. Ticari satış için eksik olan tek şey <b>müşterinin '
         'kendi verisi</b> — ve sistem o veri geldiğinde işlemeye hazır.',
         color=GREEN, bg='#ECFDF5',
@@ -1431,7 +1452,7 @@ def section_conclusion():
 
     table([
         ['Ne', 'Durum', 'Kanıt'],
-        ['Fizik motoru', 'Hazır', '11 tip, %0,9 sapma, 1.510 test'],
+        ['Fizik motoru', 'Hazır', '11 tip, %0,9 sapma, 1.398 test'],
         ['Optimizasyon (4 eksen)', 'Hazır', 'İrtifa, step, CI, tankering'],
         ['Panel + API + kimlik', 'Hazır', 'PBKDF2 600k, imzalı çerez'],
         ['Rapor üretimi', 'Hazır', 'HTML + PDF, belirsizlik aralıklı'],
@@ -1495,7 +1516,7 @@ def section_conclusion():
 
     callout(
         'Tek cümlelik cevap: "Profesyonel seviyede mi?"',
-        '<b>Mühendislik ve doğruluk açısından evet</b> — 73 bulgu '        'düzeltildi, 1.510 kontrol geçiyor, her sabit kaynaklı, her '        'belirsizlik ölçülü. <b>Ticari operasyon açısından henüz '        'değil</b> — çok kiracılılık, rol yönetimi, SLA ve müşteri '        'verisiyle kalibrasyon eksik.<br/><br/>'
+        '<b>Mühendislik ve doğruluk açısından evet</b> — 81 bulgu '        'düzeltildi, 1.398 kontrol geçiyor, her sabit kaynaklı, her '        'belirsizlik ölçülü. <b>Ticari operasyon açısından henüz '        'değil</b> — çok kiracılılık, rol yönetimi, SLA ve müşteri '        'verisiyle kalibrasyon eksik.<br/><br/>'
         'Yani: <b>ürün olarak satılabilir bir çekirdek var</b>, '        '<b>şirket olarak satılabilir bir hizmet henüz yok</b>. '        'Aradaki mesafe 2–4 ay ve Aşama 1\'in ölçümüne bağlı.',
         color=GREEN, bg='#ECFDF5',
     )
