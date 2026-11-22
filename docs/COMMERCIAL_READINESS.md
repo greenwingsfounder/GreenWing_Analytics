@@ -539,3 +539,58 @@ validation         : 91 → 99 kontrol
 Yeni regresyon     : §7b(7) + §18b(4) + §19b(6) + §26b(12) + §46(7)
 Toplam bulgu       : #1–46
 ```
+
+### 8.16 Müşteri verisi kapısı yalnız yakıtı kontrol ediyordu (P1)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 47 | `data_validator.py` | `validate_customer_dataframe()` — müşteriden gelen Excel/CSV'yi doğrulayan fonksiyon — yalnız `fuel_kg` sütunu için sayısal/negatif kontrolü yapıyordu. `distance_nm = -100`, `weight_kg = 800.000`, `cruise_alt_ft = 60.000` değerleri **hiç yakalanmıyordu**. |
+
+**Ölçülen etki:** Aşağıdaki DataFrame eski kodda yalnız 2 hata
+veriyordu (ikisi de yakıtla ilgili); mesafe/ağırlık/irtifa hataları
+sessizce geçiyordu:
+
+```
+fuel_kg       : [12000, -500, 0, None, 999999]
+distance_nm   : [1200, 0, -100, 800, 2000]     ← -100 görülmüyordu
+weight_kg     : [65000, 500, 60000, 70000, 800000]  ← görülmüyordu
+cruise_alt_ft : [35000, 1000, 36000, 38000, 60000]  ← görülmüyordu
+```
+
+**Eski:** 2 hata, 1 uyarı → **Yeni:** 3 hata, 3 uyarı
+
+**Düzeltme:** Genel bir aralık tablosu eklendi:
+
+| Sütun | Aralık | Şiddet |
+|---|---|---|
+| `distance_nm` | 1 – 12.000 nm | negatif → **hata** |
+| `weight_kg` | 20.000 – 600.000 kg | aralık dışı → uyarı |
+| `cruise_alt_ft` | 5.000 – 45.000 ft | aralık dışı → uyarı |
+| `mach` | 0,50 – 0,92 | aralık dışı → uyarı |
+
+Negatif değer **hata** (hesabı bozar); aralık dışı **uyarı**
+(müşteri verisi reddedilmeden gözden geçirilmeli). Her sütun için
+min/max `stats`'a da yazılıyor.
+
+**Bilinen sınır (bilinçli):** `weight_kg` üst sınırı 600 t (A380
+MTOW 575 t bazlı). 300 t'luk bir B738 kaydı bu genel aralığın
+içinde kalır — tip bazlı kontrol yapılmadı çünkü sütunda
+`aircraft_type` olmayabilir. Bu, uyarı metninde değil test
+yorumunda not edildi.
+
+### 8.17 5. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| 4 | 38–45 | BFFM2, SA, SAF anahtarı, CORSIA MRV |
+| **5** | **46–47** | **FAR 25.251 buffet, müşteri verisi kapısı** |
+
+```
+Test dosyası   : 16/16 · 0 hata
+validation     : 91 → 99 → 103 kontrol
+emission       : 118 → 149
+Toplam bulgu   : #1–47
+```

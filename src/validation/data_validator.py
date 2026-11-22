@@ -740,6 +740,55 @@ class DataValidator:
                 result.stats["fuel_max"]  = float(fuel.max())
                 result.stats["fuel_mean"] = float(fuel.mean())
 
+        # ══════════════════════════════════════════════════════
+        # DENETİM #47 — YALNIZ fuel_kg KONTROL EDİLİYORDU
+        # ══════════════════════════════════════════════════════
+        # Eski kod yalnız `fuel_kg` için sayısal/negatif kontrolü
+        # yapıyordu. Müşteri verisinde `distance_nm = -100` veya
+        # `weight_kg = 300.000` (300 ton — hiçbir uçak değil)
+        # HİÇ yakalanmıyordu. Aşağıdaki fiziksel aralıklar
+        # sektör dışı değerleri işaretler (hata değil UYARI:
+        # müşteri verisi reddedilmeden önce gözden geçirilmeli).
+        #
+        # fuel_kg hata (hesap bozulur); diğerleri uyarı (rapor
+        # kalitesi düşer ama motor çökmez).
+        _RANGES = {
+            'distance_nm'  : (1,      12_000, 'Mesafe'),
+            'weight_kg'    : (20_000, 600_000, 'Ağırlık'),
+            'cruise_alt_ft': (5_000,  45_000, 'Seyir irtifası'),
+            'mach'         : (0.50,   0.92,   'Mach'),
+        }
+        for _col, (_lo, _hi, _label) in _RANGES.items():
+            if _col not in df.columns:
+                continue
+            _vals = pd.to_numeric(df[_col], errors='coerce')
+            _valid = _vals.dropna()
+            if len(_valid) == 0:
+                continue
+
+            _nan = int(_vals.isna().sum())
+            _neg = int((_valid < 0).sum())
+            _below = int(((_valid > 0) & (_valid < _lo)).sum())
+            _above = int((_valid > _hi).sum())
+
+            if _nan > 0:
+                result.add_warning(
+                    f"{_col} sütununda {_nan} sayısal olmayan değer."
+                )
+            if _neg > 0:
+                result.add_error(
+                    f"{_col} sütununda {_neg} NEGATİF değer. "
+                    f"{_label} negatif olamaz — hesap bozulur."
+                )
+            elif _below > 0 or _above > 0:
+                result.add_warning(
+                    f"{_col} sütununda {_below + _above} değer fiziksel "
+                    f"aralık dışı [{_lo:,}–{_hi:,}] ({_label})."
+                )
+
+            result.stats[f"{_col}_min"] = float(_valid.min())
+            result.stats[f"{_col}_max"] = float(_valid.max())
+
         for col in ['origin', 'destination']:
             if col in df.columns:
                 invalid_icao = df[col].apply(

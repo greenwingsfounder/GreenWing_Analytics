@@ -240,6 +240,48 @@ def run_all_tests():
     check_fail("customer_df: negatif fuel_kg",
                DataValidator.validate_customer_dataframe(neg_fuel_cdf))
 
+    # ─── [47] MÜŞTERİ VERİSİ ÇOKLU SÜTUN KONTROLÜ ────────
+    # DENETİM #47: Eski kod yalnız fuel_kg kontrol ediyordu.
+    # distance_nm=-100 ve weight_kg=300.000 hiç yakalanmıyordu.
+    _neg_dist_cdf = pd.DataFrame({
+        'origin': ['LTFM'], 'destination': ['EGLL'],
+        'fuel_kg': [12000], 'distance_nm': [-100],
+    })
+    check_fail("customer_df: negatif distance_nm → hata",
+               DataValidator.validate_customer_dataframe(_neg_dist_cdf))
+
+    _absurd_cdf = pd.DataFrame({
+        'origin': ['LTFM'], 'destination': ['EGLL'],
+        'fuel_kg': [12000], 'distance_nm': [1200],
+        'weight_kg': [800_000], 'cruise_alt_ft': [60_000],
+    })
+    _abs_res = DataValidator.validate_customer_dataframe(_absurd_cdf)
+    # Not: 600 t üst sınırı A380 MTOW (575 t) bazlı. 300 t B738 için
+    # imkânsız ama genel aralık kabul eder — tip bazlı kontrol yok
+    # (bilinçli: sütunda aircraft_type yoksa hangi uçak bilinmiyor).
+    assert_check(
+        "customer_df: 800 t ağırlık yakalanıyor (uyarı)",
+        any('weight_kg' in w for w in _abs_res.warnings),
+        f"warnings={_abs_res.warnings}"
+    )
+    assert_check(
+        "customer_df: 60.000 ft yakalanıyor (uyarı)",
+        any('cruise_alt_ft' in w for w in _abs_res.warnings)
+    )
+
+    # Normal aralıktaki veri UYARI üretmemeli (yanlış pozitif kontrolü)
+    _clean_cdf = pd.DataFrame({
+        'origin': ['LTFM'], 'destination': ['EGLL'],
+        'fuel_kg': [12000], 'distance_nm': [1200],
+        'weight_kg': [65000], 'cruise_alt_ft': [35000],
+    })
+    _clean_res = DataValidator.validate_customer_dataframe(_clean_cdf)
+    assert_check(
+        "customer_df: normal veri uyarısız",
+        _clean_res.is_valid and len(_clean_res.warnings) == 0,
+        f"warnings={_clean_res.warnings}"
+    )
+
     # ─── quick_check ─────────────────────────────────────
     tests += 1
     info = DataValidator.quick_check(make_traj())
