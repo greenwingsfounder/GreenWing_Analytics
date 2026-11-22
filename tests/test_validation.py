@@ -282,6 +282,27 @@ def run_all_tests():
         f"warnings={_clean_res.warnings}"
     )
 
+    # ─── [53] YILLIK PROJEKSİYON TEŞHİSİ ────────────────
+    # DENETİM #53: raw=-50.000 → eski mesaj "realization_factor
+    # > 1.0 olamaz" diyordu, oysa RF=0.6 idi. Yanlış teşhis.
+    _neg_raw = BusinessValidator.validate_annual_projection(
+        -50_000, 0, 0.6, 2)
+    check_fail("annual_projection: negatif teorik → hata", _neg_raw)
+    assert_check(
+        "annual_projection: 'negatif' teşhisi (RF değil)",
+        any('negatif' in e.lower() for e in _neg_raw.errors)
+        and not any('realization_factor > 1.0' in e for e in _neg_raw.errors),
+        f"errors={_neg_raw.errors}"
+    )
+    _neg_real = BusinessValidator.validate_annual_projection(
+        300_000, -1_000, 0.6, 2)
+    check_fail("annual_projection: negatif gerçekçi → hata", _neg_real)
+    # Normal hâlâ geçmeli
+    check_pass(
+        "annual_projection: normal",
+        BusinessValidator.validate_annual_projection(300_000, 180_000, 0.6, 2)
+    )
+
     # ─── quick_check ─────────────────────────────────────
     tests += 1
     info = DataValidator.quick_check(make_traj())
@@ -481,6 +502,68 @@ def run_all_tests():
     else:
         fail("MTOW yakın", "uyarı beklendi")
 
+    # ─── [48] SIFIR YAKIT ÇÖKMEMELİ ──────────────────────
+    # DENETİM #48: fuel_kg=0 → ZeroDivisionError (CO₂ tutarlılığı)
+    _zero_fuel = BusinessValidator.validate_fuel_efficiency(
+        0, 1000, 0, 'B738')
+    check_fail("fuel_efficiency: fuel_kg=0 → hata (çökmüyor)", _zero_fuel)
+    _neg_fuel = BusinessValidator.validate_fuel_efficiency(
+        -100, 1000, 0, 'B738')
+    check_fail("fuel_efficiency: negatif yakıt → hata", _neg_fuel)
+
+    # ─── [49] TÜM UÇAK TİPLERİ TANINIYOR MU ──────────────
+    # DENETİM #49: 11 tipin 7'si tip tablosunda yoktu →
+    # DEFAULT (3.0, 50.0) aralığına düşüyordu.
+    from src.validation.business_validator import _TYPICAL_FUEL_PER_NM
+    _app_types = ['A20N', 'A21N', 'A320', 'A321', 'A350', 'A380',
+                  'B38M', 'B738', 'B77W', 'B788', 'B789']
+    _missing = [t for t in _app_types if t not in _TYPICAL_FUEL_PER_NM]
+    assert_check(
+        f"fuel/Nm tablosu 11 uçak tipini kapsıyor (eksik: {_missing})",
+        not _missing
+    )
+    # Kanonik kaynakla aynı olmalı (benchmark._SAR_RANGES türevi)
+    from src.analysis.benchmark import _FUEL_PER_NM_RANGES
+    assert_check(
+        "fuel/Nm tablosu benchmark ile aynı (tek kaynak)",
+        _TYPICAL_FUEL_PER_NM == _FUEL_PER_NM_RANGES
+    )
+    # B38M için 40 kg/nm artık "tipik dışı" uyarısı vermeli
+    _b38m_absurd = BusinessValidator.validate_fuel_efficiency(
+        40 * 1000, 1000, 40 * 1000 * 3.16, 'B38M')
+    assert_check(
+        "fuel_efficiency: B38M 40 kg/nm → tipik dışı uyarısı",
+        any('tipik' in w for w in _b38m_absurd.warnings),
+        f"warnings={_b38m_absurd.warnings}"
+    )
+
+    # ─── [51] validate_mtow İMZA TUZAĞI ──────────────────
+    # DENETİM #51: validate_mtow(oew, payload, fuel, 'B738') →
+    # extra_fuel_kg='B738' olup TypeError veriyordu.
+    _natural = BusinessValidator.validate_mtow(
+        41413, 16000, 8426, 'B738')
+    assert_check(
+        "validate_mtow: 4. argüman aircraft_type kabul ediliyor",
+        _natural.is_valid and _natural.stats['mtow_kg'] == 79016.0,
+        f"stats={_natural.stats.get('mtow_kg')}"
+    )
+    # Eski 5-argüman çağrısı hâlâ çalışmalı
+    _legacy = BusinessValidator.validate_mtow(
+        41413, 16000, 8426, 0, 'B738')
+    assert_check("validate_mtow: 5-argüman eski çağrı çalışıyor",
+                 _legacy.is_valid)
+    # Çift tip → açık TypeError
+    _double = False
+    try:
+        BusinessValidator.validate_mtow(1, 2, 3, 'B738', 'A320')
+    except TypeError:
+        _double = True
+    assert_check("validate_mtow: çift aircraft_type → TypeError", _double)
+    # Negatif girdi
+    _mtow_neg = BusinessValidator.validate_mtow(
+        41413, -100, 8426, 'B738')
+    check_fail("validate_mtow: negatif payload → hata", _mtow_neg)
+
     # ─── validate_step_climb_plan ─────────────────────────
     good_plan = [
         {'distance': 400, 'from': 'FL350', 'to': 'FL370', 'net_saving': 85},
@@ -492,6 +575,42 @@ def run_all_tests():
     # Boş plan
     check_pass("step_climb: boş plan",
                BusinessValidator.validate_step_climb_plan([], 1560))
+
+    # ─── [52] BOZUK STEP PLANI ÇÖKMEMELİ ─────────────────
+    # DENETİM #52: [{'from':'FL350'}] → KeyError: 'distance'
+    #             [{'distance':'abc'}] → TypeError (int - str)
+    # Doğrulayıcı, doğruladığı bozuk veride çökmemeli.
+    _no_dist = BusinessValidator.validate_step_climb_plan(
+        [{'from': 'FL350'}, {'from': 'FL370'}], 1560)
+    check_fail("step_climb: distance eksik → hata (çökmüyor)", _no_dist)
+    assert_check(
+        "step_climb: hangi alanın eksik olduğu söyleniyor",
+        any("'distance'" in e and 'eksik' in e for e in _no_dist.errors),
+        f"errors={_no_dist.errors[:2]}"
+    )
+
+    _bad_type = BusinessValidator.validate_step_climb_plan(
+        [{'distance': 'abc', 'from': 'FL350', 'to': 'FL370',
+          'net_saving': 85}], 1560)
+    check_fail("step_climb: distance='abc' → hata (çökmüyor)", _bad_type)
+    assert_check(
+        "step_climb: 'sayısal değil' teşhisi",
+        any('sayısal değil' in e for e in _bad_type.errors)
+    )
+
+    _all_missing = BusinessValidator.validate_step_climb_plan(
+        [{'distance': 400}], 1560)
+    check_fail("step_climb: 3 alan eksik → hata", _all_missing)
+    assert_check(
+        "step_climb: 3 ayrı alan hatası raporlanıyor",
+        len(_all_missing.errors) == 3,
+        f"{len(_all_missing.errors)} hata"
+    )
+
+    # dict olmayan adım
+    _not_dict = BusinessValidator.validate_step_climb_plan(
+        ['FL350'], 1560)
+    check_fail("step_climb: dict olmayan adım → hata", _not_dict)
 
     # Çok fazla step
     many_steps = [

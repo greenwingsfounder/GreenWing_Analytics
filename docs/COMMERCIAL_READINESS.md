@@ -594,3 +594,53 @@ validation     : 91 → 99 → 103 kontrol
 emission       : 118 → 149
 Toplam bulgu   : #1–47
 ```
+
+### 8.18 İş mantığı doğrulayıcı — dört hata (P1)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 48 | `business_validator.py` | `validate_fuel_efficiency(fuel_kg=0, …)` → **`ZeroDivisionError`**. CO₂ tutarlılık kontrolünde `abs(expected_co2 - co2_kg) / expected_co2` — `expected_co2 = 0` iken bölme. Doğrulayıcı, doğrulaması gereken sıfır değerinde çöküyordu. |
+| 49 | `business_validator.py` | `_TYPICAL_FUEL_PER_NM` elle yazılmış 5 uçak tipi içeriyordu. Uygulamanın desteklediği **11 tipin 7'si** (A20N, A21N, A321, A380, B38M, B789) yoktu → `DEFAULT (3.0, 50.0)` aralığına düşüyordu. Yani B38M için **40 kg/nm "tipik aralıkta"** sayılıyordu. |
+| 50 | `business_validator.py` | Aynı uçak için iki modül **farklı** "tipik aralık" veriyordu: `business_validator` B738 → (6.0, 11.0); `benchmark` (SAR türevli) → (4.78, 7.46). Hangisi doğru? |
+| 51 | `business_validator.py` | `validate_mtow(oew, payload, fuel, 'B738')` → **`TypeError`**. İmza `(…, extra_fuel_kg=0, aircraft_type='B738')` olduğu için 4. argüman `extra_fuel_kg`'ye bağlanıp `int + str` yapıyordu. Kütüphane kullanıcısı için doğal çağrı çöküyordu. |
+| 52 | `business_validator.py` | `validate_step_climb_plan([{'from':'FL350'}])` → **`KeyError: 'distance'`**; `[{'distance':'abc'}]` → **`TypeError`** (int − str); `[{'distance':400}]` → uyarı `"Step 1 (None→None)"` (teşhis edilemez). |
+| 53 | `business_validator.py` | `validate_annual_projection(raw=-50.000, rf=0.6)` → mesaj **"realization_factor > 1.0 olamaz"** diyordu; oysa RF=0.6 idi. Gerçek sorun negatif teorik tasarruftu. **Yanlış teşhis.** |
+
+**Düzeltmeler:**
+
+- **#48:** `fuel_kg <= 0` → erken dönüş, açık hata mesajı.
+- **#49/#50:** `_TYPICAL_FUEL_PER_NM` artık `benchmark._FUEL_PER_NM_RANGES`'ten
+  **import ediliyor** (tek kaynak, SAR türevli, 12 tip). Elle yazma yok.
+- **#51:** 4. argüman `str` ise `aircraft_type` kabul ediliyor (geriye
+  uyumlu); çift verilirse açık `TypeError`; her sayısal alan tip ve
+  negatiflik kontrolünden geçiyor.
+- **#52:** Zorunlu anahtarlar (`distance`, `from`, `to`, `net_saving`)
+  önceden doğrulanıyor; hangi adımın hangi alanının eksik/bozuk olduğu
+  ayrı ayrı raporlanıyor.
+- **#53:** Negatif `raw`/`realistic` erken yakalanıp **doğru teşhis**
+  veriliyor; RF mesajı düzeltildi (`≤ 1.0`).
+
+**Test:** §[48] (2) + §[49] (3) + §[51] (4) + §[52] (5) + §[53] (3)
+= **17 yeni kontrol**; validation 103 → 123.
+
+### 8.19 6. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| 4 | 38–45 | BFFM2, SA, SAF anahtarı, CORSIA MRV |
+| 5 | 46–47 | FAR 25.251 buffet, müşteri verisi kapısı |
+| **6** | **48–53** | **İş mantığı doğrulayıcı: 4 çökme, 2 sessiz aralık** |
+
+**Desen:** Doğrulayıcıların kendisi en az doğrulanan koddu.
+`validation/` modülü, üretim çıktısının "güvenli" olduğunu iddia
+eden katman — ve içinde 4 çökme + 2 yanıltıcı teşhis vardı.
+
+```
+Test dosyası   : 16/16 · 0 hata
+validation     : 91 → 99 → 103 → 123
+emission       : 118 → 149
+Toplam bulgu   : #1–53
+```
