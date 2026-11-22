@@ -284,10 +284,11 @@ def section_toc():
         ('', '4.2', 'Yakıt akışı: 11 uçak tipi'),
         ('', '4.3', 'Sürükleme poları: neden düzeltmedik?'),
         ('', '4.4', 'Adım tırmanışı fiziği'),
-        ('', '4.5', 'Maliyet modeli ve sınırları'),
+        ('', '4.5', 'Cost Index — boyut analizi'),
+        ('', '4.6', 'Maliyet modeli ve sınırları'),
         ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
-        ('6', 'Satır satır denetim — 14 gerçek hata', '41.656 satır tarandı'),
+        ('6', 'Satır satır denetim — 20 gerçek hata', '41.656 satır, 2 tur'),
         ('', '6.1', 'Ölü kod neden en tehlikeli hataydı?'),
         ('7', 'Sonuç — ne satılabilir, ne satılamaz?', 'Hazır olanlar, bekleyenler, dürüstlük'),
     ]
@@ -742,7 +743,25 @@ def section_correctness():
         ['Ağır + kısa (74 t, 500 nm)', 'kârsız (−196 kg)', 'kârsız', 'EVET'],
     ], [56 * mm, 40 * mm, 34 * mm, 20 * mm])
 
-    h2('4.5 Maliyet modeli — ve sınırları')
+    h2('4.5 Cost Index — boyut analizi')
+
+    p('Cost Index (CI), havayolunun "zaman mı yakıt mı" tercihidir. '
+      'Denetimde burada <b>boyut hatası</b> bulundu:')
+
+    table([
+        ['', 'Formül', 'Boyut', 'Sonuç'],
+        ['Eski (yanlış)', 'time_cost($/hr) ÷ fuel_price($/kg) ÷ 100',
+         '<b>kg/hr ÷ 100</b>', 'CI = 23.5 (tesadüfen makul)'],
+        ['Doğru', 'time_cost($/hr) ÷ fuel_cost(cent/lb)',
+         'boyutsuz', 'CI = 52 ✅'],
+    ], [26 * mm, 76 * mm, 34 * mm, 42 * mm], fs=8.2)
+
+    p('Doğru tanımda yakıt fiyatı <b>cent/lb</b> cinsindendir — havayolu '
+      'pratiğinde yerleşik birim budur. Çevrim: '
+      '<code>0.85 $/kg × 100 ÷ 2.20462 = 38.56 cent/lb</code>, '
+      'dolayısıyla <code>CI = 2000 ÷ 38.56 = 52</code>.')
+
+    h2('4.6 Maliyet modeli — ve sınırları')
 
     p('Sistem iki ayrı para kaynağı üretir ve bunları <b>asla '
       'toplamaz</b>:')
@@ -781,7 +800,7 @@ def section_tests():
         ['test_fuel_model.py', '76', 'EVET', 'Yakıt akışı, Breguet, faz yakıtı'],
         ['test_performance.py', '59', 'EVET', 'Sürükleme poları, L/D, CL'],
         ['test_emission.py', '118', 'EVET', 'CO₂/NOx, CORSIA'],
-        ['test_optimization.py', '82', 'EVET', 'İrtifa, CI, tankering'],
+        ['test_optimization.py', '97', 'EVET', 'İrtifa, CI, tankering, kalibrasyon'],
         ['test_validation.py', '91', 'EVET', 'Şema, MTOW, yıllık projeksiyon'],
         ['test_auth.py', '52', 'EVET', 'PBKDF2, çerez, oturum, brute-force'],
         ['test_security.py', '—', 'EVET', 'Girdi temizleme, XSS'],
@@ -832,11 +851,11 @@ def section_tests():
 # ══════════════════════════════════════════════════════════════
 
 def section_audit():
-    h1('6. Satır satır denetim — 14 gerçek hata')
+    h1('6. Satır satır denetim — 20 gerçek hata')
 
-    p('41.656 satır kod tarandı. Aşağıdaki 14 bulgu <b>gerçek '
-      'hatalardır</b>; her biri düzeltildi ve regresyon testiyle '
-      'kilitlendi.')
+    p('41.656 satır kod tarandı; iki turda <b>20 gerçek hata</b> '
+      'bulundu. Her biri düzeltildi ve regresyon testiyle kilitlendi. '
+      'İlk turda 14, ikinci turda 6 hata (alt kümeler dahil 20 satır).')
 
     audit = [
         ['#', 'Dosya', 'Hata', 'Etki'],
@@ -882,6 +901,24 @@ def section_audit():
         ['14', 'web/app.py', '<code>Secure</code> çerez HTTP\'de de '
          'gönderiliyordu',
          'Önizleme (HTTP) üzerinde çerez hiç saklanmıyordu'],
+        ['15', 'cost_index_optimizer.py', 'CI formülü boyutsal olarak '
+         'yanlış: ($/hr)/($/kg) = <b>kg/hr</b>, CI değil',
+         'CI=23.5 "makul" görünüyordu ama tesadüftü; doğrusu 52'],
+        ['16', 'benchmark.py', 'kg/nm aralıkları kaynaksız ve çok gevşek '
+         '(B738 6.0–12.0; 12 kg/nm imkânsız)',
+         'Hiçbir uçuş FAIL edemezdi → kontrol işlevsizdi'],
+        ['17', 'model_calibrator.py', '<code>minimize()</code> bounds '
+         'olmadan + Nelder-Mead (sınır desteklemez) → sonuç elle kırpılıyor',
+         'Kırpma sınırında <b>sahte minimum</b>'],
+        ['18', '5 dosya', 'CO₂ faktörü <code>3.16</code> 43 yerde sihirli '
+         'sayı; <code>EI_CO2</code> zaten tanımlı ama kullanılmıyor',
+         'Faktör güncellenirse 43 yeri elle değiştirmek gerekir'],
+        ['19', 'tankering_optimizer.py', 'CF modeli çökerse <b>uydurma</b> '
+         'CF döndürülüyordu',
+         'Kullanıcı "hesaplanmış" sanıyordu'],
+        ['20', 'opensky_collector.py', '3 yerde <code>except: return None</code> '
+         '— hata tipi kayboluyor',
+         'Ağ/kimlik/ayrıştırma hatası ayırt edilemiyordu'],
     ]
     table(audit, [7 * mm, 34 * mm, 60 * mm, 65 * mm], fs=7.5)
 
