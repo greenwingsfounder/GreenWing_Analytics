@@ -481,6 +481,60 @@ def run_all_tests():
     # ═══════════════════════════════════════════════════
     # SONUÇ
     # ═══════════════════════════════════════════════════
+    def assert_check(name: str, cond: bool, detail: str = '') -> None:
+        if cond:
+            ok(name)
+        else:
+            fail(name, detail)
+
+    try:
+        from src.models.fuel_model import FuelModel as _FM
+    except Exception:
+        _FM = None
+
+    # ══ TIRMANIŞ CEZASI: GERÇEK B738 VERİSİYLE KIYAS ══════════
+    print('\n── Tırmanış cezası (gerçek B738 kıyası) ──')
+    try:
+        from src.models.fuel_model import FuelModel as _FM
+        _fm = _FM(aircraft_type='B738')
+
+        # Gerçek: B738 FL350→FL370 @60 t
+        #   tırmanış yakıtı ~260 kg, 18 nm yatay, seyir eşdeğeri ~95 kg
+        #   NET ek ceza ~165-200 kg
+        _pen = _fm.estimate_climb_fuel(35000, 37000, 60000, 0.78)
+        assert_check(f'tırmanış cezası FL350→370 @60t = {_pen:.0f} kg (150-220)',
+              150 <= _pen <= 220, f'{_pen:.0f} kg')
+
+        _pen80 = _fm.estimate_climb_fuel(35000, 37000, 76000, 0.78)
+        assert_check(f'ağır uçakta ceza daha yüksek', _pen80 > _pen)
+        assert_check('tırmanış cezası negatif değil',
+              _fm.estimate_climb_fuel(35000, 37000, 40000, 0.78) >= 0)
+        assert_check('alçalma cezası 0',
+              _fm.estimate_climb_fuel(37000, 35000, 60000, 0.78) == 0)
+    except Exception as _e:
+        assert_check('tırmanış cezası hesaplanabilir', False, repr(_e))
+
+    # ══ STEP CLIMB KÂRLILIK FİZİĞİ ═════════════════════════════
+    print('\n── Step climb kârlılık fiziği ──')
+    try:
+        from src.optimization.altitude_optimizer import AltitudeOptimizer as _AO
+        _ao = _AO(aircraft_type='B738')
+
+        _r1 = _ao._evaluate_step_climb(33000, 35000, 54000, 0.78, 1600)
+        assert_check(f'hafif+uzun → kârlı (net={_r1["net_saving_kg"]:.0f} kg)',
+              _r1['net_saving_kg'] >= 50)
+        _r2 = _ao._evaluate_step_climb(35000, 37000, 74000, 0.78, 500)
+        assert_check(f'ağır+kısa → kârsız (net={_r2["net_saving_kg"]:.0f} kg)',
+              _r2['net_saving_kg'] < 0)
+        _a = _ao._evaluate_step_climb(35000, 37000, 60000, 0.78, 600)['net_saving_kg']
+        _b = _ao._evaluate_step_climb(35000, 37000, 60000, 0.78, 1400)['net_saving_kg']
+        assert_check(f'kalan mesafe ↑ → tasarruf ↑ ({_a:.0f} → {_b:.0f})', _b > _a)
+        _c = _ao._evaluate_step_climb(35000, 37000, 52000, 0.78, 1200)['net_saving_kg']
+        _d = _ao._evaluate_step_climb(35000, 37000, 72000, 0.78, 1200)['net_saving_kg']
+        assert_check(f'ağırlık ↑ → tasarruf ↓ ({_c:.0f} → {_d:.0f})', _c > _d)
+    except Exception as _e:
+        assert_check('step climb fiziği test edilebilir', False, repr(_e))
+
     print(f"\n  {'─' * 55}")
     print(f"  Toplam test : {tests}")
     print(f"  Başarılı    : {tests - len(errors)}")

@@ -256,7 +256,7 @@ code{background:#0e1726;padding:1px 5px;border-radius:4px;font-size:11px}
 </form></body></html>'''
 
 
-def render_login(next_url: str = '/', error: str = '') -> str:
+def render_login(next_url: str = '/', error: str = '', hint: str = '') -> str:
     """
     Giriş sayfasını doldur.
 
@@ -266,19 +266,47 @@ def render_login(next_url: str = '/', error: str = '') -> str:
     from html import escape
     return (LOGIN_HTML
             .replace('__NEXT__', escape(next_url, quote=True))
-            .replace('__ERROR__', error))
+            .replace('__ERROR__', (error or '') + (hint or '')))
 
 
 @app.get('/login', response_class=HTMLResponse)
-def login_page(request: Request, next: str = '/'):
-    return render_login(safe_next_url(next))
+def login_page(request: Request, next_url: str = '/'):
+    """
+    Giriş formunu göster.
+
+    NOT: parametre adı ``next`` DEĞİL — ``next`` Python yerleşik
+    fonksiyonudur; parametre adı olarak kullanılırsa fonksiyon
+    gövdesinde ``next(iter(...))`` çağrısı ``'str' object is not
+    callable`` hatası verir. Bu gerçek bir hata olarak yakalandı.
+    """
+    hint = ''
+    try:
+        users = get_auth().users
+        if len(users) == 1:
+            only = next(iter(users))
+            hint = (f'<div class="note" style="border-top:0;margin-top:10px;'
+                    f'padding-top:0;color:#93a4c4">Bu kurulumda tek kullanıcı: '
+                    f'<code>{only}</code></div>')
+    except AuthConfigError as exc:
+        # Yapılandırma yoksa login sayfası bunu AÇIKÇA söylemeli —
+        # kullanıcı "parolamı bilmiyorum" değil, "sunucu ayarlı değil"
+        # durumunu görmeli.
+        hint = (f'<div class="err">Kimlik doğrulama yapılandırılmamış. '
+                f'Sunucu tarafında GREENWING_DASHBOARD_PASSWORD veya '
+                f'config/secrets.yaml tanımlayın.</div>')
+    except Exception as exc:  # noqa: BLE001
+        import traceback as _tb
+        print('LOGIN HINT HATASI:\n' + _tb.format_exc())
+        hint = (f'<div class="err">Giriş sistemi hatası: '
+                f'{type(exc).__name__}: {exc}</div>')
+    return render_login(safe_next_url(next_url), hint=hint)
 
 
 @app.post('/login')
 def login_submit(request: Request,
                  username: str = Form(''),
                  password: str = Form(''),
-                 next: str = Form('/')):
+                 next_url: str = Form('/', alias='next')):
     client_ip = (request.client.host if request.client else '') or ''
     try:
         auth = get_auth()
@@ -289,19 +317,37 @@ def login_submit(request: Request,
         wait = auth.remaining_lockout(username, client_ip)
         err = (f'<div class="err">Çok fazla hatalı deneme. '
                f'{wait} saniye sonra tekrar deneyin.</div>')
-        return HTMLResponse(render_login(safe_next_url(next), err),
+        return HTMLResponse(render_login(safe_next_url(next_url), err),
                             status_code=429)
 
     if not auth.verify(username, password, client_ip):
         err = '<div class="err">Kullanıcı adı veya parola hatalı.</div>'
-        return HTMLResponse(render_login(safe_next_url(next), err),
+        return HTMLResponse(render_login(safe_next_url(next_url), err),
                             status_code=401)
 
-    resp = RedirectResponse(safe_next_url(next), status_code=303)
+    resp = RedirectResponse(safe_next_url(next_url), status_code=303)
+
+    # ── Secure bayrağı: PROTOKOLE GÖRE ─────────────────────
+    # `Secure` çerezler yalnızca HTTPS üzerinden gönderilir. Preview /
+    # geliştirme ortamı HTTP üzerinden geliyorsa `Secure=True` çerez
+    # HİÇ SET EDİLMEZ → tarayıcı oturumu hiç edinmez → sonsuz login
+    # döngüsü (panelin "görünmemesi"nin en yaygın nedeni).
+    # Çözüm: isteğin gerçek şemasına bak. Arkada proxy varsa
+    # X-Forwarded-Proto'yu güven (uvicorn --proxy-headers ile).
+    _proto = (request.headers.get('x-forwarded-proto', '')
+              or request.url.scheme or '').split(',')[0].strip().lower()
+    _is_https = _proto == 'https'
+    # HTTPS değilse Secure'ı KAPAT (aksi halde çerez kaybolur), ama
+    # üretimde HTTPS zorunlu olduğunu logla.
+    _secure = auth.secure_cookie and _is_https
+    if auth.secure_cookie and not _is_https:
+        print(f'ℹ  Oturum çerezi Secure olmadan gönderiliyor '
+              f'(şema: {_proto or "http"}). Üretimde HTTPS kullanın.')
+
     resp.set_cookie(
         auth.cookie_name, auth.issue_session(username),
         max_age=8 * 3600, httponly=True, samesite='lax',
-        secure=auth.secure_cookie, path='/',
+        secure=_secure, path='/',
     )
     return resp
 

@@ -654,11 +654,35 @@ def main():
                 opt_alt_ft    = float(opt_alt['optimum']['altitude_ft'])
                 altitude_deviation_ft = abs(cruise_alt - opt_alt_ft)
                 buffet_margin = float(opt_alt['optimum']['buffet_margin_pct'])
-                fuel_save_1k  = float(
-                    opt_alt['vs_fl350'].get('fuel_saving_per_1000nm_kg', 0)
-                )
-                alt_saving = abs(fuel_save_1k) * distance / 1000
-                print(f"  📐 Optimum: {opt_fl} | Buffet: %{buffet_margin:.1f} | Sapma: {altitude_deviation_ft:.0f} ft")
+
+                # ═══════════════════════════════════════════════════
+                # TASARRUF, UÇAĞIN GERÇEK İRTİFASINA göre hesaplanır.
+                #
+                # ÖNCEKİ HATALAR (2026-11-22 denetimi):
+                #  1) abs(...) — optimum irtifa yakıt KAYBETTİRİYORSA
+                #     bile "tasarruf" olarak yazılıyordu (negatif
+                #     değer pozitife çevriliyordu).
+                #  2) Referans sabit FL350'ydi. Uçak zaten FL350'de
+                #     uçuyorsa tasarruf 0 çıkıyordu; FL370'te uçuyorsa
+                #     yanlış referansla kıyaslanıyordu.
+                #
+                # DOĞRU: uçağın GÖZLEMLENEN seyir irtifası ile
+                # optimum irtifa arasındaki SAR farkı; yakıt
+                # kaybı varsa 0 (tasarruf yok), negatif yazılmaz.
+                # ═══════════════════════════════════════════════════
+                _fm = alt_opt.fuel_model
+                _sar_actual = _fm.specific_air_range(
+                    mid_weight, float(cruise_alt), CRUISE_MACH)
+                _sar_opt = _fm.specific_air_range(
+                    mid_weight, opt_alt_ft, CRUISE_MACH)
+                if _sar_actual > 0 and _sar_opt > _sar_actual:
+                    fuel_save_1k = (1000 / _sar_actual) - (1000 / _sar_opt)
+                    alt_saving = fuel_save_1k * distance / 1000
+                else:
+                    # Zaten optimumda veya daha iyide → tasarruf YOK
+                    alt_saving = 0.0
+                print(f"  📐 Optimum: {opt_fl} | Mevcut: FL{cruise_alt/100:.0f} | "
+                      f"Buffet: %{buffet_margin:.1f} | Tasarruf: {alt_saving:.0f} kg")
 
             # ─── OPT 2: Step climb ────────────────────────
             step_saving = 0.0
@@ -915,8 +939,31 @@ def main():
 
         print(f"\n  ÖZET:")
         print(f"  Ort. tasarruf/uçuş : {avg_fuel:.0f} kg = ${avg_saving:.0f}")
+        # ══════════════════════════════════════════════════════
+        # ÖNEMLİ AYRIM (2026-11-22 denetimi): aşağıdaki iki sayı
+        # FARKLI tanımlara sahiptir ve karıştırılmamalıdır:
+        #
+        #   (a) Uçuş-bazlı toplam  = Σ annual_realistic_usd
+        #       Aynı rota iki kez uçulduysa İKİ KEZ sayılır.
+        #
+        #   (b) Rota-bazlı toplam  = Σ rota başına ortalama
+        #       Aynı rota bir kez sayılır (fleet_analyzer ve
+        #       03_generate_outputs bunu kullanır).
+        #
+        # İkisi arasındaki fark mükerrer uçuşlardan gelir. Rapor
+        # ve panel (b)'yi gösterir; burada (a) yazıldığı için
+        # rakamlar tutarsız görünüyordu.
+        # ══════════════════════════════════════════════════════
+        _routes: dict[tuple, list] = {}
+        for _r in all_results:
+            _k = (_r.get('origin_airport', '?'), _r.get('dest_airport', '?'))
+            _routes.setdefault(_k, []).append(_r.get('annual_realistic_usd', 0))
+        _route_annual = float(sum(sum(v) / len(v) for v in _routes.values()))
+
         print(f"  Ort. yıllık/uçuş    : ${avg_annual:,.0f}"
               f"  (toplam ÷ {len(all_results)})")
+        print(f"  Yıllık (rota bazlı) : ${_route_annual:,.0f}"
+              f"  ({len(_routes)} benzersiz rota — rapor/panel bunu kullanır)")
         _fuel_ann = float(np.sum([r.get('annual_fuel_saving_usd', 0)
                                   for r in all_results]))
         _tank_ann = float(np.sum([r.get('annual_tankering_usd', 0)
@@ -931,7 +978,7 @@ def main():
                   f"  (%{_tank_ann/_tot*100 if _tot else 0:.0f}) — fiyat arbitrajı,"
                   f" %50 sürdürülebilirlik")
             print(f"    TOPLAM yıllık     : ${_tot:,.0f}"
-                  f"  ({len(all_results)} uçuş toplamı)")
+                  f"  ({len(all_results)} uçuş toplamı — rota bazlı için üstteki satır)")
         print(f"  Partial uçuş oranı  : %{partial_n/len(all_results)*100:.0f}")
         print(f"  UNK route alanı     : {unk_n}")
 

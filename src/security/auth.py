@@ -250,31 +250,30 @@ class DashboardAuth:
 
     # ── Oturum ─────────────────────────────────────────────
     def issue_session(self, username: str) -> str:
-        """İmzalı oturum çerezi üret."""
+        """İmzalı oturum çerezi üret (padding'siz base64url)."""
         payload = {
             'u': username,
             'exp': int(time.time()) + _SESSION_TTL_S,
-            'n': base64.urlsafe_b64encode(secrets.token_bytes(9)).decode(),
+            'n': _b64e(secrets.token_bytes(9)),
         }
-        body = base64.urlsafe_b64encode(
-            json.dumps(payload, separators=(',', ':')).encode()).decode()
+        body = _b64e(json.dumps(payload, separators=(',', ':')).encode())
         sig = hmac.new(self.session_secret, body.encode(), hashlib.sha256).digest()
-        return f'{body}.{base64.urlsafe_b64encode(sig).decode()}'
+        return f'{body}.{_b64e(sig)}'
 
     def validate_session(self, cookie: Optional[str]) -> tuple[bool, Optional[str]]:
         """Oturum çerezini doğrula → (geçerli, kullanıcı)."""
         if not cookie or '.' not in cookie:
             return False, None
-        body, _, sig_b64 = cookie.rpartition('.')
+        body, _, sig_b64 = cookie.strip('"').rpartition('.')
         try:
-            sig = base64.urlsafe_b64decode(sig_b64.encode())
+            sig = _b64d(sig_b64)
         except (ValueError, TypeError):
             return False, None
         expected = hmac.new(self.session_secret, body.encode(), hashlib.sha256).digest()
         if not hmac.compare_digest(sig, expected):
             return False, None
         try:
-            payload = json.loads(base64.urlsafe_b64decode(body.encode()))
+            payload = json.loads(_b64d(body))
         except (ValueError, TypeError):
             return False, None
         if int(payload.get('exp', 0)) < time.time():
@@ -283,6 +282,26 @@ class DashboardAuth:
         if user not in self.users:
             return False, None
         return True, user
+
+
+def _b64e(raw: bytes) -> str:
+    """
+    base64url kodla, PADDING'SİZ.
+
+    NEDEN: '=' karakteri HTTP cookie değerinde geçersizdir (RFC 6265
+    cookie-octet tanımı). Starlette bunu görünce değeri TIRNAK İÇİNE
+    alır (``gw_session="..."``); bazı proxy/tarayıcı kombinasyonları
+    tırnaklı değeri bozar ve oturum her istekte geçersiz olur →
+    sonsuz login döngüsü. Padding'i atarak yalnızca [A-Za-z0-9_-]
+    kalır; hepsi geçerli cookie-octet'tir.
+    """
+    return base64.urlsafe_b64encode(raw).rstrip(b'=').decode()
+
+
+def _b64d(text: str) -> bytes:
+    """_b64e'nin tersi (eksik padding'i geri ekler)."""
+    pad = '=' * (-len(text) % 4)
+    return base64.urlsafe_b64decode(text + pad)
 
 
 # ── CLI: hash üret ─────────────────────────────────────────

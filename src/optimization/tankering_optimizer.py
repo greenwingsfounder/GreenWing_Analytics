@@ -363,7 +363,26 @@ class TankeringOptimizer:
         """
         price_diff = fuel_price_dest - fuel_price_origin
 
-        cf = self._estimate_carriage_factor(distance_nm=distance_nm, extra_fuel_kg=0.0, mtow_margin_kg=5000)
+        # ═══════════════════════════════════════════════════════════
+        # ÖNCEKİ HATA (2026-11-22 denetimi): extra_fuel_kg=0.0 ile
+        # çağrılıyordu → _estimate_carriage_factor erken return 0.0
+        # yapıyor → CF HER ZAMAN %0, breakeven $0 → HER fiyat farkı
+        # "kârlı" görünüyordu. Hızlı ön kontrol fiilen bozuktu.
+        #
+        # DÜZELTME: tipik bir tankering miktarı (MTOW marjının %60'ı,
+        # en az 3 t) ile gerçek CF hesaplanır.
+        # ═══════════════════════════════════════════════════════════
+        mtow = float(Assumptions.aircraft_mtow(self.ac_type))
+        oew  = float(Assumptions.aircraft_oew(self.ac_type))
+        typical_payload = 0.55 * (mtow - oew)
+        mtow_margin = max(3000.0, mtow - oew - typical_payload)
+        extra_fuel = mtow_margin * 0.60
+
+        cf = self._estimate_carriage_factor(
+            distance_nm=distance_nm,
+            extra_fuel_kg=extra_fuel,
+            mtow_margin_kg=mtow_margin,
+        )
         breakeven = cf * fuel_price_origin
 
         if price_diff <= 0:

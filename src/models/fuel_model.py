@@ -435,7 +435,17 @@ class FuelModel:
             ff_per_eng = c1 - np.exp(
                 -c2 * (r * np.exp(c3 * r) - np.log(c1) / c2))
             ff = float(ff_per_eng) * n_eng
-            return ff * float(self.saf_model.sfc_correction_factor())
+            # ═══════════════════════════════════════════════════
+            # KALİBRASYON: hem motor aşınması (sfc_factor) hem SAF
+            # düzeltmesi uygulanmalı.
+            # ÖNCEKİ HATA: yalnızca SAF düzeltmesi uygulanıyordu;
+            # sfc_factor sessizce YUTULUYORDU. Digital-twin motor
+            # aşınma kalibrasyonu yakıt akışını hiç değiştirmiyordu
+            # (test: 1.00 → 2504 kg/h, 1.03 → 2504 kg/h).
+            # ═══════════════════════════════════════════════════
+            return (ff
+                    * float(self.sfc_factor)
+                    * float(self.saf_model.sfc_correction_factor()))
 
         sfc = self.corrected_sfc(altitude_ft, mach)
         return float(sfc * D)
@@ -699,6 +709,7 @@ class FuelModel:
                          'DESCENT','APPROACH','HOLDING')
             duration_s : Faz süresi (saniye)
             weight_kg  : Mevcut uçak ağırlığı (kg)
+            mach       : Seyir Mach (baseline karşılaştırması için)
             altitude_ft: Mevcut irtifa (feet)
             mach       : Mach sayısı (cruise için gerekli)
 
@@ -775,7 +786,11 @@ class FuelModel:
             ff_per_eng = c1 - np.exp(
                 -c2 * (r * np.exp(c3 * r) - np.log(c1) / c2))
             ff_kg_hr = float(ff_per_eng) * n_eng * 3600.0
+            # KALİBRASYON: motor aşınması (sfc_factor) + SAF düzeltmesi.
+            # Önceki hata: yalnızca SAF uygulanıyordu → sfc_factor
+            # faz yakıtında da sessizce yutuluyordu.
             return float(ff_kg_hr * duration_s / 3600
+                         * self.sfc_factor
                          * self.saf_model.sfc_correction_factor())
 
         # ── YEDEK YOL (fuel_coef yoksa): cruise akışı × ampirik oran ──
@@ -842,6 +857,7 @@ class FuelModel:
         from_alt_ft: float,
         to_alt_ft: float,
         weight_kg: float,
+        mach: float = 0.78,
     ) -> float:
         """
         Step climb sırasında harcanan EK yakıt.
@@ -869,9 +885,36 @@ class FuelModel:
         avg_alt         = (from_alt_ft + to_alt_ft) / 2
         altitude_factor = 1.0 + (avg_alt - 30000) / 40000
 
-        climb_fuel = base_rate * alt_diff_ft * weight_factor * altitude_factor
+        total_climb_fuel = base_rate * alt_diff_ft * weight_factor * altitude_factor
 
-        return float(max(0, climb_fuel))
+        # ═══════════════════════════════════════════════════════════
+        # EK YAKIT: tırmanış sırasında kat edilen yatay mesafe,
+        # seviye uçuşta da kat edilecekti. Step climb'in GERÇEK
+        # maliyeti, tırmanış yakıtından baseline seyir yakıtının
+        # düşülmesidir.
+        #
+        # Önceki hata: tüm tırmanış yakıtı (276 kg @ FL350→FL370,
+        # 60 t) ceza sayılıyordu. Doğrusu 182 kg. Fark %52 →
+        # her step climb sistematik olarak kârsız görünüyordu.
+        # ═══════════════════════════════════════════════════════════
+        # Tırmanışta kat edilen yatay mesafe (yaklaşık):
+        #   Yüksek irtifada tipik tırmanış oranı ~110 ft/nm
+        #   (B738 FL350→FL370 ≈ 2.000 ft / 18 nm ≈ 111 ft/nm).
+        #   ÖNEMLİ: gradyan ft/nm'dir; mesafe = irtifa farkı / gradyan.
+        #   Ters yazılırsa (×500) 4 nm çıkar ve ceza yarıya iner —
+        #   bu, düzeltmeden önceki hatanın ta kendisiydi.
+        climb_distance_nm = alt_diff_ft / 110.0
+
+        sar_CLIMB_REF = self.specific_air_range(
+            weight_kg, from_alt_ft, mach
+        )
+        if sar_CLIMB_REF > 0:
+            cruise_fuel_over_same_distance = climb_distance_nm / sar_CLIMB_REF
+            net_penalty = max(0.0, total_climb_fuel - cruise_fuel_over_same_distance)
+        else:
+            net_penalty = total_climb_fuel
+
+        return float(net_penalty)
 
     # ──────────────────────────────────────────────────────
     # BÖLÜM 9: TOPLAM UÇUŞ YAKITI TAHMİNİ
@@ -927,18 +970,44 @@ class FuelModel:
         )
         w -= climb_fuel
 
-        # Tırmanma ve iniş sırasında kat edilen mesafe (Nm)
-        # Bu mesafeler cruise yakıt hesabından DÜŞÜLMELİ
-        CLIMB_DIST_NM = 80     # dar gövde için
-        DESCENT_DIST_NM = 120  # dar gövde için
+        # ═══════════════════════════════════════════════════════════
+        # Tırmanma ve iniş sırasında kat edilen mesafe (Nm).
+        #
+        # ÖNCEKİ HATA (2026-11-22 denetimi): SABİT 80 + 120 = 200 nm
+        # kullanılıyordu. 190 nm'lik IST-ANK uçuşunda
+        #     max(0, 190 − 200) = 0
+        # çıkıyor ve SEYİR FAZI TAMAMEN KAYBOLUYORDU
+        # (cruise_kg = 0, cruise_time_hr = 0). Yakıt yalnızca
+        # tırmanış/alçalma/taxi'den oluşuyordu → uçuş yakıtı
+        # olduğundan düşük (1.887 kg; gerçek ~2.400 kg).
+        #
+        # DÜZELTME: mesafeye göre ÖLÇEKLENİR. Kısa uçuşta uçak
+        # cruise irtifasına ulaşamaz; tırmanış/alçalma rotanın
+        # daha büyük bölümünü kaplar ama %100'ünü ASLA kaplamaz.
+        # ═══════════════════════════════════════════════════════════
+        # FİZİKSEL SABİTLER (ölçeklenmez): B738 0→FL370 tırmanışı
+        # ~80 nm, FL370→0 alçalması ~120 nm yol alır. Bunlar uçağın
+        # performans profilinin sabitleridir.
+        CLIMB_DIST_NM   = 80
+        DESCENT_DIST_NM = 120
 
-        # Geniş gövde için farklı değerler (isteğe bağlı)
         if self.params.get('mtow', 80000) > 150000:
-            CLIMB_DIST_NM = 100
+            CLIMB_DIST_NM   = 100
             DESCENT_DIST_NM = 150
 
-        # DÜZELTİLMİŞ cruise mesafesi
-        cruise_dist = max(0, distance_nm - CLIMB_DIST_NM - DESCENT_DIST_NM)
+        # KISA UÇUŞ KORUMASI: kısa rotada uçak cruise irtifasına
+        # ulaşamaz; tırmanış+alçalma rotanın %70'ini aşarsa
+        # ORANSAL olarak küçültülür. Böylece hiçbir uçuşta seyir
+        # fazı sıfırlanmaz (önceki hata: 190 nm → cruise 0 kg).
+        total_transit = CLIMB_DIST_NM + DESCENT_DIST_NM
+        max_transit   = distance_nm * 0.70
+        if total_transit > max_transit and total_transit > 0:
+            scale = max_transit / total_transit
+            CLIMB_DIST_NM   *= scale
+            DESCENT_DIST_NM *= scale
+            total_transit   = max_transit
+
+        cruise_dist = max(0.0, distance_nm - total_transit)
 
         # Cruise
         cruise_result = self.fuel_for_distance(

@@ -154,3 +154,75 @@ yapılandırma.
 > Model hazır ve doğrulanmış (11 uçak, %4 ortalama sapma, her sayı
 > kaynaklı); ticari satış için eksik olan tek şey **müşterinin kendi
 > verisi** — ve bu geldiğinde sistem onu işlemeye hazır.
+
+---
+
+## 6. TAM KOD DENETİMİ — 2026-11-22 (satır satır)
+
+Kullanıcının "didik didik her kodun gerçek kıyaslaması" talebi üzerine
+41.656 satır kod tarandı. Aşağıdaki bulgular **gerçek hatalardır**;
+her biri kaynak kodda düzeltilmiş ve regresyon testiyle kilitlenmiştir.
+
+### 6.1 Yapısal — ölü kod (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 14 | `scripts/03_generate_outputs.py` | `_resolve_data_source_subtitle()` fonksiyonu `main()`'in **tam ortasına** girmiş; altındaki ~170 satır `return`'den sonra ulaşılamaz hale gelmiş | Case study, dijital ikiz, CORSIA ve mühürleme **hiç çalışmıyordu**. `reports/case_studies/` yalnızca 2 dosya içeriyordu (case_study ve digital_twins yoktu). Düzeltmeden sonra 4 dosya üretiliyor. |
+
+### 6.2 Fizik — tırmanış cezası (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 15 | `src/models/fuel_model.py` | `estimate_climb_fuel()` tırmanışın **toplam** yakıtını ceza olarak döndürüyordu. Tırmanış sırasında uçak zaten yatay yol alır; o mesafe baseline'da da kat edilecekti | FL350→FL370 @60 t için ceza 276 kg yerine 181 kg olmalı. %52 fazla ceza → **hiçbir step climb kârlı görünmüyordu** (0/90 kombinasyon). Düzeltmeden sonra hafif+uzun senaryolarda 9/90 kârlı. |
+| 16 | `src/optimization/altitude_optimizer.py` | `estimate_climb_fuel()` çağrısında `mach` geçirilmiyordu → baseline karşılaştırması varsayılan 0.78 ile yapılıyordu | Gerçek seyir Mach'ı 0.82 ise ceza yanlış hesaplanıyordu. |
+
+### 6.3 Fizik — seyir mesafesi (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 17 | `src/models/fuel_model.py` | `CLIMB_DIST_NM = 80` + `DESCENT_DIST_NM = 120` **sabit**; `cruise_dist = max(0, mesafe − 200)` | 190 nm'lik IST-ANK uçuşunda cruise mesafesi **0** çıkıyordu → seyir fazı tamamen kayboluyor, yakıt 1.887 kg (gerçek ~2.400). Kısa uçuş koruması eklendi (transit ≤ rotanın %70'i). Düzeltmeden sonra 2.205 kg. |
+
+### 6.4 Kalibrasyon sessizce yutuluyordu (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 18 | `src/models/fuel_model.py` | OpenAP katsayı yolunda `sfc_factor` (motor aşınması) **kullanılmıyordu**; yalnızca SAF düzeltmesi uygulanıyordu | Digital-twin motor aşınma kalibrasyonu yakıt akışını hiç değiştirmiyordu: `sfc_factor=1.00` → 2504 kg/h, `1.03` → **2504 kg/h** (fark %0). Her iki çıktı yolunda da düzeltildi. |
+| 19 | `src/optimization/tankering_optimizer.py` | `quick_check()` `extra_fuel_kg=0.0` ile çağırıyordu → `_estimate_carriage_factor` erken `return 0.0` → CF **her zaman %0** | Breakeven $0 olduğu için **her fiyat farkı "kârlı"** görünüyordu. Tipik tankering miktarı (MTOW marjının %60'ı) ile hesaplanıyor. Düzeltmeden sonra CF mesafeyle artıyor: 400 nm %2.6 → 3000 nm %12.0. |
+
+### 6.5 Uydurma tasarruf (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 20 | `scripts/02_analyze_and_optimize.py` | `alt_saving = abs(fuel_save_1k) * distance / 1000` — optimum irtifa yakıt **kaybettiriyorsa** bile tasarruf yazılıyordu | Optimum, mevcut irtifadan kötüyse yine "tasarruf" çıkıyordu. `abs()` kaldırıldı, SAR karşılaştırması eklendi. |
+| 21 | `scripts/02_analyze_and_optimize.py` | Referans sabit FL350'ydi; uçağın **gözlemlenen** irtifası kullanılmıyordu | FL359'da uçan uçak için tasarruf 0 çıkıyordu (FL350 referansına eşit sanılıyordu). Gerçek irtifaya bağlandı. **Sonuç: fiziksel tasarruf 1 kg → 155 kg/uçuş.** |
+| 22 | `src/optimization/altitude_optimizer.py` | `round(max(0, 0.93))` → "1 kg tasarruf"; ama `cost_usd` yine $1.02 | 0 kg tasarruf ile $1.02 çelişkisi. `_MIN_REPORTABLE_SAVING_KG = 5.0` eşiği tüm alanlara uygulandı. |
+
+### 6.6 Veri kaynağı (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 23 | `scripts/03_generate_outputs.py` | provenance tanıma kümesi `synthetic_fallback`'i bilmiyordu | 13 sentetik uçuş "bilinmiyor" sayılıyordu → **"Veri kalitesi: ? — Bilinmeyen veri kaynağı"**. Düzeltmeden sonra doğru: `MIX — 1 gerçek + 13 simüle`. |
+| 24 | `scripts/02_analyze_and_optimize.py` | ÖZET "14 uçuş toplamı" diyordu; rapor/panel ise rota-bazlı toplam kullanıyor | $1.835.013 vs $1.425.376 — tutarsız görünüyordu. İki tanım ayrı satırlarda açıklandı. |
+
+### 6.7 Test borcu (P0 — gizli)
+
+| # | Bulgu |
+|---|-------|
+| 25 | **"16/16 test dosyası geçiyor" iddiası yanlıştı.** `test_fuel_model.py` hiç çalıştırılmamıştı; **10 testi başarısız** durumdaydı (OpenAP öncesi değerleri bekliyordu). Ayrıca `test_performance.py` 7, `test_optimization.py` 1 hata. Toplam **18 gizli başarısız test** vardı. |
+| 26 | Testler hatalı değerleri **kilitliyordu**: step-climb cezası için [200, 400] kg aralığı, hatalı formülü (toplam yakıt) doğruluyordu. Gerçek değer 181 kg. |
+
+### 6.8 Model sınırlaması (dürüstlük kaydı)
+
+| # | Bulgu |
+|---|-------|
+| 27 | **OpenAP polarları tip bazında tutarsız.** Yakıt akışı toplamı ICAO EDB ile %0.9 sapma (mükemmel), ama L/D değerleri: geniş gövdelilerde gerçekten %14–19 **düşük**, dar gövdelilerde %9–16 **yüksek**. Sebep: OpenAP polarları yakıt akışına kalibre edilmiş, yayımlanmış L/D'ye değil. **CD0 değiştirilmemeli** — denendi, yakıt akışını %20–25 bozuyor. Bu bir düzeltme değil, **belgelenmiş sınırlamadır**. |
+
+### 6.9 Denetim sonrası durum
+
+```
+F821 (tanımsız isim)        : 0
+Ölü kod                     : 0
+Test dosyası                 : 16/16 geçiyor (ilk kez gerçekten)
+Toplam doğrulama             : ~950 kontrol
+SXS1409 (gerçek, 1240 nm)    : 8.426 kg → 6.80 kg/nm; tasarruf 176 kg (%3.1 SAR)
+```

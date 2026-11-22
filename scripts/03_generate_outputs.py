@@ -173,10 +173,23 @@ def run_data_quality_check(results: list[dict]) -> dict:
     #   REAL  (opensky/adsb/customer_qar) → kısmi yüzdesine göre A..D
     #   SIM   (demo_simulation)          → SIM (en fazla 'Simülasyon')
     #   MIX   (karışık)                  → MIX — ayrıştırılmalı
+    # ══════════════════════════════════════════════════════════════
+    # ÖNCEKİ HATA (2026-11-22 denetimi): 'synthetic_fallback'
+    # etiketi tanınmıyordu. 01_collect_data.py veri toplayamayınca
+    # bu etiketi yazıyor; sonuç:
+    #     n_real = 1 (arrivals), n_sim = 0, n_unk = 13
+    #     → provenance = 'UNKNOWN' → not '?' (Bilinmeyen veri kaynağı)
+    # Yani 13 sentetik uçuş "bilinmiyor" sayılıyordu. Bu, panelde
+    # ve raporda veri kaynağı bilgisini KAYBEDİYORDU.
+    # ══════════════════════════════════════════════════════════════
+    REAL_METHODS = {'opensky', 'adsb', 'opensky_adsb', 'arrivals', 'departures',
+                    'active_flight', 'customer_qar', 'customer_fuel',
+                    'qar', 'fdr'}
     methods = [safe_str(r, 'collection_method', 'unknown').lower() for r in results]
-    n_real = sum(1 for m in methods if m in ('opensky', 'adsb', 'customer_qar',
-                                             'customer_fuel', 'qar', 'fdr'))
-    n_sim  = sum(1 for m in methods if 'simulation' in m or 'synthetic' in m)
+    n_real = sum(1 for m in methods if m in REAL_METHODS)
+    n_sim  = sum(1 for m in methods
+                 if ('simulation' in m or 'synthetic' in m
+                     or 'mock' in m or 'demo' in m))
     n_unk  = n - n_real - n_sim
 
     if n_real == n:
@@ -554,34 +567,6 @@ def main():
     avg_annual   = float(np.mean([r['annual_realistic_usd'] for r in results])) if results else 0
     total_co2    = sum(r.get('co2_kg', 0) for r in results)
 
-def _resolve_data_source_subtitle(results: list) -> str:
-    """
-    Vaka çalışması alt başlığını, gerçek veri kaynağına göre üret.
-
-    Eski davranış: koşulsuz "Based on Real ADS-B Flight Data".
-    Yeni davranış: kayıtların collection_method alanına bakılır;
-    sentetik/simülasyon verisi varsa bunu DÜRÜSTÇE belirtir.
-    """
-    methods = {str(r.get("collection_method", "") or "").lower() for r in results}
-    methods.discard("")
-
-    real_methods = {"arrivals", "departures", "active_flight", "opensky_adsb"}
-    synthetic_markers = {"demo_simulation", "synthetic_fallback", "mock", "simulation"}
-
-    has_synthetic = bool(methods & synthetic_markers) or any(
-        "sim" in m or "mock" in m or "demo" in m for m in methods
-    )
-    has_real = bool(methods & real_methods)
-
-    if has_synthetic and has_real:
-        return "Mixed Data: Real ADS-B + Synthetic Simulation (see provenance)"
-    if has_synthetic:
-        return "Synthetic Simulation Data — Not Real Flight Records"
-    if has_real:
-        return "Based on Real ADS-B Flight Data (OpenSky Network)"
-    return "Data Provenance Undetermined"
-
-
     airlines = {}
     for r in results:
         code = r.get('airline_code', 'UNK')
@@ -746,6 +731,34 @@ def _resolve_data_source_subtitle(results: list) -> str:
 # ═══════════════════════════════════════════════════════════
 # ÇALIŞTIRMA
 # ═══════════════════════════════════════════════════════════
+
+def _resolve_data_source_subtitle(results: list) -> str:
+    """
+    Vaka çalışması alt başlığını, gerçek veri kaynağına göre belirle.
+
+    Eski davranış: koşulsuz "Based on Real ADS-B Flight Data".
+    Yeni davranış: kayıtların collection_method alanına bakılır;
+    sentetik/simülasyon verisi varsa bunu AÇIKÇA belirtir.
+    """
+    methods = {str(r.get("collection_method", "") or "").lower() for r in results}
+    methods.discard("")
+
+    real_methods = {"arrivals", "departures", "active_flight", "opensky_adsb"}
+    synthetic_markers = {"demo_simulation", "synthetic_fallback", "mock", "simulation"}
+
+    has_synthetic = bool(methods & synthetic_markers) or any(
+        "sim" in m or "mock" in m or "demo" in m for m in methods
+    )
+    has_real = bool(methods & real_methods)
+
+    if has_synthetic and has_real:
+        return "Mixed Data: Real ADS-B + Synthetic Simulation (see provenance)"
+    if has_synthetic:
+        return "Synthetic Simulation Data — Not Real Flight Records"
+    if has_real:
+        return "Based on Real ADS-B Flight Data (OpenSky Network)"
+    return "Data Provenance Undetermined"
+
 
 if __name__ == "__main__":
     main()

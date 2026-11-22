@@ -135,6 +135,35 @@ finally:
         else:
             os.environ[k] = v
 
+
+# ── 7. HTTP cookie güvenliği (7. bölüm) ───────────────────
+print('\n7. Çerez biçimi ve Secure bayrağı — preview uyumu')
+import re as _re
+from pathlib import Path as _Path
+ROOT = _Path(__file__).resolve().parents[1]
+
+_c = auth.issue_session('ali')
+check("çerez değeri yalnızca geçerli cookie-octet içerir",
+      bool(_re.fullmatch(r'[A-Za-z0-9_.\-]+', _c)), f'gelen {_c[:20]}')
+check("çerezde '=' padding YOK (RFC 6265)", '=' not in _c)
+check("çerezde tırnak YOK", '"' not in _c and "'" not in _c)
+check("padding'siz çerez doğrulanır", auth.validate_session(_c)[0])
+check("tırnaklı gelen çerez de kabul edilir (proxy toleransı)",
+      auth.validate_session('"' + _c + '"')[0])
+check("uzunluk < 4 KB (tarayıcı sınırı)", len(_c) < 4096)
+
+print('\n8. __next__ gölgeleme tuzağı (gerçek hata)')
+# FastAPI endpoint parametresi 'next' olursa builtin next() ezilir.
+# web/app.py içinde parametre adı 'next_url' olmalı.
+import pathlib as _pl
+_src = (ROOT / 'web' / 'app.py').read_text(encoding='utf-8')
+check("login_page imzasında 'next:' parametresi YOK",
+      "def login_page(request: Request, next: str" not in _src)
+check("login_page 'next_url' kullanıyor",
+      "def login_page(request: Request, next_url: str" in _src)
+check("builtin next() gölgelenmiyor",
+      "next(iter(users))" in _src)
+
 print('\n' + '=' * 62)
 if _fails:
     print(f'  ✗ {len(_fails)} TEST BAŞARISIZ: ' + ', '.join(_fails))

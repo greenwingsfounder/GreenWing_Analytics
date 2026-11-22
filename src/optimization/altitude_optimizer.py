@@ -76,6 +76,8 @@ _WESTBOUND_LEVELS = [30000, 32000, 34000, 36000, 38000, 40000]
 _MAX_STEP_CLIMBS = 4
 _MIN_STEP_INTERVAL_NM = 200
 _MIN_NET_SAVING_KG = 50
+# Raporlanabilir en küçük tasarruf — altında 0 gösterilir (yuvarlama artığı)
+_MIN_REPORTABLE_SAVING_KG = 5.0
 _MIN_REMAINING_NM = 200
 
 # Buffet guard band
@@ -423,8 +425,11 @@ class AltitudeOptimizer:
         mach: float,
         remaining_distance_nm: float,
     ) -> dict:
+        # DİKKAT: mach MUTLAKA geçirilmeli. Geçirilmezse baseline
+        # karşılaştırması varsayılan 0.78 ile yapılır ve gerçek
+        # seyir Mach'ından farklı bir ceza çıkar.
         climb_fuel = self.fuel_model.estimate_climb_fuel(
-            current_alt_ft, new_alt_ft, weight_kg
+            current_alt_ft, new_alt_ft, weight_kg, mach
         )
 
         sar_old = self.fuel_model.specific_air_range(weight_kg, current_alt_ft, mach)
@@ -442,6 +447,8 @@ class AltitudeOptimizer:
             sar_improvement = 0.0
 
         return {
+            # AD: net ek ceza (tırmanış yakıtı - aynı mesafedeki seyir yakıtı).
+            # Eski ad "climb_fuel_kg" idi ve tırmanışın TOPLAM yakıtı sanılıyordu.
             "climb_fuel_kg": climb_fuel,
             "fuel_old_remaining": round(fuel_old, 1),
             "fuel_new_remaining": round(fuel_new, 1),
@@ -624,10 +631,24 @@ class AltitudeOptimizer:
             },
             "savings": {
                 "per_flight": {
-                    "fuel_kg": round(max(0, saving_vs_baseline)),
-                    "fuel_pct": round(max(0, saving_pct), 2),
-                    "cost_usd": round(max(0, cost_saving), 2),
-                    "co2_kg": round(max(0, co2_saving)),
+                    # ÖNEMLİ: round() tek başına 0.93 kg'ı 1 kg'a
+                    # yuvarlıyordu → "1 kg tasarruf" gibi görünen
+                    # anlamsız bir değer çıkıyordu. Eşik altı → 0.
+                    "fuel_kg": (round(saving_vs_baseline)
+                                if saving_vs_baseline >= _MIN_REPORTABLE_SAVING_KG
+                                else 0),
+                    # Aynı eşik maliyet ve CO₂'ye de uygulanır;
+                    # aksi halde "0 kg tasarruf = $1.02" gibi
+                    # kendi kendisiyle çelişen çıktı oluşur.
+                    "fuel_pct": (round(max(0, saving_pct), 2)
+                                 if saving_vs_baseline >= _MIN_REPORTABLE_SAVING_KG
+                                 else 0.0),
+                    "cost_usd": (round(max(0, cost_saving), 2)
+                                 if saving_vs_baseline >= _MIN_REPORTABLE_SAVING_KG
+                                 else 0.0),
+                    "co2_kg": (round(max(0, co2_saving))
+                               if saving_vs_baseline >= _MIN_REPORTABLE_SAVING_KG
+                               else 0),
                 },
                 "annual_projection": {
                     "assumed_daily_flights": daily_flights,
