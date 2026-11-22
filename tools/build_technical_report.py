@@ -291,7 +291,7 @@ def section_toc():
         ('', '4.9', 'Maliyet modeli ve sınırları'),
         ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
-        ('6', 'Satır satır denetim — 72 gerçek hata', '41.656 satır, 11 tur'),
+        ('6', 'Satır satır denetim — 73 gerçek hata', '41.656 satır, 12 tur'),
         ('', '6.1', 'Ölü kod neden en tehlikeli hataydı?'),
         ('7', 'Sonuç — ne satılabilir, ne satılamaz?', 'Hazır olanlar, bekleyenler, dürüstlük'),
     ]
@@ -859,7 +859,7 @@ def section_correctness():
         ['Eski (yanlış)', 'time_cost($/hr) ÷ fuel_price($/kg) ÷ 100',
          '<b>kg/hr ÷ 100</b>', 'CI = 23.5 (tesadüfen makul)'],
         ['Doğru', 'time_cost($/hr) ÷ fuel_cost(cent/lb)',
-         'boyutsuz', 'CI = 52 ✅'],
+         'boyutsuz', 'CI = 52 ✓'],
     ], [26 * mm, 76 * mm, 34 * mm, 42 * mm], fs=8.2)
 
     p('Doğru tanımda yakıt fiyatı <b>cent/lb</b> cinsindendir — havayolu '
@@ -1009,6 +1009,56 @@ def section_correctness():
           'olmasaydı müşteriye %15,5 fazla bir tasarruf rakamı '
           'sunulacaktı.')
 
+    # ══════════════════════════════════════════════════════════
+    h2('4.13 Kalibrasyon kanıtı rapora hiç girmiyordu')
+
+    p('Ürünün en güçlü ticari kanıtı, modelin <b>müşterinin kendi '
+      'yakıt verisiyle kalibre edilebilmesi</b>. Denetimde bu '
+      'kanıtın <b>hesaplanıp basılmadığı</b> ortaya çıktı.')
+
+    p('<code>report_generator.py</code> içinde üç HTML bloğu vardı:')
+
+    table([
+        ['Değişken', 'Ne üretiyor', 'Şablonda yer'],
+        ['cal_html', 'Kalibrasyon kutusu (1. sürüm)', '<b>YOK</b>'],
+        ['avm_html', '"Gerçek vs Model Yakıt"', '<b>YOK</b>'],
+        ['cal_box', 'Kalibrasyon kutusu (2. sürüm)', '<b>YOK</b>'],
+        ['cal_box_html', "<code>cal_box</code>'ın kopyası", '<b>YOK</b>'],
+        ['dq_box', 'Veri kalitesi', 'var (✓)'],
+    ], [38 * mm, 78 * mm, 42 * mm], fs=8.4)
+
+    p('Yani müşteri raporunda <b>model kalibre edildi mi, CD0/SFC '
+      'faktörü ne, doğruluk %12 → %4,5 iyileşti mi, gerçek yakıt '
+      'modelle ne kadar tutuyor</b> — hiçbiri görünmüyordu. '
+      'Hepsi hesaplanmış, hiçbiri teslim edilmemiş.')
+
+    callout(
+        'Kök neden: kopyala-yapıştır',
+        'İki ayrı geliştirme turunda <b>aynı kutu iki kez</b> '
+        'yazılmış (<code>cal_html</code> ve <code>cal_box</code>) ve '
+        'ikisi de şablona bağlanmamış. Ruff\'ın '
+        '<code>F841 unused-variable</code> kuralı yakaladı.',
+        color=AMBER, bg='#FFFBEB',
+    )
+
+    p('Düzeltme sonrası doğrulama (enjekte edilmiş kalibrasyon '
+      'verisiyle, 7 kontrol):')
+
+    table([
+        ['Kontrol', 'Önce', 'Sonra'],
+        ['"Model Kalibrasyonu" kutusu', 'yok', 'var ✓'],
+        ['CD0 faktörü (1,2476)', 'yok', 'var ✓'],
+        ['SFC faktörü (1,0388)', 'yok', 'var ✓'],
+        ['Doğruluk %12 → %4,5', 'yok', 'var ✓'],
+        ['"Gerçek vs Model Yakıt"', 'yok', 'var ✓'],
+        ['Gerçek yakıt 78.900 kg', 'yok', 'var ✓'],
+    ], [80 * mm, 30 * mm, 30 * mm], fs=8.4)
+
+    small('Bu bulgu, denetimin rastgele hata aramak olmadığını '
+          'gösteriyor: <b>linter çıktısı</b> (F841) doğrudan bir '
+          'ürün kusuruna işaret etti. Kullanılmayan değişken, çoğu '
+          'zaman basılmayan bir özelliktir.')
+
 
 # ══════════════════════════════════════════════════════════════
 # BÖLÜM 5 — TESTLER
@@ -1042,13 +1092,13 @@ def section_tests():
         ['test_thermal_model.py', '11', 'EVET', 'TAT, ram rise, soğuma'],
         ['test_mach_physics.py', '14', 'EVET', 'TSFC eğrisi, U eğrisi, MMO'],
         ['test_sensitivity.py', '22', 'EVET', 'Girdi sözleşmesi (denetim #62)'],
-        ['test_fleet_analyzer.py', '20', 'EVET', 'Filo özeti, belirsizlik (#64)'],
+        ['test_fleet_analyzer.py', '27', 'EVET', 'Filo özeti, belirsizlik, kalibrasyon'],
     ], [56 * mm, 18 * mm, 14 * mm, 80 * mm], fs=7.3)
 
     gap(2)
     callout(
-        'Toplam: 1.475 doğrulama · 19/19 dosya geçiyor',
-        '1.329\'u test dosyalarında, 146\'sı modül içi '
+        'Toplam: 1.482 doğrulama · 19/19 dosya geçiyor',
+        '1.336\'sı test dosyalarında, 146\'sı modül içi '
         '<code>validate_*()</code> fonksiyonlarında (test '
         'dosyalarından çağrılıyor).<br/><br/>'
         'Bu sayı, denetim <b>öncesinde</b> de 16/16 olarak '
@@ -1086,9 +1136,9 @@ def section_tests():
 # ══════════════════════════════════════════════════════════════
 
 def section_audit():
-    h1('6. Satır satır denetim — 72 gerçek hata')
+    h1('6. Satır satır denetim — 73 gerçek hata')
 
-    p('41.656 satır kod tarandı; on bir turda <b>72 gerçek hata</b> '
+    p('41.656 satır kod tarandı; on iki turda <b>73 gerçek hata</b> '
       'bulundu. Her biri düzeltildi ve regresyon testiyle kilitlendi. '
       'Aşağıda en ağır 28 tanesi; tamamı '
       '<code>docs/COMMERCIAL_READINESS.md</code> §8\'de.')
