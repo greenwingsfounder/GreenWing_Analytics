@@ -860,3 +860,69 @@ Test dosyası   : 16/16 · 0 hata
 thermal        : 7 → 11
 Toplam bulgu   : #1–59 (gerçek) + #36/#60/#61 (yanlış pozitif)
 ```
+
+### 8.28 Duyarlılık analizi — girdi sözleşmesi + kayıp test dosyası
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 62 | `sensitivity.py` | `full_sensitivity_report(None)` → **`AttributeError`**; `{'weight_kg': 0}`, `{'distance_nm': 0}`, `{'mach': 0}` → **`ZeroDivisionError`**. Ayrıca `{}` ile çağrıldığında **6 varsayılan sessizce** kullanılıyordu ve çıktıda hangilerinin varsayılan olduğu yazmıyordu — duyarlılık raporu hangi girdiyle üretildiğini söylemezse yorumlanamaz. |
+| 63 | `src/analysis/sensitivity.py` | Modül içinde `validate_sensitivity()` adında **40 kontrollük** test bloğu vardı ama `tests/` altında karşılığı **yoktu**. "16/16 test dosyası geçiyor" taramasına girmiyordu — modülün testleri hiçbir tarama adımında çalışmıyordu. |
+
+**Düzeltme (#62):** `None` → açık `ValueError`; dict olmayan →
+`TypeError`; fiziksel geçersiz girdiler (`weight_kg`, `distance_nm`,
+`mach`, `fuel_price_usd` ≤ sınırı) → `ValueError`. Çıktıya
+`used_default_params` ve `analysis_inputs` eklendi.
+
+**Düzeltme (#63):** `tests/test_sensitivity.py` oluşturuldu —
+modül içi doğrulamayı çağırıyor **ve** 22 yeni kontrol ekliyor
+(girdi sözleşmesi, fiziksel sıralama, fiyat lineerliği).
+Test dosyası sayısı **16 → 17**.
+
+**Doğrulanan fizik (bu turda yeni bir şey öğrendim):**
+
+```
+B738, 1240 nm, 65 t, FL370, M0.78, 155 kg/uçuş:
+  wind       ±20.5%   ← baskın
+  fuel_price ±20.0%
+  altitude   ±13.7%
+  weight     ± 6.5%
+  cd0        ± 6.3%
+  sfc        ± 4.8%
+  TOPLAM     ±26.7%   (RSS)
+```
+
+Rüzgârın baskın olması gerçek havacılıkla uyumlu: mevsimsel
+climatology tahmini ±%20-25 belirsizlik taşır. Ve bu, §8.3'teki
+"14/14 uçuş mevsimsel tahmin" bulgusuyla **aynı hikâyeyi** anlatıyor:
+en büyük belirsizlik kaynağı, elimizde gerçek verisi olmayan şey.
+
+Buna karşılık yıllık tasarruf projeksiyonu bu belirsizliği
+**raporlamıyor** — bkz. §8.29.
+
+### 8.29 Açık kalan: belirsizlik rapora girmiyor (P1, düzeltilmedi)
+
+`sensitivity.py` doğru çalışıyor ve ±%26,7 toplam belirsizlik
+hesaplıyor. Ama:
+
+- `scripts/03` bu analizi çalıştırmıyor
+- `report_generator` çıktısında belirsizlik aralığı yok
+- Panelde `$1.425.376` **tek nokta değeri** olarak gösteriliyor
+
+Yani sistem "yıllık $1,4M tasarruf" derken, kendi hesabına göre
+**±%27 belirsizlik** olduğunu söylemiyor. Bu bir bulgu olarak
+kaydedildi; bu turda **düzeltilmedi** çünkü rapor/panel şemasını
+değiştirmek istiyor (ayrı iş kalemi).
+
+### 8.30 9. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1–8 | 1–59 | bkz. yukarıdaki tablolar |
+| **9** | **62–63** | **Duyarlılık girdi sözleşmesi, kayıp test dosyası** |
+
+```
+Test dosyası   : 16 → 17 · 0 hata
+sensitivity    : 40 (modül içi) + 22 (yeni dosya)
+Toplam bulgu   : #1–59 gerçek, #62–63 yeni, #36/#60/#61 yanlış pozitif
+Açık           : #29 belirsizlik rapora girmiyor
+```
