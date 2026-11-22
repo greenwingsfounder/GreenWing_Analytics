@@ -355,6 +355,7 @@ NAV = [
     ('/veri', 'Veri Kaynakları'),
     ('/denetim', 'Denetim'),
     ('/el-kitabi', 'El Kitabı'),
+    ('/basit', 'Basit Anlatım'),
     ('/ticari', 'Ticari Plan'),
 ]
 
@@ -566,7 +567,9 @@ yukarıdaki sayfaları kullan, PDF'i değil.
   <span class="d">81 bulgu, 1.398 test, kod doğru mu?</span></a>
 <a href="/el-kitabi"><span class="n">5</span>El Kitabı
   <span class="d">Kod haritası, her dosya ne işe yarar, sözlük</span></a>
-<a href="/ticari"><span class="n">6</span>Ticari Plan
+<a href="/basit"><span class="n">6</span>Basit Anlatım
+  <span class="d">Jargonsuz: ne yapar, ne yapamaz, ticarileşince ne olur</span></a>
+<a href="/ticari"><span class="n">7</span>Ticari Plan
   <span class="d">Üründen şirkete: 4 aşama, fiyatlandırma, sıralama</span></a>
 </div>
 """
@@ -1242,6 +1245,149 @@ tek yerde</td><td><span class="badge b-ok">kaynaklı</span></td></tr>
 """
     return HTMLResponse(page('El Kitabı', body, user=user, token=token,
                              active='/el-kitabi'))
+
+
+# ══════════════════════════════════════════════════════════════════════
+# SAYFA 6b — BASİT ANLATIM (jargonsuz)
+# ══════════════════════════════════════════════════════════════════════
+@app.get('/basit', response_class=HTMLResponse)
+def simple(request: Request, gw_session: str | None = Cookie(None),
+           token: str = Query('')):
+    ok, user = _check(gw_session, token)
+    if not ok:
+        return RedirectResponse('/giris?next=/basit', status_code=303)
+    s = summarize(load_flights())
+    p_ = s['provenance']
+    body = f"""
+<h1>Basit Anlatım
+<span class="sub">Teknik terim yok. Bu sistem ne yapar, ne yapamaz,
+ticarileşince hayatında ne değişir. Bir yakının anlayacak şekilde.</span></h1>
+
+<h2>1 · Problem ne?</h2>
+<p>Bir uçak kalktığında deposunda binlerce litre yakıt var. Bunun
+<b>çoğu zorunlu</b>: uçağı havada tutmak için gereken enerji. Ama
+<b>küçük bir kısmı senin kontrolünde</b>:</p>
+<ul>
+<li><b>Ne kadar hızlı uçacaksın?</b> Hızlı = kısa uçuş ama çok yakıt.
+Yavaş = uzun uçuş ama az yakıt. Denge nerede?</li>
+<li><b>Hangi yükseklikte?</b> Çok yüksek = ince hava, az direnç;
+ama motor da zorlanır.</li>
+<li><b>Nereden yakıt alacaksın?</b> İstanbul'da ucuz, Amsterdam'da
+pahalıysa, İstanbul'da fazla alıp taşımak mantıklı mı? (Taşımak da
+yakıt yakar.)</li>
+<li><b>Rüzgârı kullanıyor musun?</b> Doğuya uçarken batı rüzgârı
+seni iter. Batıya uçarken aynı rüzgâr seni yavaşlatır.</li>
+</ul>
+<p>Bu dördü, bir uçuşun toplam maliyetinin <b>%2–4'ünü</b> değiştirir.
+Küçük gibi? Bir filo yılda 500.000 uçuş yapıyorsa, milyonlarca dolar.</p>
+
+<h2>2 · Bu sistem ne yapıyor?</h2>
+<div class="grid g3">
+  <div class="card info"><div class="lbl">1. Okur</div>
+    <div class="note">Uçağın nerede, hangi yükseklikte, hangi hızda
+    olduğunu radar verisinden alır.</div></div>
+  <div class="card info"><div class="lbl">2. Hesaplar</div>
+    <div class="note">Uçağın fiziğini (aerodinamik) ve motorunu
+    (yakıt yakma hızı) modelleyerek "bu uçuşta ne kadar yakıt
+    harcandı" der.</div></div>
+  <div class="card info"><div class="lbl">3. Karşılaştırır</div>
+    <div class="note">"Şöyle uçsaydın ne kadar az yakardın?"
+    sorusuna dolar ve CO₂ olarak cevap verir.</div></div>
+</div>
+<p><b>Neden hazır bir formül yetmiyor?</b> Çünkü "mesafe × 3 kg"
+gibi bir formül ortalama verir. Ama "3 yerine 2,8 olur mu" sorusuna
+cevap veremez — çünkü içinde ne olduğunu bilmiyorsun. Bu sistem
+uçağın <b>fiziğini ayrı ayrı</b> modelliyor; böylece "şu parametreyi
+değiştirsem ne olur" sorusu tahmin değil <b>hesap</b> oluyor.</p>
+
+<h2>3 · Şu anda gerçek olan ne?</h2>
+<div class="note-box errbox"><div class="t">
+Dürüst cevap: motor gerçek, yakıt "göstergede"</div>
+Sistem şu anda <b>{p_['synthetic']} uçuşla</b> çalışıyor ve bunların
+<b>hepsi bilgisayarda üretilmiş (sentetik)</b> uçuşlar. Gerçek radar
+kaydı yok (0).<br><br>
+<b>Ne anlama geliyor:</b> Hesap makinesi doğru çalışıyor ama henüz
+gerçek sayılarla denenmemiş. Uçağın fiziği <b>doğrulanmış</b>
+(atmosfer modeli elle hesapla birebir, uçak ağırlıkları üretici
+belgesiyle %0 sapma), ama "bu uçuşta 6.450 kg yaktı" cümlesi
+henüz gerçek bir uçuşla karşılaştırılmamış.<br><br>
+Bu yüzden sitenin her yerinde "taahhüt değil, gösterge" yazıyor.
+Yalan söylemiyor — eksik olan tek şey <b>gerçek veri</b>.
+</div>
+
+<h2>4 · Ticarileşince ne olacak?</h2>
+<p>Sırayla, ve her adımın neden o sırada olduğu:</p>
+
+<h3>Adım 1 — Gerçek veri (1 hafta)</h3>
+<p>Bir havayolundan 20–50 uçuşun gerçek yakıt fişini alacaksın.
+Sistem bu gerçek sayılarla sınanacak. Sonuç: "model gerçekte %x
+sapıyor" cümlesi — <b>sayıyla</b>.</p>
+<div class="note-box infobox"><div class="t">Neden ilk bu?</div>
+Bu olmadan hiçbir müşteriye gidilmez. "Bu rakam nereden geliyor"
+sorusuna cevabın olmaz.</div>
+
+<h3>Adım 2 — Pilot (2 ay, ücretsiz)</h3>
+<p>Bir havayoluyla anlaşıp <b>ücretsiz</b> analiz yapacaksın.
+Karşılığında <b>veri ve referans</b> alacaksın. Ücretsiz olması
+pazarlık zayıflığı değil — senin de onların verisine ihtiyacın var.</p>
+
+<h3>Adım 3 — Ürünü sağlamlaştır (2–4 ay)</h3>
+<p>Bugün eksik olanlar: her müşterinin verisini ayrı tutma
+(çok kiracılılık), kim neyi görebilir (rol yönetimi), sistem çökerse
+ne olur (SLA + yedekleme), sözleşmede doğruluk cümlesi.</p>
+
+<h3>Adım 4 — Satış (4–12 ay)</h3>
+<p>Artık "şu havayolu %X tasarruf etti" diyebilirsin. Satışın en
+güçlü cümlesi budur — özellik listesi değil.</p>
+
+<h2>5 · Para nasıl kazanılır</h2>
+<div class="wrap"><table>
+<thead><tr><th>Model</th><th>Nasıl işler</th><th>Risk kimde</th></tr></thead>
+<tbody>
+<tr><td>Uçuş başına</td><td>0,50–2 $ × uçuş sayısı</td><td>Müşteride</td></tr>
+<tr><td>Yıllık abonelik</td><td>Sabit aylık + hacim</td><td>Müşteride</td></tr>
+<tr><td><b>Tasarruf paylaşımı</b></td>
+<td>Kanıtlanmış tasarrufun %20–30'u</td>
+<td><b>Sende</b> — ama en güçlü satış</td></tr>
+</tbody></table></div>
+<p>Küçük bir örnek: 20 uçaklı bir havayolu yılda 30.000 uçuş yapıyorsa
+ve uçuş başına 300 $ tasarruf edilebiliyorsa, yılda <b>9 milyon dolar</b>
+demektir. Bunun %25'i <b>2,25 milyon dolar</b> yıllık gelir.</p>
+<p class="small" style="color:#b45309"><b>Dikkat:</b> bu örnek sayı
+değil, ölçek göstergesidir. Gerçek tasarruf, müşterinin gerçek
+verisiyle ölçülmeden bilinemez — bu sistemin dürüst tavrı da budur.</p>
+
+<h2>6 · Bu işi yapmaya değer mi?</h2>
+<div class="wrap"><table>
+<thead><tr><th>Soru</th><th>Cevap</th></tr></thead>
+<tbody>
+<tr><td>Teknik olarak hazır mı?</td>
+<td>Çekirdek evet: fizik doğrulanmış, 1.454 test geçiyor, 217
+denetim kontrolü temiz.</td></tr>
+<tr><td>Ticari olarak hazır mı?</td>
+<td>Hayır. Gerçek veri, çok kiracılılık, SLA ve referans yok.
+Mesafe: 2–4 ay + bir pilot müşteri.</td></tr>
+<tr><td>Pazar var mı?</td>
+<td>Evet. Yakıt, havayolu maliyetinin %25–35'i. CORSIA ile emisyon
+raporlama zorunlu hale geldi.</td></tr>
+<tr><td>Rakip var mı?</td>
+<td>Evet (Boeing Jeppesen, Lufthansa Systems, küçük girişimler).
+Farkın: fizik şeffaflığı + belirsizlik aralığı + açık kaynak
+denetlenebilirlik.</td></tr>
+<tr><td>En büyük risk?</td>
+<td>Gerçek veri bulamadan ürünü satmaya çalışmak. Bu, ilk müşteride
+güven kaybı demek.</td></tr>
+</tbody></table></div>
+
+<div class="note-box ok"><div class="t">Tek cümlelik özet</div>
+<b>Elinde çalışan bir hesap makinesi var ama henüz gerçek faturalarla
+denenmemiş.</b> Sıradaki iş makineyi geliştirmek değil — <b>gerçek bir
+faturayla karşılaştırmak</b>. O karşılaştırma olmadan satış olmaz;
+olduktan sonra 2–4 ayda satılabilir hale gelir.
+</div>
+"""
+    return HTMLResponse(page('Basit Anlatım', body, user=user, token=token,
+                             active='/basit'))
 
 
 # ══════════════════════════════════════════════════════════════════════

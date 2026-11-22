@@ -54,7 +54,8 @@ def check(name: str, cond: bool, detail: str = '') -> None:
         print(f'  ✗ {name}   {detail}')
 
 
-PAGES = ['', 'ucuslar', 'metodoloji', 'veri', 'denetim', 'el-kitabi', 'ticari']
+PAGES = ['', 'ucuslar', 'metodoloji', 'veri', 'denetim', 'el-kitabi',
+         'basit', 'ticari']
 
 
 def main() -> int:
@@ -120,6 +121,11 @@ def main() -> int:
           r.text.count('Sen ne sunmalısın') >= 6)
     r = fresh.get(f'/denetim?token={token}')
     check('denetim sayfası 81 bulguyu gösteriyor', '81' in r.text)
+    r = fresh.get(f'/basit?token={token}')
+    check('basit anlatım jargon içermiyor',
+          'Basit Anlatım' in r.text and 'Ticarileşince' in r.text)
+    check('basit anlatım para modelini açıklıyor',
+          'Tasarruf paylaşımı' in r.text)
     r = fresh.get(f'/ticari?token={token}')
     check('ticari sayfada 4 aşama var',
           all(a in r.text for a in ('Aşama 0', 'Aşama 1', 'Aşama 2', 'Aşama 3')))
