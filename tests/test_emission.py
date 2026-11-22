@@ -170,6 +170,76 @@ def run_tests():
     )
 
     # ═══════════════════════════════════════════════════════
+    # 7b. [BFFM2] GERÇEK DAVRANIŞ — denetim #38 regresyonu
+    # ═══════════════════════════════════════════════════════
+    print("\n  [7b] [BFFM2] Yakıt akışı / Mach / referans doğrulaması")
+
+    # DENETİM #38: Bu fonksiyonun adı "BFFM2" idi ama iki temel
+    # girdisi (yakıt akışı, Mach) HİÇ KULLANILMIYORDU. Yakıt akışı
+    # 0,3 → 1,8 kg/s arasında EI sabit 10,47 kalıyordu.
+    # Aşağıdaki testler bu mekanizmaları kilitler.
+
+    _e = calc
+
+    # (a) Yakıt akışı EI_NOx'i DEĞİŞTİRMELİ (pozitif eğim)
+    _ff_lo = _e.nox_bffm2(0.20, 35000, 0.785, 'CFM56-7B26')
+    _ff_hi = _e.nox_bffm2(0.60, 35000, 0.785, 'CFM56-7B26')
+    check_true(
+        f"BFFM2 yakıt akışı etkili: 0.20→{_ff_lo:.2f}, "
+        f"0.60→{_ff_hi:.2f} g/kg (artmalı)",
+        _ff_hi > _ff_lo * 1.5
+    )
+
+    # (b) Mach EI_NOx'i DEĞİŞTİRMELİ
+    _m_lo = _e.nox_bffm2(0.33, 35000, 0.60, 'CFM56-7B26')
+    _m_hi = _e.nox_bffm2(0.33, 35000, 0.85, 'CFM56-7B26')
+    check_true(
+        f"BFFM2 Mach etkili: M0.60→{_m_lo:.2f}, M0.85→{_m_hi:.2f} (artmalı)",
+        _m_hi > _m_lo
+    )
+
+    # (c) Referans noktası: SL statik tam itki = EDB takeoff EI
+    #     (TSFC 1.1e-5 kg/(N·s) → 117 kN × 1.1e-5 = 1.287 kg/s)
+    _sl_ref = _e.nox_bffm2(1.287, 0, 0.0, 'CFM56-7B26')
+    check_true(
+        f"BFFM2 SL statik tam itki = EDB takeoff ({_sl_ref:.2f} ≈ 27.4)",
+        abs(_sl_ref - 27.4) < 1.0
+    )
+
+    # (d) Gerçekçi cruise: %25-30 itki → 8-15 g/kg aralığında
+    #     (EDB cruise EI_NOx tipik 10-20; eski kod 10,5 sabit veriyordu)
+    _cruise = _e.nox_bffm2(0.335, 35000, 0.785, 'CFM56-7B26')
+    check_range("BFFM2 gerçekçi cruise EI (26% itki)", _cruise, 8.0, 15.0)
+
+    # (e) AYNI İTKİDE irtifa etkisi.
+    #     DİKKAT: "aynı yakıt akışında" testi yanıltıcı — alçakta
+    #     aynı akış çok daha düşük itki demektir (W_ref = W·θ^3.3/δ^1.02),
+    #     o yüzden EI düşük çıkar. Doğru kıyas: SABİT W_ref (sabit itki).
+    from src.units import Units as _U
+    def _ff_for_ref(ref_flow, alt):
+        d = _U.pressure_ratio(alt); t = _U.temperature_ratio(alt)
+        return ref_flow * (d ** 1.02 / t ** 3.3)
+    _ref = 0.386  # approach seviyesi sabit itki
+    _hi_alt = _e.nox_bffm2(_ff_for_ref(_ref, 41000), 41000, 0.785, 'CFM56-7B26')
+    _lo_alt = _e.nox_bffm2(_ff_for_ref(_ref, 25000), 25000, 0.785, 'CFM56-7B26')
+    check_true(
+        f"BFFM2 sabit itkide irtifa etkisi: 41k→{_hi_alt:.2f} < 25k→{_lo_alt:.2f}",
+        _lo_alt > _hi_alt
+    )
+
+    # (f) Nem EI'yi DÜŞÜRMELİ (BFFM2 nem düzeltmesi)
+    _dry = _e.nox_bffm2(0.335, 35000, 0.785, 'CFM56-7B26', humidity=0.0)
+    _wet = _e.nox_bffm2(0.335, 35000, 0.785, 'CFM56-7B26', humidity=0.02)
+    check_true(
+        f"BFFM2 nem etkisi: kuru {_dry:.2f} > nemli {_wet:.2f}",
+        _dry > _wet
+    )
+
+    # (g) EI_NOx hiçbir koşulda negatif olmamalı
+    _weird = _e.nox_bffm2(0.001, 43000, 0.0, 'CFM56-7B26')
+    check_true(f"BFFM2 EI alt sınırı pozitif: {_weird:.3f}", _weird > 0)
+
+    # ═══════════════════════════════════════════════════════
     # 8. NOx — GENERIC FALLBACK
     # ═══════════════════════════════════════════════════════
     print("\n  [8] NOx — Generic Fallback")

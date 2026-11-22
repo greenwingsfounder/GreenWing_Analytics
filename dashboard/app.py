@@ -80,7 +80,9 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 
+from config.assumptions import Assumptions
 from config.settings import (
+    EI_CO2,
     SYSTEM_NAME, SYSTEM_VERSION,
     DASHBOARD_HOST, DASHBOARD_PORT, DASHBOARD_DEBUG,
     REPORTS_OPTIMIZATIONS,
@@ -131,7 +133,7 @@ def load_data() -> pd.DataFrame:
 
                 # co2_kg hesapla (yoksa)
                 if 'co2_kg' not in df.columns and 'estimated_fuel_kg' in df.columns:
-                    df['co2_kg'] = df['estimated_fuel_kg'] * 3.16
+                    df['co2_kg'] = df['estimated_fuel_kg'] * EI_CO2
 
                 # origin-destination rota
                 if 'origin' not in df.columns:
@@ -228,7 +230,7 @@ def generate_demo_data() -> pd.DataFrame:
                     'estimated_fuel_kg': round(fuel),
                     'cruise_altitude_ft': alt,
                     'route_efficiency_pct': round(route_eff, 1),
-                    'co2_kg': round(fuel * 3.16),
+                    'co2_kg': round(fuel * EI_CO2),
                     'fuel_per_nm': round(fuel / route['dist'], 2),
                     'potential_saving_kg': round(saving),
                 })
@@ -281,8 +283,8 @@ def calculate_kpis(df: pd.DataFrame) -> dict:
     avg_eff    = df['route_efficiency_pct'].mean() if 'route_efficiency_pct' in df.columns else 95
 
     saving_kg  = df['potential_saving_kg'].sum() if 'potential_saving_kg' in df.columns else 0
-    saving_usd = saving_kg * 0.85
-    saving_co2 = saving_kg * 3.16 / 1000
+    saving_usd = saving_kg * Assumptions.fuel_price('DEFAULT')
+    saving_co2 = saving_kg * EI_CO2 / 1000
 
     return {
         'flights'    : n,
@@ -823,7 +825,7 @@ def update_all(start_date, end_date, aircraft_type, route):
             'potential_saving_kg': 'sum',
         }).reset_index()
         sav_by_route['route'] = sav_by_route['origin'] + '→' + sav_by_route['destination']
-        sav_by_route['usd'] = sav_by_route['potential_saving_kg'] * 0.85
+        sav_by_route['usd'] = sav_by_route['potential_saving_kg'] * Assumptions.fuel_price('DEFAULT')
         sav_by_route = sav_by_route.sort_values('usd', ascending=True)
     else:
         sav_by_route = pd.DataFrame({'route': ['N/A'], 'usd': [0]})

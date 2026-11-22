@@ -362,3 +362,62 @@ Rüzgâr şeffaflığı    : 14/14 kayıtta kaynak etiketi
 Fiziksel / tankering : %48 / %52 (önce %0.5 / %99.5)
 F821                 : 0
 ```
+
+### 8.7 `nox_bffm2` — adı BFFM2, içi değil (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 38 | `emission_model.py` | `nox_bffm2(fuel_flow_kg_s, altitude_ft, mach, engine_type)` imzasında **dört girdi var, ikisi kullanılmıyordu**: `fuel_flow_kg_s` ve `mach`. Gövdede yalnızca `δ^0.51/θ^1.65` vardı. | Yakıt akışı 0,3 → 1,8 kg/s (%17 → %140 itki) arasında EI_NOx **10,47 g/kg sabit** kalıyordu. Mach 0,60 → 0,85 arasında da değişmiyordu. Yani "BFFM2" etiketi olan fonksiyon BFFM2'nin üç temel mekanizmasını (yakıt akışı→itki, Mach düzeltmesi, LTO ekstrapolasyonu) içermiyordu. |
+
+**Düzeltme:** Gerçek BFFM2 uygulandı (ICAO Doc 9889 Ek 2):
+
+```
+W_ref       = Wf · (θ^3.3 / δ^1.02)          # referans: SL, ISA, statik
+EI_ref      = LTO eğrisinden interpolasyon(W_ref)
+C_mach      = 1 + 0.033 · M² · 10
+EI_NOx      = EI_ref · √(δ^1.02/θ^3.3) · C_mach · exp(−19(H−0.00634))
+```
+
+**Doğrulama (referans noktası):** SL statik tam itki (1,287 kg/s)
+→ **27,40 g/kg**, EDB takeoff değeri 27,4 ile **tam eşleşme**.
+Gerçek cruise (%26 itki) → 8,8 g/kg; `calculate_flight_emissions`
+çıktısı 12,9 g/kg → EDB cruise aralığı (12–18) içinde.
+
+**Bu düzeltmeyi yaparken kendi yaptığım iki hata** (belgelenmeye değer):
+1. `W_ref` formülünü ters yazdım (`·δ^1.02/θ^3.3`). Sonuç: W_ref 0,48
+   kg/s çıktı, oysa referans koşul SL olduğu için W_ref > W_actual olmalı.
+2. TSFC'yi `0,011 kg/(N·s)` aldım. Doğrusu `1,1e-5` (≈0,39 lb/lbf·h).
+   `0,011` ile takeoff akışı **1.287 kg/s** çıkıyordu — bir motordan
+   4.600 ton/saat, imkânsız.
+
+**Bu hata neden testlerden kaçtı?** Mevcut testler yalnızca
+`check_range("NOx EI", 1.0, 20.0)` diyordu — sabit 10,47 bu aralıkta.
+Yani test "değer makul aralıkta mı" diye bakıyordu, "girdiye **tepki
+veriyor** mu" diye bakmıyordu. §7b'de 7 yeni regresyon testi eklendi:
+yakıt akışı etkisi, Mach etkisi, SL referans eşleşmesi, cruise aralığı,
+sabit itkide irtifa etkisi, nem etkisi, alt sınır.
+
+### 8.8 Dördüncü kez "3.16" — bu kez `emission_model.py` içinde
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 39 | `emission_model.py` | `from config.settings import EI_CO2, EI_H2O` **zaten en tepede** duruyordu, ama dosya kendi `_EI_CO2 = 3.16` / `_EI_H2O = 1.24` sabitlerini tanımlıyordu. Kanonik sabit import edilip **kullanılmıyordu**; 10 çağrı yerel kopyayı kullanıyordu. |
+
+Düzeltme: `_EI_CO2 = EI_CO2`, `_EI_H2O = EI_H2O` (tek kaynak).
+Değerler aynı olduğu için sayısal değişim yok; ama `config.settings`
+güncellenirse 10 yer artık birlikte hareket eder.
+
+Aynı turda `dashboard/app.py` (3 yer) ve `scripts/04` (2 yer) ile
+`src/models/saf_model.py` (1 yer) de kanonik sabite bağlandı.
+**Toplam 16 hardcoded CO₂ kullanımı temizlendi.**
+
+### 8.9 Dashboard'daki çıplak yakıt fiyatı
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 40 | `dashboard/app.py` | İki yerde `* 0.85` (yakıt $/kg) çıplak sabit. `Assumptions.fuel_price('DEFAULT')` varken. |
+
+Düzeltme: `Assumptions.fuel_price('DEFAULT')`. Not: `fleet_analyzer.py`
+zaten doğru yapıdaydı (tek `_DEFAULT_FUEL_PRICE_USD_PER_KG` + enjeksiyon);
+`flight_analyzer.py` de `Assumptions` kullanıyordu. Sorun yalnızca
+dashboard'daydı.

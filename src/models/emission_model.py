@@ -86,9 +86,12 @@ logger = get_logger("models.emission")  # Central logging (CORSIA + SAF readines
 
 # Emisyon indeksleri (kg emisyon / kg yakıt)
 # Kaynak: ICAO, DEFRA, IPCC
-_EI_CO2 = 3.16     # Kesin kimyasal sabit. CH bileşiklerinin yanması.
-_EI_H2O = 1.24     # Kesin kimyasal sabit.
-_EI_SO2 = 0.001    # Yakıttaki sülfür içeriğine bağlı (~0.05% S)
+# NOT: EI_CO2 ve EI_H2O config.settings'ten gelir (kanonik tek kaynak).
+# Burada yeniden sabit tanımlamak iki kaynak yaratıyordu — CO2 faktörü
+# 24 yerde 3.16 sabitine çevrilirken burası gözden kaçmıştı.
+_EI_CO2 = EI_CO2   # kanonik: config.settings.EI_CO2 (CORSIA 3.160)
+_EI_H2O = EI_H2O   # kanonik: config.settings.EI_H2O
+_EI_SO2 = 0.001    # Yakıttaki sülfür içeriğine bağlı (~0.05% S); settings'te yok
 
 # Jet-A1 enerji içeriği
 _JET_A1_LHV = 43.15e6  # J/kg (Lower Heating Value)
@@ -522,19 +525,83 @@ class EmissionCalculator:
                 engine['ei_nox']['climb'] + engine['ei_nox']['approach']
             ) / 2
 
-        # Atmosferik düzeltme (BFFM2)
-        delta = Units.pressure_ratio(altitude_ft)
-        theta = Units.temperature_ratio(altitude_ft)
+        # ══════════════════════════════════════════════════════
+        # BFFM2 (Boeing Fuel Flow Method 2) — ICAO Doc 9889 Ek 2
+        # ══════════════════════════════════════════════════════
+        # DENETİM #38: Bu fonksiyon adı "BFFM2" idi ama BFFM2'nin
+        # üç temel mekanizması YOKTU:
+        #   1) fuel_flow_kg_s → itki bağı (parametre atılıyordu)
+        #   2) Mach düzeltmesi (parametre atılıyordu)
+        #   3) LTO → cruise ekstrapolasyonu (sadece δ^0.51/θ^1.65)
+        # Sonuç: yakıt akışı 0.3 → 1.8 kg/s arasında EI_NOx
+        # DEĞİŞMİYORDU. Gerçekte güç ayarıyla 4 → 27 g/kg değişir.
 
-        # Nem düzeltmesi
+        # ── 1) Referans koşul: deniz seviyesi, ISA, M0.0 ──
+        # LTO EI_NOx değerleri SL statik koşullarda ölçülür.
+        theta_amb = Units.temperature_ratio(altitude_ft)
+        delta_amb = Units.pressure_ratio(altitude_ft)
+
+        # ── 2) Yakıt akışından referans yakıt akışı (BFFM2) ──
+        # BFFM2: W_ref = W_actual · (θ_amb^3.3 / δ_amb^1.02)
+        # SEBEP: referans koşul DENİZ SEVİYESİ (δ=1, θ=1). Yüksek irtifada
+        # δ ve θ < 1, yani (δ^1.02/θ^3.3) < 1 → W_ref > W_actual.
+        # Fizik: aynı yakıt akışı, ince havada motordan DAHA FAZLA güç
+        # çeker (daha zor çalışır) → deniz seviyesindeki eşdeğeri daha yüksek.
+        # (İlk denemede ters yazdım: W_ref < W_actual çıkıyordu, yanlış.)
+        w_ref = fuel_flow_kg_s * (theta_amb ** 3.3 / delta_amb ** 1.02)
+
+        # ── 3) Referans EI_NOx: LTO eğrisinden yakıt akışıyla interpole ──
+        # LTO referans yakıt akışları — itki oranı × rated thrust × SFC.
+        # BİRİM TUZAĞI: rated_thrust_kn kiloNewton'dur; SFC kg/(N·s)
+        # cinsindendir, yani önce ×1000 ile Newton'a çevirmek ZORUNLU.
+        # (İlk denemede çevirmedim; akışlar 1000 kat küçük çıktı.)
+        _thrust_n = engine['rated_thrust_kn'] * 1000.0
+        # BİRİM TUZAĞI 2: TSFC ≈ 0,39 lb/(lbf·h) = 1,1e-5 kg/(N·s).
+        # 0,011 yazarsam 1000 kat büyük akış çıkar (takeoff 1287 kg/s!).
+        _sfc     = 1.1e-5  # kg/(N·s) ≈ 0,39 lb/(lbf·h)
+        lto_frac = {'idle': 0.07, 'approach': 0.30,
+                    'climb': 0.85, 'takeoff': 1.00}
+        lto_ff = {k: f * _thrust_n * _sfc for k, f in lto_frac.items()}
+        # CFM56-7B26 için: idle 0,090 · approach 0,386 · climb 1,094 ·
+        # takeoff 1,287 kg/s  (= 4.633 kg/h, gerçek CFM56-7B ~4.500 kg/h ✓)
+        # Bu akışlar tek motor içindir; fuel_flow_kg_s de tek motor olmalı.
+        # NOT: engine['lto_fuel_kg'] (862 kg) iki motorun LTO toplamıdır
+        # (tek motor ≈ 431 kg) — bu yüzden burada kullanılmaz.
+
+        pts = [(lto_ff[k], engine['ei_nox'][k]) for k in
+               ('idle', 'approach', 'climb', 'takeoff')]
+        pts.sort()
+        # Lineer interpolasyon + dışa ekstrapolasyon (eğim korunur)
+        if w_ref <= pts[0][0]:
+            x0, y0 = pts[0]; x1, y1 = pts[1]
+        elif w_ref >= pts[-1][0]:
+            x0, y0 = pts[-2]; x1, y1 = pts[-1]
+        else:
+            for i in range(len(pts) - 1):
+                if pts[i][0] <= w_ref <= pts[i + 1][0]:
+                    x0, y0 = pts[i]; x1, y1 = pts[i + 1]
+                    break
+        slope = (y1 - y0) / (x1 - x0) if x1 != x0 else 0.0
+        ei_nox_ref = y0 + slope * (w_ref - x0)
+        # Fiziksel alt sınır: EI_NOx negatif olamaz
+        ei_nox_ref = max(ei_nox_ref, 0.5)
+
+        # ── 4) Mach düzeltmesi (BFFM2) ──
+        # BFFM2: EI_NOx,amb = EI_NOx,ref · (δ^1.02 / θ^3.3)^0.5 · ...
+        # Mach terimi: yanma odası giriş sıcaklığını artırır → NOx artar.
+        # ICAO Doc 9889: C_mach = exp(0.0063 · (M · 100)^1.5 / 100) yaklaşımı
+        # Yaygın mühendislik formu (Boeing BFFM2):
+        mach_correction = 1.0 + 0.033 * mach ** 2 * 10.0
+        # M0.80 → 1.211 ; M0.0 → 1.0 (statik referans)
+
+        # ── 5) Atmosferik düzeltme (BFFM2 üsleri) ──
+        # BFFM2: EI = EI_ref · (δ^1.02 / θ^3.3)^0.5 · C_mach
+        atmos = (delta_amb ** 1.02 / theta_amb ** 3.3) ** 0.5
+
+        # ── 6) Nem düzeltmesi (BFFM2 / ICAO Doc 9889) ──
         humidity_correction = np.exp(-19.0 * (humidity - 0.00634))
 
-        # Düzeltilmiş EI_NOx (BFFM2 yaklaşımı - tam BFFM2 değil)
-        # ICAO Doc 9889 Appendix 2 referans alınmıştır.
-        # # Yüksek irtifada basınç düşer → NOx azalır
-        # # Not: Tam BFFM2'de exponentler farklıdır (n≈0.4).
-        # # Bu yaklaşım sektörde kabul edilebilir aralıkta değerler üretir.
-        ei_nox = ei_nox_ref * (delta ** 0.51) / (theta ** 1.65) * humidity_correction
+        ei_nox = ei_nox_ref * atmos * mach_correction * humidity_correction
 
         return float(ei_nox)
 

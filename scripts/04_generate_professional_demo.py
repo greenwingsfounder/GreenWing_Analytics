@@ -50,7 +50,7 @@ from src.optimization.tankering_optimizer import TankeringOptimizer
 from src.data_collection.airport_database import AirportDatabase
 from src.utils import calculate_initial_heading, get_seasonal_wind_estimate
 from config.assumptions import Assumptions
-from config.settings import REPORTS_OPTIMIZATIONS
+from config.settings import REPORTS_OPTIMIZATIONS, EI_CO2
 
 
 # ═══════════════════════════════════════════════════════════
@@ -468,7 +468,7 @@ def simulate_single_flight(
         co2        = float(emissions['emissions']['CO2_kg'])
         co2_pax_km = float(emissions['metrics']['co2_per_pax_km_g'])
     except Exception:
-        co2        = total_fuel * 3.16
+        co2        = total_fuel * EI_CO2
         dist_km    = distance_nm * 1.852
         co2_pax_km = (co2 * 1000) / (pax * dist_km) if pax > 0 and dist_km > 0 else 0
 
@@ -650,7 +650,7 @@ def main():
 
     annual_fuel_saving_kg  = total_fuel_saving_kg  * ANNUAL_SCALE_FACTOR
     annual_cost_saving_usd = total_cost_saving_30d * ANNUAL_SCALE_FACTOR * REALIZATION_FACTOR
-    annual_co2_saving_kg   = annual_fuel_saving_kg * 3.16
+    annual_co2_saving_kg   = annual_fuel_saving_kg * EI_CO2
 
     for r in all_results:
         r['annual_raw_usd']       = round(r['total_cost_saving_usd'] * ANNUAL_SCALE_FACTOR)
