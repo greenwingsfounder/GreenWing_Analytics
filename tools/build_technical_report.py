@@ -286,8 +286,9 @@ def section_toc():
         ('', '4.4', 'Adım tırmanışı fiziği'),
         ('', '4.5', 'Atmosfer modeli — ICAO Doc 7488'),
         ('', '4.6', 'NOx modeli — BFFM2 doğrulaması'),
-        ('', '4.7', 'Cost Index — boyut analizi'),
-        ('', '4.8', 'Maliyet modeli ve sınırları'),
+        ('', '4.7', '"Dijital İkiz" uydurma faktörler'),
+        ('', '4.8', 'Cost Index — boyut analizi'),
+        ('', '4.9', 'Maliyet modeli ve sınırları'),
         ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
         ('6', 'Satır satır denetim — 20 gerçek hata', '41.656 satır, 2 tur'),
@@ -801,7 +802,54 @@ def section_correctness():
         color=NAVY, bg='#EFF6FF',
     )
 
-    h2('4.7 Cost Index — boyut analizi')
+    h2('4.7 "Dijital İkiz" — uydurma faktörler ve sızma')
+
+    p('Denetimin en riskli bulgusu buradaydı. Modül kendini '
+      '"Kuyruk Bazlı Dijital İkiz ve Motor Aşınma Kalibrasyon Motoru" '
+      'diye tanıtıyor, havayoluna MRO bakım önerisi üretiyordu. '
+      'Faktörler ise <b>tescil numarasının son harfinden</b> geliyordu:')
+
+    mono('# Eski kod (kaldırıldı)\n'
+         'last_char = tail_number[-1].upper()      # \'O\' = 79\n'
+         'cd0_f = 0.98 + (ord(last_char) % 15) * 0.01\n'
+         'sfc_f = 0.97 + (ord(last_char) % 9)  * 0.009')
+
+    table([
+        ['Tescil', 'Son harf', 'CD0', 'SFC', 'Sorun'],
+        ['TC-SPO', "'O' = 79", '1,020', '1,033', ''],
+        ['TC-SPA', "'A' = 65", '1,030', '0,988', ''],
+        ['TC-JAA', "'A' = 65", '1,030', '0,988', 'TC-SPA ile aynı'],
+    ], [30 * mm, 34 * mm, 26 * mm, 26 * mm, 44 * mm], fs=8)
+
+    p('Farklı havayolu, farklı uçak — birebir aynı "aşınma". '
+      '1 uçuşla 200 uçuş da aynı sonucu veriyordu: veriden öğrenme yoktu. '
+      'Buna rağmen çıktı <code>status: SUCCESS</code> dönüyor ve '
+      '<b>"Gövde Yıkama ÖNERİLİR / YÜKSEK öncelik"</b> diyordu.')
+
+    callout(
+        'Sızma: yayınlanmış dosyada kanıt',
+        'Bu faktörler <code>reports/case_studies/fleet_digital_twins_20261122.json</code> '
+        'dosyasına yazılmıştı: TC-SXS için CD0=1,06 → AIRFRAME_WASH. '
+        'Doğrulama: <code>0,98 + (ord(\'S\')=83 mod 15 = 8) × 0,01 = 1,06</code>. '
+        'Yani "gövde yıkama" bakım kararı ASCII kodundan gelmişti. '
+        'Üstelik özet durum yanlış hesaplandığı için (CALIBRATION_FAILED '
+        'hiçbir sayaca girmiyordu) kimse fark etmiyordu.',
+        color=RED, bg='#FEF2F2',
+    )
+
+    p('Düzeltme: harf fonksiyonu kaldırıldı. <code>demo_mode</code> '
+      'varsayılan olarak kapalı; veri yoksa faktör <b>üretilmiyor</b> '
+      '(<code>INSUFFICIENT_DATA</code>, <code>calibration: None</code>). '
+      'Demo modunda çıktı <code>status: DEMO</code> + '
+      '<code>estimated: True</code> ve bakım önerileri '
+      '<code>[TAHMİNİ]</code> ibaresi taşıyor. Gerçek uçuş verisi varsa '
+      'Nelder-Mead ile kalibre ediliyor; tescil yoksa <b>ERROR</b> — '
+      'tek uçağa atfetme engellendi.')
+
+    p('Doğrulama: 4 gerçek uçuştan CD0=1,2476 / SFC=1,0388. '
+      'Testler 18 → <b>30</b> kontrol.')
+
+    h2('4.8 Cost Index — boyut analizi')
 
     p('Cost Index (CI), havayolunun "zaman mı yakıt mı" tercihidir. '
       'Denetimde burada <b>boyut hatası</b> bulundu:')
@@ -819,7 +867,7 @@ def section_correctness():
       '<code>0.85 $/kg × 100 ÷ 2.20462 = 38.56 cent/lb</code>, '
       'dolayısıyla <code>CI = 2000 ÷ 38.56 = 52</code>.')
 
-    h2('4.8 Maliyet modeli — ve sınırları')
+    h2('4.9 Maliyet modeli — ve sınırları')
 
     p('Sistem iki ayrı para kaynağı üretir ve bunları <b>asla '
       'toplamaz</b>:')
@@ -989,6 +1037,16 @@ def section_audit():
         ['24', 'emission_model.py', 'CORSIA MRV: <code>fuel_kg=\'abc\'</code> '
          '→ TypeError; -500 toplama giriyor; rapor düşen kaydı göstermiyor',
          'Resmî uyum raporu üretilemiyor; denetçi eksik kaydı göremezdi'],
+        ['25', 'business_validator.py', 'FAR 25.251 buffet limiti '
+         '<b>bölünüyordu</b> (<code>onset/1,3</code>), çarpılmalı',
+         'B738 normal seyri (CL 0,48) "güvensiz" görünüyordu'],
+        ['26', 'tail_performance_calibrator.py', 'Dijital ikiz faktörleri '
+         '<b>tescil son harfinden</b> üretiliyordu',
+         'TC-SPA = TC-JAA; 1 uçuş = 200 uçuş; uydurma CD0 → MRO kararı'],
+        ['27', 'report_generator.py', 'Boş veriyle 23 KB rapor, '
+         '<code>status: success</code>', '0 uçuş / $0 tasarruf "rapor hazır"'],
+        ['28', 'fleet_analyzer.py', '4 yerde doğrudan indeksleme',
+         'Tek bozuk kayıt tüm filo özetini KeyError ile çökertiyordu'],
     ]
     table(audit, [7 * mm, 34 * mm, 60 * mm, 65 * mm], fs=7.5)
 
@@ -1008,7 +1066,8 @@ def section_audit():
          'case_study_20261122.json        31.839 bytes  ← yeni\n'
          'corsia_report_20261122.json\n'
          'data_quality_20261122.json\n'
-         'fleet_digital_twins_20261122.json  ← yeni')
+         'fleet_digital_twins_20261122.json  ← yeni (içeriği denetimde\n'
+         '                                      düzeltildi, bkz. §4.7)')
 
 
 # ══════════════════════════════════════════════════════════════
