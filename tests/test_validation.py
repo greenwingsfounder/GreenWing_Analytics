@@ -43,6 +43,63 @@ def run_all_tests():
         errors.append(f"{name}: {detail}")
         print(f"  ❌ {name}: {detail}")
 
+    def assert_check(name, cond, detail=''):
+        if cond:
+            ok(name)
+        else:
+            fail(name, detail)
+
+    # ═══════════════════════════════════════════════════════════
+    # TANKERING AYRIŞTIRMASI — fiziksel vs fiyat arbitrajı
+    # ═══════════════════════════════════════════════════════════
+    from config.assumptions import TANKERING_PERSISTENCE, Assumptions
+
+    print("\n" + "-" * 62)
+    print("  Tankering ayrıştırması (fiziksel yakıt vs fiyat arbitrajı)")
+    print("-" * 62)
+
+    _a = Assumptions.annual_projection(
+        249.49, 1240, tankering_usd_per_flight=248.69)
+
+    assert_check("fiziksel yakıt payı hesaplanır",
+          abs(_a['fuel_saving_usd'] - 0.80 * 2 * 345 * 0.65) < 1.0,
+          f"gelen {_a['fuel_saving_usd']}")
+    assert_check("tankering payı %50 sürdürülebilirlikle hesaplanır",
+          abs(_a['tankering_usd'] - 248.69 * 2 * 345 * 0.65
+              * TANKERING_PERSISTENCE) < 2.0,
+          f"gelen {_a['tankering_usd']}")
+    assert_check("toplam = fiziksel + tankering",
+          abs(_a['realistic_annual_usd']
+              - (_a['fuel_saving_usd'] + _a['tankering_usd'])) <= 1,
+          f"{_a['realistic_annual_usd']} vs "
+          f"{_a['fuel_saving_usd'] + _a['tankering_usd']}")
+    assert_check("SÜRDÜRÜLEBİLİRLİK: tankering payı tekrarlanabilir yakıttan büyük",
+          _a['tankering_usd'] > _a['fuel_saving_usd'])
+    assert_check("tankering olmadan toplam = yalnızca fiziksel",
+          Assumptions.annual_projection(10.0, 800)['tankering_usd'] == 0)
+    assert_check("TANKERING_PERSISTENCE 0-1 arası",
+          0.0 < TANKERING_PERSISTENCE <= 1.0)
+    assert_check("persistence %50 muhafazakâr",
+          TANKERING_PERSISTENCE == 0.50)
+
+    print("\n" + "-" * 62)
+    print("  Blok-saat fiziksel tavanı")
+    print("-" * 62)
+
+    # 8000 nm rotada 1 sefer/gün fiziksel değil → kırpılmalı
+    _cap = Assumptions.annual_projection(100.0, 8000)
+    assert_check("8000 nm: frekans kırpıldı", _cap['capacity_capped'])
+    assert_check("8000 nm: yıllık blok-saat ≤ 4500",
+          _cap['annual_block_hours'] <= 4500.5,
+          f"gelen {_cap['annual_block_hours']}")
+    _short = Assumptions.annual_projection(100.0, 400)
+    assert_check("400 nm: kırpma yok", not _short['capacity_capped'])
+    assert_check("400 nm: blok-saat makul",
+          1000 <= _short['annual_block_hours'] <= 4500,
+          f"gelen {_short['annual_block_hours']}")
+
+
+
     def check_pass(name: str, result: ValidationResult) -> None:
         if result.is_valid:
             ok(name)

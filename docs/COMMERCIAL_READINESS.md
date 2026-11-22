@@ -77,6 +77,19 @@ kaynak + doğruluk + belirsizlik tablosunu içerir. Özet:
 12. **Bağımlılıklarda üst sınır yoktu** → tekrarlanabilir kurulum ve
     tedarik zinciri güvenliği yoktu. Tümüne major sürüm sınırı eklendi
     (`soupsieve` dahil, açıkça pinlendi).
+13. **Yıllık projeksiyonda tankering, yakıt tasarrufuyla aynı kutuya
+    giriyordu** → "yıllık $112k tasarruf" gibi fiziksel olarak
+    yanıltıcı bir sayı çıkıyordu; oysa bunun %99'u fiyat arbitrajıydı,
+    yakıt miktarı azalmıyordu. Artık ayrı raporlanıyor ve tankering
+    için %50 sürdürülebilirlik faktörü uygulanıyor
+    (`TANKERING_PERSISTENCE`). Aynı örnekte:
+    - eski tek sayı          : $111 896/yıl
+    - yeni ayrıştırılmış     : fiziksel **$359** + tankering **$55 769**
+      = $56 128/yıl
+
+    Bu, "tasarruf" kelimesinin ne anlama geldiğini müşteriye karşı
+    savunulabilir hale getirir: fiziksel yakıt kazancı ile fiyat
+    arbitrajı ayrı iki üründür.
 
 ---
 

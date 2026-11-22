@@ -277,6 +277,17 @@ _DAILY_FREQUENCY_BY_DISTANCE: list[dict] = [
 # Override edilebilir. Değer aralığı: 0.0 < x ≤ 1.0
 REALIZATION_FACTOR: float = 0.65
 
+# Tankering tekrarlanabilirlik faktörü
+#
+# Tankering = yakıtı ucuz havalimanından alıp pahalıya göre taşımak.
+# Bu bir YAKIT MİKTARI tasarrufu DEĞİL, FİYAT arbitrajıdır. Yıllık
+# projeksiyonda tam tekrarlanması gerçekçi değildir:
+#   • Fiyat farkı kalıcı değil (haftalar içinde kapanır)
+#   • Tank kapasitesi uçuşa, yüke, hava durumuna göre değişir
+#   • Operatörler yakıt güvenliği için marj bırakır
+# %50 muhafazakâr kabul; müşteri verisiyle kalibre edilmeli.
+TANKERING_PERSISTENCE: float = 0.50
+
 # Motor degradasyon varsayılanı (kalibrasyon öncesi)
 _DEFAULT_ENGINE_DEGRADATION: dict[str, float] = {
     'cd0_factor': 1.00,
@@ -808,6 +819,7 @@ class Assumptions:
         route_nm: float,
         daily_flights: Optional[int] = None,
         realization_factor: Optional[float] = None,
+        tankering_usd_per_flight: float = 0.0,
     ) -> dict:
         """
         Yıllık tasarruf projeksiyonu hesapla.
@@ -819,6 +831,21 @@ class Assumptions:
             realization_factor   : Gerçekleşme oranı (0.0-1.0).
                                    None → override veya varsayılan kullanılır.
                                    Doğrudan değer vermek override'ı geçersiz kılar.
+            tankering_usd_per_flight : Uçuş başına TANKERING (yakıt fiyat
+                                   arbitrajı) tasarrufu. Bu ayrı işlenir:
+                                   tankering bir YAKIT MİKTARI tasarrufu
+                                   değil, FİYAT arbitrajıdır ve her uçuşta
+                                   tekrarlanması garanti değildir (dest
+                                   fiyatı değişir, tank kapasitesi sınırlı).
+                                   Yıllık projeksiyonda %50 tekrarlanabilirlik
+                                   varsayılır ve AYRI raporlanır.
+
+        DÖNÜŞ AYRINTISI:
+            fuel_saving_usd  : yalnızca fiziksel yakıt tasarrufundan gelen
+            tankering_usd    : ayrı, tekrarlanabilirlik düzeltmeli
+            Bu ayrım olmadan, tek uçuşta görülen $249'luk "tasarrufun"
+            %99'u tankering olabilir ve yıllık $112k gibi fiziksel olarak
+            yanıltıcı bir sayı çıkar.
 
         Returns:
             dict:
@@ -885,14 +912,35 @@ class Assumptions:
                            * block_hr_per_flight)
         flight_hr_year  = annual_block_hr
 
-        raw       = per_flight_saving_usd * daily_flights * OPERATIONAL_DAYS_PER_YEAR
-        realistic = raw * rf
+        # ── FİZİKSEL vs FİYAT ARBITRAJI AYRIMI ──────────────
+        # per_flight_saving_usd iki bileşen içerebilir:
+        #   (a) fiziksel yakıt tasarrufu (irtifa, step climb, CI) — her
+        #       uçuşta tekrarlanır
+        #   (b) tankering — yakıtı ucuz yerden alıp pahalı yerden almama;
+        #       bu bir FİYAT arbitrajıdır, yakıt miktarı azalmaz ve
+        #       sürdürülebilirliği belirsizdir (dest fiyatı değişir,
+        #       tank kapasitesi uçuşa göre değişir)
+        #
+        # Tankering tekrarlanabilirlik faktörü: %50 (muhafazakâr).
+        # Gerekçe: fiyat farkı kalıcı değildir; tam kapasite her uçuşta
+        # kullanılamaz; operatörler yakıt güvenliği için pay bırakır.
+        _tank_per_flight = max(0.0, float(tankering_usd_per_flight or 0.0))
+        _fuel_per_flight = max(0.0, float(per_flight_saving_usd) - _tank_per_flight)
+
+        annual_flights = daily_flights * OPERATIONAL_DAYS_PER_YEAR
+        fuel_saving_usd   = _fuel_per_flight * annual_flights * rf
+        tankering_usd     = _tank_per_flight * annual_flights * rf * TANKERING_PERSISTENCE
+        raw               = per_flight_saving_usd * annual_flights
+        realistic         = fuel_saving_usd + tankering_usd
 
         return {
             'daily_flights'          : round(daily_flights, 2),
             'operational_days'       : OPERATIONAL_DAYS_PER_YEAR,
             'raw_annual_usd'         : round(raw),
             'realistic_annual_usd'   : round(realistic),
+            'fuel_saving_usd'        : round(fuel_saving_usd),
+            'tankering_usd'          : round(tankering_usd),
+            'tankering_persistence'  : TANKERING_PERSISTENCE,
             'realization_factor'     : rf,
             'annual_block_hours'     : round(annual_block_hr),
             'block_hours_per_year'   : round(flight_hr_year),

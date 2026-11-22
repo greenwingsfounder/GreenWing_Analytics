@@ -38,7 +38,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 158617,
-    "annual_realistic_usd": 103101,
+    "annual_realistic_usd": 51726,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 51376,
     "realization_factor": 0.65,
     "co2_kg": 26291,
     "co2_per_pax_km_g": 72.3,
@@ -54,7 +56,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.865,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:25.682749"
+    "timestamp": "2026-11-22T12:22:49.401609"
   },
   {
     "filename": "ARR_PGT_PGT501_20261122_121559.csv",
@@ -95,7 +97,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 235828,
-    "annual_realistic_usd": 153288,
+    "annual_realistic_usd": 76819,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 76469,
     "realization_factor": 0.65,
     "co2_kg": 22069,
     "co2_per_pax_km_g": 71.8,
@@ -111,7 +115,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.816,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:26.084519"
+    "timestamp": "2026-11-22T12:22:49.815403"
   },
   {
     "filename": "ARR_PGT_PGT802_20261122_121651.csv",
@@ -152,7 +156,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 329585,
-    "annual_realistic_usd": 214231,
+    "annual_realistic_usd": 107465,
+    "annual_fuel_saving_usd": 700,
+    "annual_tankering_usd": 106765,
     "realization_factor": 0.65,
     "co2_kg": 13354,
     "co2_per_pax_km_g": 58.1,
@@ -168,7 +174,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.515,
     "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:26.418964"
+    "timestamp": "2026-11-22T12:22:50.149439"
   },
   {
     "filename": "ARR_SXS_SXS1409_20261122_121559.csv",
@@ -209,7 +215,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 172148,
-    "annual_realistic_usd": 111896,
+    "annual_realistic_usd": 56128,
+    "annual_fuel_saving_usd": 359,
+    "annual_tankering_usd": 55769,
     "realization_factor": 0.65,
     "co2_kg": 26626,
     "co2_per_pax_km_g": 71.6,
@@ -225,7 +233,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:27.036680"
+    "timestamp": "2026-11-22T12:22:50.613957"
   },
   {
     "filename": "ARR_SXS_SXS1409_LTAI_EDDF.csv",
@@ -266,7 +274,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 172148,
-    "annual_realistic_usd": 111896,
+    "annual_realistic_usd": 56128,
+    "annual_fuel_saving_usd": 359,
+    "annual_tankering_usd": 55769,
     "realization_factor": 0.65,
     "co2_kg": 26626,
     "co2_per_pax_km_g": 71.6,
@@ -282,7 +292,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:27.599341"
+    "timestamp": "2026-11-22T12:22:51.081284"
   },
   {
     "filename": "ARR_SXS_SXS5720_20261122_121612.csv",
@@ -323,7 +333,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 169450,
-    "annual_realistic_usd": 110143,
+    "annual_realistic_usd": 55251,
+    "annual_fuel_saving_usd": 359,
+    "annual_tankering_usd": 54892,
     "realization_factor": 0.65,
     "co2_kg": 20000,
     "co2_per_pax_km_g": 61.8,
@@ -339,7 +351,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.872,
     "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:28.040838"
+    "timestamp": "2026-11-22T12:22:51.530315"
   },
   {
     "filename": "ARR_SXS_SXS6381_20261122_121559.csv",
@@ -380,7 +392,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 190895,
-    "annual_realistic_usd": 124082,
+    "annual_realistic_usd": 62220,
+    "annual_fuel_saving_usd": 359,
+    "annual_tankering_usd": 61862,
     "realization_factor": 0.65,
     "co2_kg": 19551,
     "co2_per_pax_km_g": 61.5,
@@ -396,7 +410,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.843,
     "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:28.491371"
+    "timestamp": "2026-11-22T12:22:51.999956"
   },
   {
     "filename": "ARR_THY_THY1011_20261122_121638.csv",
@@ -437,7 +451,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 58774,
-    "annual_realistic_usd": 38203,
+    "annual_realistic_usd": 19277,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 18927,
     "realization_factor": 0.65,
     "co2_kg": 25915,
     "co2_per_pax_km_g": 59.3,
@@ -453,7 +469,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.634,
     "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:29.031474"
+    "timestamp": "2026-11-22T12:22:52.558282"
   },
   {
     "filename": "ARR_THY_THY1587_20261122_121559.csv",
@@ -494,7 +510,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 239430,
-    "annual_realistic_usd": 155630,
+    "annual_realistic_usd": 77990,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 77640,
     "realization_factor": 0.65,
     "co2_kg": 21324,
     "co2_per_pax_km_g": 71.7,
@@ -510,7 +528,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.808,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:29.432288"
+    "timestamp": "2026-11-22T12:22:52.964033"
   },
   {
     "filename": "ARR_THY_THY1629_20261122_121612.csv",
@@ -551,7 +569,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 236656,
-    "annual_realistic_usd": 153827,
+    "annual_realistic_usd": 77088,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 76738,
     "realization_factor": 0.65,
     "co2_kg": 15102,
     "co2_per_pax_km_g": 60.4,
@@ -567,7 +587,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.737,
     "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:29.782232"
+    "timestamp": "2026-11-22T12:22:53.309536"
   },
   {
     "filename": "ARR_THY_THY1865_20261122_121651.csv",
@@ -608,7 +628,9 @@
       "fuel_kg_total": 0.0
     },
     "annual_raw_usd": 334222,
-    "annual_realistic_usd": 217244,
+    "annual_realistic_usd": 108622,
+    "annual_fuel_saving_usd": 0,
+    "annual_tankering_usd": 108622,
     "realization_factor": 0.65,
     "co2_kg": 12792,
     "co2_per_pax_km_g": 57.7,
@@ -624,7 +646,7 @@
     "is_partial_flight": true,
     "fuel_per_nm": 5.482,
     "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:30.098528"
+    "timestamp": "2026-11-22T12:22:53.644109"
   },
   {
     "filename": "ARR_THY_THY1951_20261122_121625.csv",
@@ -665,7 +687,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 162171,
-    "annual_realistic_usd": 105411,
+    "annual_realistic_usd": 52880,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 52531,
     "realization_factor": 0.65,
     "co2_kg": 22186,
     "co2_per_pax_km_g": 62.9,
@@ -681,7 +705,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.97,
     "benchmark_status": "⚠ Benchmark: 5 PASS, 1 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:30.552330"
+    "timestamp": "2026-11-22T12:22:54.142479"
   },
   {
     "filename": "ARR_THY_THY501_20261122_121559.csv",
@@ -722,7 +746,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 239299,
-    "annual_realistic_usd": 155544,
+    "annual_realistic_usd": 77947,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 77597,
     "realization_factor": 0.65,
     "co2_kg": 21219,
     "co2_per_pax_km_g": 71.3,
@@ -738,7 +764,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.771,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:30.939188"
+    "timestamp": "2026-11-22T12:22:54.592317"
   },
   {
     "filename": "ARR_THY_THY764_20261122_121612.csv",
@@ -779,7 +805,9 @@
       "fuel_kg_total": 1.0
     },
     "annual_raw_usd": 236525,
-    "annual_realistic_usd": 153741,
+    "annual_realistic_usd": 77046,
+    "annual_fuel_saving_usd": 350,
+    "annual_tankering_usd": 76696,
     "realization_factor": 0.65,
     "co2_kg": 18170,
     "co2_per_pax_km_g": 72.6,
@@ -795,6 +823,6 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.894,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T12:21:31.289129"
+    "timestamp": "2026-11-22T12:22:54.985167"
   }
 ]

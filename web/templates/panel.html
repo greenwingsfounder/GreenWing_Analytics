@@ -184,7 +184,9 @@ async function boot(){
         `yakıt ${fmt(s.saving_breakdown.fuel_kg_total,0)} kg + `
         + `tankering $${fmt(s.saving_breakdown.tankering_usd,0)}`, 'up'),
     kpi('Yıllık (gerçekçi)', '$'+fmt(s.annual_realistic_usd), '',
-        `345 gün/yıl · blok-saat tavanı 4 500 h`, 'up'),
+        `fiziksel $${fmt(s.annual_fuel_saving_usd,0)} · `
+        + `tankering $${fmt(s.annual_tankering_usd,0)} `
+        + `(%${fmt(s.annual_tankering_pct,0)})`, 'up'),
     kpi('CO₂', fmt(s.co2_kg), 'kg',
         'ICAO 3.16 kg CO₂/kg yakıt (CORSIA)'),
     kpi('CO₂ / yolcu-km', fmt(s.co2_per_pax_km_g,1), 'g',

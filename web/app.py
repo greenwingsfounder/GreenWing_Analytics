@@ -104,6 +104,11 @@ def summarize(rows: list[dict]) -> dict:
     co2 = total('co2_kg')
     saving = total('total_cost_saving_usd')
     annual = total('annual_realistic_usd')
+    # Yıllık ayrıştırma: fiziksel yakıt (tekrarlanabilir) vs tankering
+    # (fiyat arbitrajı, %50 sürdürülebilirlik). Bu ayrım olmadan
+    # "yıllık tasarruf" rakamı yanıltıcıdır.
+    annual_fuel = total('annual_fuel_saving_usd')
+    annual_tank = total('annual_tankering_usd')
     co2_pax = [float(r['co2_per_pax_km_g']) for r in rows
                if r.get('co2_per_pax_km_g')]
 
@@ -160,6 +165,10 @@ def summarize(rows: list[dict]) -> dict:
         'optimizable_pct': round(optimal / fuel * 100, 2) if fuel else 0.0,
         'cost_saving_usd': round(saving, 2),
         'annual_realistic_usd': round(annual, 0),
+        'annual_fuel_saving_usd': round(annual_fuel, 0),
+        'annual_tankering_usd': round(annual_tank, 0),
+        'annual_tankering_pct': (round(annual_tank / (annual_fuel + annual_tank) * 100, 1)
+                                 if (annual_fuel + annual_tank) else 0.0),
         'co2_kg': round(co2, 1),
         'co2_per_pax_km_g_mean': round(sum(co2_pax) / len(co2_pax), 2) if co2_pax else 0.0,
         'benchmark': bench,

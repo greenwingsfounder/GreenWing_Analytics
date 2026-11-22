@@ -756,7 +756,11 @@ def main():
                 'tankering_usd': round(tank_saving, 2),
                 'fuel_kg_total' : round(fuel_optimization, 1),
             }
-            annual_proj       = Assumptions.annual_projection(total_cost, distance)
+            # Tankering bir FİYAT arbitrajıdır, fiziksel yakıt tasarrufu
+            # değil. Yıllık projeksiyonda ayrı ve sürdürülebilirlik
+            # düzeltmesiyle (%50) işlenir — bkz. TANKERING_PERSISTENCE.
+            annual_proj       = Assumptions.annual_projection(
+                total_cost, distance, tankering_usd_per_flight=tank_saving)
 
             print(f"\n  💰 Tasarruf: {fuel_optimization:.0f} kg = ${total_cost:.0f}/uçuş")
             print(f"  📅 Yıllık: ${annual_proj['realistic_annual_usd']:,}")
@@ -841,6 +845,8 @@ def main():
                 'saving_breakdown'       : saving_breakdown,
                 'annual_raw_usd'         : annual_proj['raw_annual_usd'],
                 'annual_realistic_usd'   : annual_proj['realistic_annual_usd'],
+                'annual_fuel_saving_usd' : annual_proj['fuel_saving_usd'],
+                'annual_tankering_usd'   : annual_proj['tankering_usd'],
                 'realization_factor'     : annual_proj['realization_factor'],
 
                 # Emisyon
@@ -909,7 +915,23 @@ def main():
 
         print(f"\n  ÖZET:")
         print(f"  Ort. tasarruf/uçuş : {avg_fuel:.0f} kg = ${avg_saving:.0f}")
-        print(f"  Ort. yıllık         : ${avg_annual:,.0f}")
+        print(f"  Ort. yıllık/uçuş    : ${avg_annual:,.0f}"
+              f"  (toplam ÷ {len(all_results)})")
+        _fuel_ann = float(np.sum([r.get('annual_fuel_saving_usd', 0)
+                                  for r in all_results]))
+        _tank_ann = float(np.sum([r.get('annual_tankering_usd', 0)
+                                  for r in all_results]))
+        if _fuel_ann or _tank_ann:
+            # Toplamı BİLEŞENLERDEN al — böylece raporlanan sayı ile
+            # ayrıştırma her zaman birbirini tutar.
+            _tot = _fuel_ann + _tank_ann
+            print(f"    ├─ fiziksel yakıt : ${_fuel_ann:,.0f}"
+                  f"  (%{_fuel_ann/_tot*100 if _tot else 0:.0f}) — tekrarlanabilir")
+            print(f"    └─ tankering      : ${_tank_ann:,.0f}"
+                  f"  (%{_tank_ann/_tot*100 if _tot else 0:.0f}) — fiyat arbitrajı,"
+                  f" %50 sürdürülebilirlik")
+            print(f"    TOPLAM yıllık     : ${_tot:,.0f}"
+                  f"  ({len(all_results)} uçuş toplamı)")
         print(f"  Partial uçuş oranı  : %{partial_n/len(all_results)*100:.0f}")
         print(f"  UNK route alanı     : {unk_n}")
 
