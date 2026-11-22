@@ -188,6 +188,28 @@ def load():
     return results, real, syn
 
 
+def _head_sha() -> str:
+    """
+    Raporun üretildiği gerçek git commit'i.
+
+    DENETİM #75: kapak ve altbilgide SABİT `2f07a8a` yazıyordu —
+    denetimden önceki commit. Rapor 73 bulgu ve 1.510 test
+    sonrasını anlatırken kapakta eski commit duruyordu. Artık
+    git'ten canlı okunuyor; git yoksa "bilinmiyor" (uydurma yok).
+    """
+    import subprocess
+    try:
+        out = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=str(Path(__file__).resolve().parent.parent),
+            capture_output=True, text=True, timeout=5,
+        )
+        sha = out.stdout.strip()
+        return sha if out.returncode == 0 and sha else 'bilinmiyor'
+    except Exception:  # noqa: BLE001
+        return 'bilinmiyor'
+
+
 RESULTS, REAL, SYN = load()
 R0 = REAL[0] if REAL else RESULTS[0]
 
@@ -226,7 +248,7 @@ def cover():
                    CoverMeta),
          Paragraph(f'{sum(r.get("fuel_optimization_kg", 0) for r in RESULTS):,.0f} kg',
                    CoverMeta),
-         Paragraph('16/16 test', CoverMeta)],
+         Paragraph('20/20 test', CoverMeta)],
     ]
     t = Table(box, colWidths=[40 * mm] * 4)
     t.setStyle(TableStyle([
@@ -246,7 +268,7 @@ def cover():
         f'Rapor tarihi: {date.today().strftime("%d.%m.%Y")}<br/>'
         'Sürüm: 2.0.0<br/>'
         'Kod tabanı: 82 Python dosyası, 41.656 satır<br/>'
-        f'HEAD: 2f07a8a',
+        f'HEAD: {_head_sha()}',
         CoverMeta))
     gap(18)
     callout(
@@ -289,11 +311,13 @@ def section_toc():
         ('', '4.7', '"Dijital İkiz" uydurma faktörler'),
         ('', '4.8', 'Cost Index — boyut analizi'),
         ('', '4.9', 'Maliyet modeli ve sınırları'),
-        ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
+        ('5', 'Testler — sistem kendini nasıl doğruluyor?', '1.510 kontrol, 20 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
         ('6', 'Satır satır denetim — 73 gerçek hata', '41.656 satır, 12 tur'),
         ('', '6.1', 'Ölü kod neden en tehlikeli hataydı?'),
-        ('7', 'Sonuç — ne satılabilir, ne satılamaz?', 'Hazır olanlar, bekleyenler, dürüstlük'),
+        ('7', 'Sonuç — ne satılabilir, ne satılamaz?', 'Hazır olanlar, bekleyenler'),
+        ('8', 'Tahmini değerler', 'hesap mı, varsayım mı?'),
+        ('9', 'Ticari yol haritası', 'bugünden ilk faturaya'),
     ]
     rows = [['', 'Bölüm', 'İçerik']]
     for num, title, sub in items:
@@ -307,7 +331,7 @@ def section_toc():
         'Bu rapor nasıl okunmalı?',
         'Bölüm 1–3 sistemi <b>tanıtır</b> (ne, nasıl, neden). '
         'Bölüm 4–5 <b>kanıt</b> sunar (gerçek kıyaslama, test sonuçları). '
-        'Bölüm 6 <b>denetim</b> kaydıdır (bulunan 14 hata). '
+        'Bölüm 6 <b>denetim</b> kaydıdır (bulunan 73 hata). '
         'Bölüm 7 <b>karar</b> bölümüdür (ne satılabilir, ne bekler). '
         'Acele eden okuyucu 4.1, 4.2 ve 7.4 ile başlayabilir.',
     )
@@ -627,7 +651,7 @@ def section_rationale():
     p('41.656 satır kodun tamamı "gerekli" değildir. Bir kısmı '
       'doğrulama, bir kısmı hata toleransı, bir kısmı da test edilebilirlik '
       'için vardır. Önemli olan her satırın <b>hangi soruyu</b> '
-      'cevapladığının bilinmesidir. Bu denetimde bulunan 14 gerçek hata, '
+      'cevapladığının bilinmesidir. Bu denetimde bulunan 73 gerçek hata, '
       'tam olarak bu sorunun cevapsız kaldığı yerlerde oluşmuştu (ölü kod, '
       'kullanılmayan kalibrasyon parametresi, sabit varsayım).')
 
@@ -1286,7 +1310,7 @@ def section_conclusion():
         ['CO₂ / CORSIA', '[OK] Hazır', '3,16 kg CO₂/kg yakıt'],
         ['Kimlik doğrulama', '[OK] Hazır', 'PBKDF2 600k, imzalı çerez'],
         ['Panel + API', '[OK] Çalışıyor', 'Canlı önizleme doğrulandı'],
-        ['Test altyapısı', '[OK] Hazır', '~950 kontrol, 16/16 dosya'],
+        ['Test altyapısı', '[OK] Hazır', '1.510 kontrol, 20/20 dosya'],
     ], [46 * mm, 30 * mm, 92 * mm])
 
     h2('7.2 Müşteri verisi gerektirenler')
@@ -1319,7 +1343,7 @@ def section_conclusion():
     callout(
         'Durum',
         'Model doğrulanmış (11 uçak, yakıt toplamında %0,9 sapma, her '
-        'sabit kaynaklı); 14 gerçek hata düzeltildi ve ~950 testle '
+        'sabit kaynaklı); 73 gerçek hata düzeltildi ve 1.510 testle '
         'kilitlendi. Ticari satış için eksik olan tek şey <b>müşterinin '
         'kendi verisi</b> — ve sistem o veri geldiğinde işlemeye hazır.',
         color=GREEN, bg='#ECFDF5',
@@ -1345,11 +1369,142 @@ def section_conclusion():
     ], 1):
         p(f'<b>{i}.</b> {t}')
 
+    gap(10)
+
+    # ══════════════════════════════════════════════════════════
+    # BÖLÜM 8 — TAHMİNİ DEĞERLER ENVANTERİ
+    # ══════════════════════════════════════════════════════════
+    h1('8. Tahmini değerler — hangisi hesap, hangisi varsayım?')
+
+    p('Bir ticari raporda en tehlikeli soru şudur: <b>"Bu sayı '      'hesaplandı mı, yoksa varsayıldı mı?"</b> Aşağıda sistemin '      'ürettiği her sayı türü, kaynağı ve belirsizliğiyle listelenmiştir.')
+
+    table([
+        ['Sayı', 'Tür', 'Kaynak / Belirsizlik'],
+        ['Uçuş yakıtı (fizik)', '<b>Hesap</b>',
+         'OpenAP + ICAO EDB · toplam %0,9 sapma'],
+        ['Sürükleme poları', '<b>Hesap</b>',
+         'OpenAP CD0/K · geniş gövdede #71 açık'],
+        ['TSFC — Mach etkisi', '<b>Hesap</b>',
+         'BADA eğimi +%1,44 (M0.70→M0.82)'],
+        ['Dalga sürüklemesi', '<b>Hesap</b>',
+         'A=200 · gerçek uçuş verisiyle kalibre'],
+        ['CO₂ (3,16 kg/kg)', '<b>Sabit</b>',
+         'ICAO/EU ETS standardı'],
+        ['NOx (BFFM2)', '<b>Hesap</b>',
+         'ICAO EDB + BFFM2 · SL 27,40 doğrulandı'],
+        ['İrtifa optimizasyonu', '<b>Hesap</b>',
+         'SAR eğrisi · gerçek uçuşta 176 kg'],
+        ['Adım tırmanışı', '<b>Hesap</b>',
+         '181 kg · B738 gerçek cezasıyla uyumlu'],
+        ['<b>Belirsizlik aralığı</b>', '<b>Hesap</b>',
+         'RSS · rüzgâr ±%22 baskın, toplam ±%26,6'],
+        ['Rüzgâr değeri', '<b>VARSAYIM</b>',
+         '14/14 uçuş mevsimsel tahmin — gerçek veri YOK'],
+        ['Yıllık projeksiyon', '<b>VARSAYIM</b>',
+         'Gerçekleşme faktörü 0,65 + rota frekansı'],
+        ['Tankering doları', '<b>VARSAYIM</b>',
+         'Fiyat farkı × %50 sürdürülebilirlik'],
+        ['Yakıt fiyatı', '<b>VARSAYIM</b>',
+         '0,85 $/kg (Assumptions) · müşteri sözleşmesine bağlı'],
+        ['Uçuş sıklığı', '<b>VARSAYIM</b>',
+         'Rota frekansı tahmin ediliyor, bilinmiyor'],
+        ['Uçak tipi', '<b>VARSAYIM</b>',
+         'Çağrı adı önekinden çıkarılıyor (tümü B738)'],
+        ['Zaman maliyeti', '<b>VARSAYIM</b>',
+         '2000 $/saat · havayoluna göre değişir'],
+    ], [42 * mm, 26 * mm, 100 * mm], fs=8.0)
+
+    callout(
+        '[!] Hesap ile varsayımı karıştırmamak',
+        'Yakıt ve CO₂ sayıları <b>fizik hesabıdır</b>; belirsizlikleri '        'ölçülmüştür. Yıllık dolar rakamı ise <b>fizik × varsayım</b> '        'çarpımıdır: rota frekansı ve gerçekleşme faktörü müşteri '        'verisiyle değişir. Bu yüzden yıllık rakam her zaman '        '<b>aralık olarak</b> sunulur, tek nokta olarak değil.',
+        color=AMBER, bg='#FFFBEB',
+    )
+
+    # ══════════════════════════════════════════════════════════
+    # BÖLÜM 9 — TİCARİ YOL HARİTASI
+    # ══════════════════════════════════════════════════════════
+    h1('9. Ticari yol haritası — bugünden ilk faturaya')
+
+    p('Sistem bugün <b>satışa hazır değil</b>, ama <b>pilot '      'müşteriye hazır</b>. Aradaki fark net ve ölçülebilir. '      'Aşağıdaki sıra, en büyük riski en erken ortadan kaldıracak '      'şekilde düzenlenmiştir.')
+
+    h2('9.1 Aşama 0 — bugün hazır (0–2 hafta)')
+
+    table([
+        ['Ne', 'Durum', 'Kanıt'],
+        ['Fizik motoru', 'Hazır', '11 tip, %0,9 sapma, 1.510 test'],
+        ['Optimizasyon (4 eksen)', 'Hazır', 'İrtifa, step, CI, tankering'],
+        ['Panel + API + kimlik', 'Hazır', 'PBKDF2 600k, imzalı çerez'],
+        ['Rapor üretimi', 'Hazır', 'HTML + PDF, belirsizlik aralıklı'],
+        ['Denetim izi', 'Hazır', 'SHA-256 mühür, provenance'],
+    ], [58 * mm, 26 * mm, 84 * mm], fs=8.4)
+
+    h2('9.2 Aşama 1 — pilot müşteri (2–8 hafta)')
+
+    p('<b>Hedef:</b> 1 havayolu, 20–50 gerçek uçuş, kendi yakıt '      'faturasıyla karşılaştırma. Bu aşamanın çıktısı <b>satış '      'değil</b>: modelin müşteri verisinde kaç % saptığının '      'ölçülmesi.')
+
+    for i, t in enumerate([
+        '<b>Veri sözleşmesi:</b> son 12 ayın uçuş bazında yakıt '        'fişleri (kg), rota, uçak tipi, kalkış ağırlığı. Kişisel '        'veri gerekmez.',
+        '<b>Kalibrasyon:</b> <code>ModelCalibrator</code> müşteri '        'verisiyle CD0/SFC faktörlerini çıkarır. Raporda bu blok '        'artık <b>görünüyor</b> (denetim #73).',
+        '<b>Doğruluk ölçümü:</b> model yakıtı vs gerçek yakıt. '        'Kabul eşiği önerisi: <b>toplam sapma ±%5</b>, uçuş başına '        '±%10.',
+        '<b>Gerçek rüzgâr:</b> müşterinin ADS-B veya meteoroloji '        'aboneliği varsa, mevsimsel tahmin yerine gerçek rüzgâr. '        'Bu, en büyük belirsizlik kaynağını (±%22) ortadan kaldırır.',
+    ], 1):
+        p(f'<b>{i}.</b> {t}')
+
+    h2('9.3 Aşama 2 — ticari paket (2–4 ay)')
+
+    table([
+        ['Eksik', 'Neden gerekli', 'Öncelik'],
+        ['Çok kiracılı (multi-tenant) veri izolasyonu',
+         'İki havayolu aynı kurulumu paylaşamaz', 'P0'],
+        ['Kullanıcı/rol yönetimi (admin, analist, salt-okur)',
+         'Tek paylaşılan parola ticari model değil', 'P0'],
+        ['SLA + yedekleme + izleme',
+         'Kesinti = güven kaybı', 'P0'],
+        ['Sözleşme eki: doğruluk beyanı ve sınırlar',
+         'Belirsizlik aralığı sözleşmede olmalı', 'P0'],
+        ['Faturalama / lisanslama', 'Gelir modeli', 'P1'],
+        ['Geniş gövde poları (#71)',
+         'A350/B787 müşterisi için mutlak sayı ±%20', 'P1'],
+        ['Çoklu para birimi + fiyat senaryoları',
+         'Tankering değeri buna bağlı', 'P1'],
+    ], [62 * mm, 64 * mm, 22 * mm], fs=8.0)
+
+    h2('9.4 Aşama 3 — ölçek (4–12 ay)')
+
+    for i, t in enumerate([
+        '<b>CORSIA MRV entegrasyonu:</b> şu an rapor <i>illustrative</i>. '        'Resmî beyan için doğrulanmış emisyon faktörleri ve denetçi '        'görünürlüğü gerekir.',
+        '<b>Uçuş planı entegrasyonu:</b> önerileri OFP/AVIAS üzerinden '        'pilot kullanımına sokmak — tasarruf ancak uygulanırsa gerçekleşir.',
+        '<b>Referans müşteri vakası:</b> ölçülmüş tasarruf, ölçülmüş '        'belirsizlik. Pazarlama malzemesi buradan çıkar.',
+    ], 1):
+        p(f'<b>{i}.</b> {t}')
+
+    h2('9.5 Ticari riske dönüşen teknik borç')
+
+    table([
+        ['Risk', 'Etki', 'Durum'],
+        ['Rüzgâr varsayım (±%22)', 'En büyük belirsizlik',
+         'Gerçek veriyle çözülür'],
+        ['Yıllık projeksiyon varsayımı', 'Fatura rakamı',
+         'Müşteri verisiyle kalibre'],
+        ['Geniş gövde poları (#71)', 'A350/B787 mutlak sayı',
+         'Kaynak çelişkili — açık'],
+        ['Çok kiracılılık yok', 'Ölçeklenemez', 'P0 eksik'],
+        ['Tek paylaşılan parola', 'Ticari model değil', 'P0 eksik'],
+        ['CORSIA illustrative', 'Resmî uyum iddia edilemez', 'P1 eksik'],
+    ], [56 * mm, 54 * mm, 38 * mm], fs=8.0)
+
+    callout(
+        'Tek cümlelik cevap: "Profesyonel seviyede mi?"',
+        '<b>Mühendislik ve doğruluk açısından evet</b> — 73 bulgu '        'düzeltildi, 1.510 kontrol geçiyor, her sabit kaynaklı, her '        'belirsizlik ölçülü. <b>Ticari operasyon açısından henüz '        'değil</b> — çok kiracılılık, rol yönetimi, SLA ve müşteri '        'verisiyle kalibrasyon eksik.<br/><br/>'
+        'Yani: <b>ürün olarak satılabilir bir çekirdek var</b>, '        '<b>şirket olarak satılabilir bir hizmet henüz yok</b>. '        'Aradaki mesafe 2–4 ay ve Aşama 1\'in ölçümüne bağlı.',
+        color=GREEN, bg='#ECFDF5',
+    )
+
     gap(16)
     STORY.append(Paragraph(
         '— Rapor sonu —<br/><br/>'
         '<font size="7.5">GreenWing Analytics · Teknik Doğrulama Raporu · '
-        f'{date.today().strftime("%d.%m.%Y")} · HEAD 2f07a8a<br/>'
+        f'{date.today().strftime("%d.%m.%Y")} · HEAD {_head_sha()}<br/>'
         'Bu rapordaki tüm sayılar <code>reports/optimizations/batch_results.json</code> '
         've <code>docs/COMMERCIAL_READINESS.md</code> dosyalarından '
         'üretilmiştir.</font>',
