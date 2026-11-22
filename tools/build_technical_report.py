@@ -1093,12 +1093,13 @@ def section_tests():
         ['test_mach_physics.py', '14', 'EVET', 'TSFC eğrisi, U eğrisi, MMO'],
         ['test_sensitivity.py', '22', 'EVET', 'Girdi sözleşmesi (denetim #62)'],
         ['test_fleet_analyzer.py', '27', 'EVET', 'Filo özeti, belirsizlik, kalibrasyon'],
+        ['test_pdf_glyphs.py', '28', 'EVET', 'Glif bütünlüğü (statik/PDF/font)'],
     ], [56 * mm, 18 * mm, 14 * mm, 80 * mm], fs=7.3)
 
     gap(2)
     callout(
-        'Toplam: 1.482 doğrulama · 19/19 dosya geçiyor',
-        '1.336\'sı test dosyalarında, 146\'sı modül içi '
+        'Toplam: 1.510 doğrulama · 20/20 dosya geçiyor',
+        '1.364\'sı test dosyalarında, 146\'sı modül içi '
         '<code>validate_*()</code> fonksiyonlarında (test '
         'dosyalarından çağrılıyor).<br/><br/>'
         'Bu sayı, denetim <b>öncesinde</b> de 16/16 olarak '
