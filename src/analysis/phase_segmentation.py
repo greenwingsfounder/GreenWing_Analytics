@@ -454,7 +454,27 @@ class FlightPhaseSegmenter:
             is_long_enough = duration > _HOLDING_MIN_DURATION_S
             is_airborne = avg_alt > self.ground_alt
 
+            # BÜTÜNLÜK: Döngü (loop) ŞARTI. Holding bir DAİRE uçuşudur;
+            # pencere içinde toplam yön değişimi en az ~270° olmalı.
+            # Bu olmadan düz cruise segmentleri (küçük pencere + kısa süre)
+            # yanlışlıkla HOLDING olarak etiketleniyordu → sahte yakıt tasarrufu.
+            is_looping = False
             if is_small_area and is_long_enough and is_airborne:
+                # Pencere içindeki toplam heading değişimi (mutlak, kümülatif)
+                seg_lat_v = seg_lat[valid]
+                seg_lon_v = seg_lon[valid]
+                if len(seg_lat_v) >= 3:
+                    dlat = np.diff(seg_lat_v)
+                    dlon = np.diff(seg_lon_v)
+                    # Küçük mesafelerde düzlemsel yaklaşım yeterli
+                    bearings = np.degrees(np.arctan2(dlon, dlat))
+                    # Açı sarmalamasını çöz (-180..180 -> sürekli)
+                    dbrg = np.diff(bearings)
+                    dbrg = (dbrg + 180) % 360 - 180
+                    total_turn = float(np.sum(np.abs(dbrg)))
+                    is_looping = total_turn >= 270.0
+
+            if is_small_area and is_long_enough and is_airborne and is_looping:
                 # Bu bölgeyi HOLDING olarak işaretle
                 for i in range(start, end):
                     if phases[i] in (PHASE_CRUISE, PHASE_APPROACH,

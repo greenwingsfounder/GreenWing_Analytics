@@ -279,6 +279,12 @@ class FleetAnalyzer:
 
         result = dict(analysis_result)
         result['_data_quality'] = quality
+        # BÜTÜNLÜK: provenance, tek bir kanonik alanda taşınır.
+        if not result.get('collection_method'):
+            result['collection_method'] = (
+                result.get('flight_info', {}).get('collection_method')
+                or data_src or 'unknown'
+            )
 
         self.flight_results.append(result)
 
@@ -313,6 +319,11 @@ class FleetAnalyzer:
         is_partial_flight: Optional[bool] = None,
         data_source: str = 'manual_entry',
         coverage_note: str = '',
+        # BÜTÜNLÜK: provenance (verinin gerçek mi simüle mi olduğu).
+        # Önceden bu alan yoktu → kalite notu hep 'A' çıkıyordu.
+        collection_method: str = 'unknown',
+        # BÜTÜNLÜK: uçuş düzeyindeki fırsat maliyetleri bu fiyattan hesaplanır.
+        fuel_price_usd_kg: float = _DEFAULT_FUEL_PRICE_USD_PER_KG,
     ) -> None:
         """
         Manuel uçuş verisi ekle (trajectory olmadan).
@@ -344,6 +355,7 @@ class FleetAnalyzer:
 
         if coverage_note:
             quality['coverage_note'] = coverage_note
+        quality['collection_method'] = collection_method
 
         # Emisyon hesabı
         emissions = self._emission_calc.calculate_flight_emissions(
@@ -454,6 +466,7 @@ class FleetAnalyzer:
                     optimum_fl           = optimum_fl,
                     sar_loss_pct         = sar_loss_pct,
                     step_plan            = step_plan,
+                    fuel_price_usd_kg    = fuel_price_usd_kg,
                 ),
                 'total_per_flight': {
                     'fuel_saving_kg' : round(fuel_saving_kg),
@@ -492,6 +505,7 @@ class FleetAnalyzer:
         optimum_fl: str,
         sar_loss_pct: float,
         step_plan: Optional[list],
+        fuel_price_usd_kg: float = _DEFAULT_FUEL_PRICE_USD_PER_KG,
     ) -> list[dict]:
         """
         Tasarruf fırsatları listesini oluştur.
@@ -510,7 +524,7 @@ class FleetAnalyzer:
                 ),
                 'estimated_fuel_saving_kg' : round(altitude_saving_kg),
                 'estimated_co2_saving_kg'  : round(altitude_saving_kg * 3.16),
-                'estimated_cost_saving_usd': round(altitude_saving_kg * 0.85, 2),
+                'estimated_cost_saving_usd': round(altitude_saving_kg * fuel_price_usd_kg, 2),
                 'implementation'           : 'Dispatcher briefing ile uygulanabilir',
                 'difficulty'               : 'LOW',
             })
@@ -527,7 +541,7 @@ class FleetAnalyzer:
                 ),
                 'estimated_fuel_saving_kg' : round(step_climb_saving_kg),
                 'estimated_co2_saving_kg'  : round(step_climb_saving_kg * 3.16),
-                'estimated_cost_saving_usd': round(step_climb_saving_kg * 0.85, 2),
+                'estimated_cost_saving_usd': round(step_climb_saving_kg * fuel_price_usd_kg, 2),
                 'implementation'           : 'ATC koordinasyonu gerektirir',
                 'difficulty'               : 'MEDIUM',
             })
@@ -624,7 +638,38 @@ class FleetAnalyzer:
 
         partial_pct = partial_count / n * 100
 
-        if partial_pct < 10:
+        # BÜTÜNLÜK (P0): PROVENANCE GATE.
+        # Kalite notu YALNIZCA 'partial mı?' sorusuna bakıyordu → tümü
+        # simülasyon olan veri de 'A' alıyordu. Artık verinin KAYNAĞI
+        # notu belirler.
+        _methods = []
+        for result in self.flight_results:
+            m = (result.get('_collection_method')
+                 or result.get('collection_method')
+                 or (result.get('_data_quality') or {}).get('collection_method')
+                 or 'unknown')
+            _methods.append(str(m).lower())
+
+        _REAL_SET = {'opensky', 'adsb', 'customer_qar', 'customer_fuel', 'qar', 'fdr'}
+        n_real = sum(1 for m in _methods if m in _REAL_SET)
+        n_sim  = sum(1 for m in _methods if 'simulation' in m or 'synthetic' in m)
+
+        if n_sim == n:
+            provenance = 'SIMULATED'
+        elif n_real == n:
+            provenance = 'REAL'
+        elif n_real + n_sim == n:
+            provenance = 'MIXED'
+        else:
+            provenance = 'UNKNOWN'
+
+        if provenance == 'SIMULATED':
+            grade = 'SIM'
+        elif provenance == 'UNKNOWN':
+            grade = '?'
+        elif provenance == 'MIXED':
+            grade = 'MIX'
+        elif partial_pct < 10:
             grade = 'A'
         elif partial_pct < 30:
             grade = 'B'
@@ -633,7 +678,7 @@ class FleetAnalyzer:
         else:
             grade = 'D'
 
-        benchmark_eligible = (n - partial_count) >= 3
+        benchmark_eligible = (n - partial_count) >= 3 and provenance == 'REAL'
 
         recommendations = []
         if partial_pct > 30:
@@ -646,7 +691,18 @@ class FleetAnalyzer:
                 f"{unk_dest_count} uçuşta varış bilinmiyor. "
                 f"Rota analizi bu uçuşlar için 'UNK' gösterecek."
             )
-        if partial_pct <= 10:
+        if provenance == 'SIMULATED':
+            recommendations.insert(0,
+                "Bu veri seti SİMÜLASYONDUR (demo_simulation). "
+                "Müşteri raporu olarak SUNULMAMALIDIR; yalnızca model "
+                "gösterimi amaçlıdır. Benchmark karşılaştırması geçersizdir."
+            )
+        elif provenance == 'MIXED':
+            recommendations.insert(0,
+                "KARIŞIK veri kaynağı: gerçek ve simüle uçuşlar "
+                "ayrıştırılmadan birleşik istatistik sunulmamalıdır."
+            )
+        elif provenance == 'REAL' and partial_pct <= 10:
             recommendations.append(
                 "Veri kalitesi yüksek. Benchmark ve rota analizi güvenilir."
             )
@@ -658,6 +714,9 @@ class FleetAnalyzer:
             'partial_pct'       : round(partial_pct, 1),
             'unk_destinations'  : unk_dest_count,
             'quality_grade'     : grade,
+            'provenance'        : provenance,
+            'n_real'            : n_real,
+            'n_simulated'       : n_sim,
             'benchmark_eligible': benchmark_eligible,
             'details'           : details,
             'recommendations'   : recommendations,

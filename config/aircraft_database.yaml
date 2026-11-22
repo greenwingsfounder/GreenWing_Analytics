@@ -120,9 +120,9 @@ aircraft_types:
     # AR: Aspect Ratio (kanat en-boy oranı)
     #   AR = wingspan² / wing_area = 35.8² / 124.6 = 10.27
     #   Sabit (geometrik özellik)
-    CD0: 0.022
-    K: 0.045
-    e: 0.85
+    CD0: 0.0224
+    K: 0.03646
+    e: 0.850
     AR: 10.27
 
     # ─── Motor parametreleri ─────────────────────────────
@@ -142,7 +142,7 @@ aircraft_types:
     #   Thrust yeterliliği kontrolünde kullanılır
     #
     # Kaynak: CFM International, EASA Engine TCDS E.067
-    tsfc_cruise: 0.0000178
+    tsfc_cruise: 0.00001767
     max_thrust_sl: 121400
 
     # ─── Buffet sınırları (opsiyonel, PhysicsValidator'da) ─
@@ -186,13 +186,13 @@ aircraft_types:
     # LEAP-1B: Daha yüksek BPR (9.0), daha düşük SFC
     # Yeni kanat tasarımı: daha düşük CD0
     # Split-tip winglet: daha düşük K
-    CD0: 0.020
-    K: 0.042
-    e: 0.87
+    CD0: 0.0209
+    K: 0.03689
+    e: 0.850
     AR: 10.15
 
     # LEAP-1B SFC: CFM56'dan %15 daha iyi
-    tsfc_cruise: 0.0000152
+    tsfc_cruise: 0.00001573
     max_thrust_sl: 130280
 
 
@@ -225,12 +225,12 @@ aircraft_types:
 
     # Sharklet'siz versiyon
     # Sharklet ile: CD0 aynı ama K=0.041 (e=0.87)
-    CD0: 0.024
-    K: 0.044
-    e: 0.84
+    CD0: 0.0244
+    K: 0.03626
+    e: 0.840
     AR: 10.45
 
-    tsfc_cruise: 0.0000175
+    tsfc_cruise: 0.00001655
     max_thrust_sl: 120000
 
 
@@ -262,13 +262,13 @@ aircraft_types:
     passengers_typical: 150
 
     # Sharklet standart. Daha temiz aerodinamik.
-    CD0: 0.021
-    K: 0.041
-    e: 0.87
+    CD0: 0.0230
+    K: 0.03584
+    e: 0.850
     AR: 10.45
 
     # LEAP-1A: BPR 11.0, CFM56'dan %15 daha iyi SFC
-    tsfc_cruise: 0.0000148
+    tsfc_cruise: 0.00001534
     max_thrust_sl: 121400
 
 
@@ -297,12 +297,12 @@ aircraft_types:
     range_nm: 3200
     passengers_typical: 185
 
-    CD0: 0.024
-    K: 0.044
-    e: 0.84
+    CD0: 0.0244
+    K: 0.03626
+    e: 0.840
     AR: 10.45
 
-    tsfc_cruise: 0.0000180
+    tsfc_cruise: 0.00001722
     max_thrust_sl: 146800
 
 
@@ -331,12 +331,12 @@ aircraft_types:
     range_nm: 4000
     passengers_typical: 180
 
-    CD0: 0.021
-    K: 0.041
-    e: 0.87
+    CD0: 0.0230
+    K: 0.03584
+    e: 0.850
     AR: 10.45
 
-    tsfc_cruise: 0.0000150
+    tsfc_cruise: 0.00001575
     max_thrust_sl: 147300
 
 
@@ -368,14 +368,14 @@ aircraft_types:
 
     # Geniş gövde: daha düşük CD0 (göreceli)
     # Yüksek AR: daha düşük K
-    CD0: 0.020
-    K: 0.040
-    e: 0.87
+    CD0: 0.0170
+    K: 0.03747
+    e: 0.865
     AR: 9.82
 
     # GE90-115B: Dünyanın en güçlü jet motoru
     # BPR 9.0, çok verimli
-    tsfc_cruise: 0.0000162
+    tsfc_cruise: 0.00001721
     max_thrust_sl: 513900
 
 
@@ -406,13 +406,13 @@ aircraft_types:
 
     # Kompozit yapı: çok düşük CD0
     # Raked wingtip: çok düşük K
-    CD0: 0.018
-    K: 0.038
-    e: 0.89
+    CD0: 0.0184
+    K: 0.03234
+    e: 0.885
     AR: 11.12
 
     # GEnx: Çok verimli yeni nesil motor
-    tsfc_cruise: 0.0000152
+    tsfc_cruise: 0.00001639
     max_thrust_sl: 312000
 
 
@@ -441,12 +441,12 @@ aircraft_types:
     range_nm: 7635
     passengers_typical: 296
 
-    CD0: 0.018
-    K: 0.037
-    e: 0.89
+    CD0: 0.0175
+    K: 0.03234
+    e: 0.885
     AR: 11.12
 
-    tsfc_cruise: 0.0000155
+    tsfc_cruise: 0.00001692
     max_thrust_sl: 339000
 
 
@@ -478,13 +478,13 @@ aircraft_types:
 
     # En verimli modern geniş gövde
     # Kompozit kanat ve gövde
-    CD0: 0.017
-    K: 0.035
-    e: 0.90
+    CD0: 0.0143
+    K: 0.03773
+    e: 0.890
     AR: 9.48
 
     # Trent XWB: Rolls-Royce'un en verimli motoru
-    tsfc_cruise: 0.0000150
+    tsfc_cruise: 0.00001561
     max_thrust_sl: 374000
 
 
@@ -503,7 +503,7 @@ aircraft_types:
 
     mtow: 575000
     oew: 277000
-    max_fuel: 320000
+    max_fuel: 253983
     max_payload: 83000
 
     wing_area: 845.0
@@ -516,14 +516,18 @@ aircraft_types:
 
     # Dev kanat: çok düşük CD0 (göreceli)
     # 4 motor: farklı motor konfigürasyonu
-    CD0: 0.019
-    K: 0.038
-    e: 0.88
+    CD0: 0.0134
+    K: 0.04915
+    e: 0.860
     AR: 7.53  # AR düşük: Geniş gövdeye göre kısa ve çok geniş kanat (A380 özel tasarımı)
 
-    # 4 × Trent 970 = çok yüksek toplam thrust
-    tsfc_cruise: 0.0000168
-    max_thrust_sl: 1248000
+    # BÜTÜNLÜK DÜZELTMESİ: Önceden 1,248,000 yazılıydı — bu A380'in
+    # DÖRT motorunun TOPLAM thrust'ıdır. Diğer tüm uçaklarda bu alan
+    # TEK MOTOR değerini taşır ve kod × num_engines yapar. Bu yüzden
+    # A380'de thrust 4× şişiyordu (T/W = 0.885, gerçek 0.225).
+    # Tek Trent 970: 311,000 N.
+    tsfc_cruise: 0.00001720
+    max_thrust_sl: 311000
 
 
 # ═══════════════════════════════════════════════════════════

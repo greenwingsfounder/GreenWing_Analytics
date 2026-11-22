@@ -49,7 +49,7 @@ KULLANIM:
         'distance_nm': 1560,
         'altitude_ft': 37000,
         'mach': 0.785,
-        'fuel_price_usd': 0.85,
+        'fuel_price_usd': _DEFAULT_FUEL_PRICE,
     })
 
 Kaynak:
@@ -64,6 +64,10 @@ import numpy as np
 from typing import Optional
 
 from src.models.fuel_model import FuelModel
+from config.assumptions import Assumptions
+
+# BÜTÜNLÜK: varsayılan yakıt fiyatı TEK kaynaktan (sabit kodlanmış $0.85 değil).
+_DEFAULT_FUEL_PRICE = Assumptions.fuel_price('DEFAULT')
 
 
 # ═══════════════════════════════════════════════════════════
@@ -514,7 +518,7 @@ class SensitivityAnalyzer:
     def analyze_fuel_price_sensitivity(
         self,
         per_flight_saving_kg: float,
-        base_price_usd: float = 0.85,
+        base_price_usd: Optional[float] = None,
         variation_pct: float = 20,
         steps: int = 5,
     ) -> dict:
@@ -535,6 +539,10 @@ class SensitivityAnalyzer:
         Returns:
             dict: Hassasiyet sonuçları
         """
+        # BÜTÜNLÜK: fiyat verilmezse tek kaynaktan (Assumptions) alınır.
+        if base_price_usd is None:
+            base_price_usd = _DEFAULT_FUEL_PRICE
+
         base_saving_usd = per_flight_saving_kg * base_price_usd
 
         results = []
@@ -605,7 +613,7 @@ class SensitivityAnalyzer:
         distance    = params.get('distance_nm', 1560)
         altitude    = params.get('altitude_ft', 37000)
         mach        = params.get('mach', 0.785)
-        fuel_price  = params.get('fuel_price_usd', 0.85)
+        fuel_price  = params.get('fuel_price_usd', _DEFAULT_FUEL_PRICE)
         saving_kg   = params.get('saving_kg', 300)
 
         analyses = {}
@@ -874,7 +882,7 @@ def validate_sensitivity() -> bool:
     # ─── [6] Yakıt fiyatı hassasiyeti ─────────────────────
     print("\n  [6] Yakıt Fiyatı Hassasiyeti")
 
-    price_result = sa.analyze_fuel_price_sensitivity(300, 0.85)
+    price_result = sa.analyze_fuel_price_sensitivity(300, _DEFAULT_FUEL_PRICE)
 
     tests += 1
     if price_result['max_effect_pct'] > 0:
@@ -890,7 +898,7 @@ def validate_sensitivity() -> bool:
         'distance_nm'   : 1560,
         'altitude_ft'   : 37000,
         'mach'          : 0.785,
-        'fuel_price_usd': 0.85,
+        'fuel_price_usd': _DEFAULT_FUEL_PRICE,
         'saving_kg'     : 300,
     })
 

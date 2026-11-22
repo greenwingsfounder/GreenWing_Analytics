@@ -119,15 +119,11 @@ EXTRA_AIRPORTS = {
     },
 }
 
-FUEL_PRICES = {
-    "LTAI" : 0.80,
-    "LTBJ" : 0.80,
-    "LTFM" : 0.78,
-    "EDDF" : 0.95,
-    "EDDUS": 0.94,
-    "EDDM" : 0.94,
-    "EDDB" : 0.93,
-}
+# BÜTÜNLÜK: Ayrı bir yakıt fiyatı tablosu TUTMA. Tek kaynak: Assumptions.
+# (Önceden burada kopya bir tablo vardı; config ile çelişme riski taşıyordu,
+#  ayrıca "EDDUS" gibi geçersiz bir ICAO kodu içeriyordu.)
+def _price(icao: str) -> float:
+    return Assumptions.fuel_price(icao)
 
 AIRCRAFT_TYPE   = "B738"
 CRUISE_MACH     = 0.785
@@ -320,7 +316,8 @@ def simulate_single_flight(
             sar_loss = (altitude_deviation_ft / 1000) * 0.5
 
     # ─── 3. YAKIT (7 FAZ) ─────────────────────────────────
-    rough_fuel     = distance_nm * 8.5 * random.uniform(0.97, 1.03)
+    # BÜTÜNLÜK: kaba TOW tahmini deterministik (gürültü kaldırıldı).
+    rough_fuel     = distance_nm * 8.5
     rough_fuel     = min(rough_fuel, Assumptions.aircraft_max_fuel(AIRCRAFT_TYPE))
     takeoff_weight = min(oew + payload_kg + rough_fuel, mtow)
 
@@ -336,7 +333,8 @@ def simulate_single_flight(
             descent_min       = max(15, distance_nm / 70),
             approach_min      = 5,
         )
-        total_fuel     = fuel_result['total_fuel_kg'] * random.uniform(0.97, 1.03)
+        # BÜTÜNLÜK: ±%3 rastgele gürültü KALDIRILDI. Fizik modeli ne dediyse o.
+        total_fuel     = fuel_result['total_fuel_kg']
         flight_time_hr = fuel_result['cruise_time_hr'] + 0.75
     except Exception:
         total_fuel     = rough_fuel
@@ -412,13 +410,12 @@ def simulate_single_flight(
                                    .get('step_plan', [])
             ]
         except Exception:
-            if distance_nm > 1000:
-                step_saving = total_fuel * random.uniform(0.010, 0.015)
-            elif distance_nm > 700:
-                step_saving = total_fuel * random.uniform(0.005, 0.010)
+            # BÜTÜNLÜK: Başarısız hesapta TAHMİN ÜRETME. 0 kabul et.
+            # (Önceden random.uniform ile uyduruluyordu — kaldırıldı.)
+            step_saving = 0.0
 
     # ─── 6. COST INDEX ────────────────────────────────────
-    origin_price = FUEL_PRICES.get(origin, 0.85)
+    origin_price = _price(origin)
     time_cost    = Assumptions.time_cost('SXS')
     opt_ci       = 20
     opt_mach     = CRUISE_MACH
@@ -438,7 +435,7 @@ def simulate_single_flight(
         pass
 
     # ─── 7. TANKERING ─────────────────────────────────────
-    dest_price  = FUEL_PRICES.get(destination, 0.95)
+    dest_price  = _price(destination)
     tank_amount = 0
     tank_saving = 0.0
 
@@ -455,10 +452,9 @@ def simulate_single_flight(
         tank_amount = int(tank_result.get('optimal_extra_fuel_kg', 0))
         tank_saving = float(tank_result.get('net_saving_usd', 0))
     except Exception:
-        price_diff = dest_price - origin_price
-        if price_diff > 0.10:
-            tank_amount = random.randint(500, 1500)
-            tank_saving = tank_amount * price_diff * 0.88
+        # BÜTÜNLÜK: tankering hesabı başarısızsa uydurma. 0.
+        tank_amount = 0
+        tank_saving = 0.0
 
     # ─── 8. EMİSYON ──────────────────────────────────────
     try:
@@ -477,13 +473,16 @@ def simulate_single_flight(
         co2_pax_km = (co2 * 1000) / (pax * dist_km) if pax > 0 and dist_km > 0 else 0
 
     # ─── 9. TASARRUF ──────────────────────────────────────
-    # Çift sayım önleme: altitude ve step'ten büyüğünü al
-    fuel_optimization = max(alt_saving, step_saving)
-
-    # Minimum gerçekçi tasarruf
-    min_saving = total_fuel * 0.012
-    if fuel_optimization < min_saving:
-        fuel_optimization = total_fuel * random.uniform(0.015, 0.025)
+    # BÜTÜNLÜK KURALI: Tasarruf YALNIZCA fizik modelinden gelir.
+    # Fizik "0" diyorsa 0'dır. Uydurma/eşik-minimum YOKTUR.
+    #
+    # Önceden burada:
+    #   min_saving = total_fuel * 0.012
+    #   if fuel_optimization < min_saving:
+    #       fuel_optimization = total_fuel * random.uniform(0.015, 0.025)  # UYDURMA
+    # vardı. Bu, 231 uçuşun 155'inde ($17.9t) hayali tasarruf üretiyordu.
+    # KALDIRILDI.
+    fuel_optimization = max(0.0, max(alt_saving, step_saving))
 
     per_flight_cost_saving = fuel_optimization * origin_price + tank_saving
 
@@ -501,7 +500,7 @@ def simulate_single_flight(
         'distance_nm'            : round(distance_nm),
         'estimated_fuel_kg'      : total_fuel,
         'cruise_altitude_ft'     : actual_cruise_alt,
-        'route_efficiency_pct'   : round(random.uniform(94.0, 98.5), 1),
+        'route_efficiency_pct'   : None,  # BÜTÜNLÜK: hesaplanmadı (büyük daire=gerçek rota). Uydurma yok.
         'heading_deg'            : round(heading),
         'flight_time_min'        : round(flight_time_hr * 60),
         'passengers'             : pax,
@@ -727,12 +726,16 @@ def main():
 
     # Gerçekçilik kontrolü
     print(f"\n  GERÇEKÇİLİK KONTROL:")
+    # B738 blok yakıtı 6.0-7.5 kg/nm'dir (blok hız ~400-420 kt, ~2,550 kg/saat).
     avg_fpm = float(np.mean([r['fuel_per_nm'] for r in all_results]))
-    s1 = '✅' if 6.0 <= avg_fpm <= 10.0 else '⚠'
+    s1 = '✅' if 5.8 <= avg_fpm <= 8.0 else '⚠'
     print(f"  Ort. yakıt/Nm                : {avg_fpm:.2f} kg/Nm {s1}")
 
+    # BÜTÜNLÜK: Dar gövde (B738, 189 koltuk, %90+ doluluk) gerçek aralığı
+    # 60-90 g/pax/km'dir (IATA/Atmosfair). Önceki 70-120 eşiği dar gövde için
+    # yanlıştı ve doğru sonucu '⚠' diye işaretliyordu.
     avg_co2p = float(np.mean([r['co2_per_pax_km_g'] for r in all_results]))
-    s2 = '✅' if 70 <= avg_co2p <= 120 else '⚠'
+    s2 = '✅' if 55 <= avg_co2p <= 100 else '⚠'
     print(f"  CO₂/pax/km                   : {avg_co2p:.1f} g {s2}")
 
     save_pcts = [

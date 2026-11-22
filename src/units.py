@@ -1518,8 +1518,24 @@ class Units:
             df['time_gap_flag'] = df['time_diff_s'] > 600
 
         else:
-            df['time_diff_s']  = 0.0
-            df['time_gap_flag'] = False
+            # BÜTÜNLÜK: Zaman kolonu yoksa sessizce time_diff_s=0 yazmak,
+            # tüm yakıt hesabını 0'a düşürüyordu (sessiz sıfır). Artık
+            # `timestamp` takma adı denenir; o da yoksa uyarı verilir.
+            if 'timestamp' in df.columns:
+                df['time'] = pd.to_datetime(df['timestamp'], errors='coerce')
+                df = df.sort_values('time').reset_index(drop=True)
+                df['time_diff_s'] = (
+                    df['time'].diff().dt.total_seconds().fillna(0)
+                )
+                df['time_gap_flag'] = df['time_diff_s'] > 600
+            else:
+                warnings.warn(
+                    "⚠ Zaman kolonu ('time'/'timestamp') yok: time_diff_s=0. "
+                    "Zaman tabanlı yakıt hesapları 0 üretecek.",
+                    stacklevel=2,
+                )
+                df['time_diff_s']  = 0.0
+                df['time_gap_flag'] = False
 
         # ─── 2. İRTİFA (ÇOK BOYUTLU TESPİT) ──────────────
         if 'baro_altitude_m' in df.columns and 'baro_altitude_ft' in df.columns:

@@ -68,8 +68,18 @@ def run_tests():
     if "blockchain_audit_trail" in sealed:
         trail = sealed["blockchain_audit_trail"]
         check_true("Block hash üretildi", len(trail["block_hash"]) == 64)
-        check_true("İşlem ID'si (tx_id) tescillendi", trail["transaction_id"].startswith("tx_"))
-        check("Blok numarası doğru", trail["block_number"], 500, 0.01)
+        # BÜTÜNLÜK: Sahte "VERIFIED_ON_LEDGER" ve uydurma tx_id/block_number
+        # KALDIRILDI. Doğru davranış: yerel SHA-256 mührü, zincir iddiası YOK.
+        check_true("Mühür tipi dürüst etiketli (LOCAL_SHA256)",
+                   trail.get("seal_type") == "LOCAL_SHA256")
+        check_true("Zincir iddiası YOK (verification_status)",
+                   trail.get("verification_status") == "LOCAL_SHA256_SEALED")
+        check_true("ledger_network None (zincire yazılmadı)",
+                   trail.get("ledger_network") is None)
+        check_true("transaction_id None (zincir işlemi yok)",
+                   trail.get("transaction_id") is None)
+        check_true("verification_url None (doğrulama servisi yok)",
+                   trail.get("verification_url") is None)
         
         # Bütünlük kontrolü (Doğrulama)
         check_true("Kriptografik mühür doğrulaması geçti", sealer.verify_seal(sealed))

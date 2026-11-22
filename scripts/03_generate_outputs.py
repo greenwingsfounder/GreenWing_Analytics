@@ -161,18 +161,57 @@ def run_data_quality_check(results: list[dict]) -> dict:
 
     partial_pct = partial_count / n * 100 if n > 0 else 0
 
-    if partial_pct < 10:
-        grade = 'A'
-        desc  = 'Mükemmel — Veriler güvenilir'
-    elif partial_pct < 30:
-        grade = 'B'
-        desc  = 'İyi — Çoğu veri kullanılabilir'
-    elif partial_pct < 60:
-        grade = 'C'
-        desc  = 'Orta — Kısmi kullanım, dikkatli yorum'
+    # ──────────────────────────────────────────────────────────────
+    # PROVENANCE GATE (BÜTÜNLÜK — P0)
+    # ──────────────────────────────────────────────────────────────
+    # Önceki sürüm YALNIZCA kısmi-uçuş yüzdesine bakıyordu. Simüle
+    # edilmiş (demo_simulation) veri de 'A — Veriler güvenilir' notu
+    # alıyordu. Bu, bir havayolu müşterisine "gerçek veri" izlenimi
+    # vermek açısından yanıltıcıydı.
+    #
+    # Kural: Not, verinin KAYNAĞINA (provenance) bağlıdır.
+    #   REAL  (opensky/adsb/customer_qar) → kısmi yüzdesine göre A..D
+    #   SIM   (demo_simulation)          → SIM (en fazla 'Simülasyon')
+    #   MIX   (karışık)                  → MIX — ayrıştırılmalı
+    methods = [safe_str(r, 'collection_method', 'unknown').lower() for r in results]
+    n_real = sum(1 for m in methods if m in ('opensky', 'adsb', 'customer_qar',
+                                             'customer_fuel', 'qar', 'fdr'))
+    n_sim  = sum(1 for m in methods if 'simulation' in m or 'synthetic' in m)
+    n_unk  = n - n_real - n_sim
+
+    if n_real == n:
+        provenance = 'REAL'
+    elif n_sim == n:
+        provenance = 'SIMULATED'
+    elif n_real + n_sim == n:
+        provenance = 'MIXED'
     else:
-        grade = 'D'
-        desc  = 'Düşük — Arrivals endpoint önerilir'
+        provenance = 'UNKNOWN'
+
+    if provenance == 'SIMULATED':
+        grade = 'SIM'
+        desc  = ('SİMÜLASYON — Fizik modeli çıktısı; gerçek uçuş verisi DEĞİL. '
+                 'Doğrulama için QAR/FDR veya müşteri yakıt verisi gerekir.')
+    elif provenance == 'UNKNOWN':
+        grade = '?'
+        desc  = 'Bilinmeyen veri kaynağı — provenance etiketi eksik.'
+    elif provenance == 'MIXED':
+        grade = 'MIX'
+        desc  = (f'KARIŞIK — {n_real} gerçek + {n_sim} simüle uçuş. '
+                 'İstatistikler ayrıştırılarak raporlanmalı.')
+    else:  # REAL
+        if partial_pct < 10:
+            grade = 'A'
+            desc  = 'Mükemmel — Gerçek veri, kısmi uçuş oranı düşük'
+        elif partial_pct < 30:
+            grade = 'B'
+            desc  = 'İyi — Gerçek veri, çoğu kullanılabilir'
+        elif partial_pct < 60:
+            grade = 'C'
+            desc  = 'Orta — Gerçek veri, dikkatli yorum'
+        else:
+            grade = 'D'
+            desc  = 'Düşük — Arrivals endpoint önerilir'
 
     recommendations = []
     if partial_pct > 20:
@@ -185,7 +224,16 @@ def run_data_quality_check(results: list[dict]) -> dict:
             f"{unk_dest_count} uçuşta varış bilinmiyor. "
             "Callsign bazlı tahmin veya müşteri schedule verisi ekle."
         )
-    if partial_pct <= 10:
+    if provenance == 'SIMULATED':
+        recommendations.insert(0,
+            "Bu çıktı SİMÜLASYONDUR. Müşteri sunumu öncesi gerçek "
+            "QAR/FDR veya müşteri yakıt verisiyle değiştirilmelidir. "
+            "Aksi halde yalnızca 'demonstrasyon' olarak sunulabilir.")
+    elif provenance == 'MIXED':
+        recommendations.insert(0,
+            "Karışık veri kaynağı: gerçek ve simüle uçuşlar ayrı "
+            "raporlanmalı, birleşik istatistik SUNULMAMALIDIR.")
+    elif provenance == 'REAL' and partial_pct <= 10:
         recommendations.append("Veri kalitesi yüksek.")
 
     return {
@@ -196,6 +244,10 @@ def run_data_quality_check(results: list[dict]) -> dict:
         'partial_pct'    : round(partial_pct, 1),
         'quality_grade'  : grade,
         'quality_desc'   : desc,
+        'provenance'     : provenance,
+        'n_real'         : n_real,
+        'n_simulated'    : n_sim,
+        'n_unknown'      : n_unk,
         'details'        : details,
         'recommendations': recommendations,
     }
@@ -386,6 +438,10 @@ def main():
             step_climb_applied    = bool(r.get('step_climb_applied', False)),     # ✅
             is_partial_flight    = is_partial,
             data_source          = data_source,
+            # BÜTÜNLÜK: provenance aktarımı (yoksa kalite notu yanlış).
+            collection_method    = safe_str(r, 'collection_method', 'unknown'),
+            # BÜTÜNLÜK: tek fiyat kaynağı (sabit $0.85 gömülü değil).
+            fuel_price_usd_kg    = DEFAULT_FUEL_PRICE_USD,
         )
 
         icon = '⚠' if is_partial else '✅'
@@ -554,12 +610,18 @@ def _resolve_data_source_subtitle(results: list) -> str:
             '4-Axis Optimization (Altitude, Step Climb, Cost Index, Tankering)'
         ),
         'data_quality': {
-            'grade'         : quality_report['quality_grade'],
-            'description'   : quality_report['quality_desc'],
-            'total_flights' : quality_report['total'],
-            'valid_flights' : quality_report['valid'],
+            # BÜTÜNLÜK: rapor üreticisi 'quality_grade' okuyordu ama burada
+            # 'grade' yazılıyordu → her zaman 'N/A' görünüyordu (sessiz bug).
+            'grade'          : quality_report['quality_grade'],
+            'quality_grade'  : quality_report['quality_grade'],
+            'description'    : quality_report['quality_desc'],
+            'quality_desc'   : quality_report['quality_desc'],
+            'provenance'     : quality_report.get('provenance'),
+            'total_flights'  : quality_report['total'],
+            'valid_flights'  : quality_report['valid'],
             'partial_flights': quality_report['partial'],
-            'partial_pct'   : quality_report['partial_pct'],
+            'partial_pct'    : quality_report['partial_pct'],
+            'recommendations': quality_report.get('recommendations', []),
         },
         'flights_analyzed'  : len(results),
         'airlines_analyzed' : sorted(airlines.keys()),

@@ -93,34 +93,55 @@ class TankeringOptimizer:
         mtow_margin_kg: float = 5000.0,
     ) -> float:
         """
-        Mesafe ve ekstra yük miktarına göre carriage factor tahmini.
+        Carriage factor — FİZİK TABANLI.
 
-        Base distance-based heuristic:
-            < 500 Nm     → 4%
-            500-1000 Nm  → 8%
-            1000-2000 Nm → 12%
-            2000-3000 Nm → 16%
-            > 3000 Nm    → 22%
+        Tanım: Ek yakıtın (tankerlenen yakıtın) taşınması nedeniyle
+        harcanan ek yakıtın, taşınan yakıta oranı.
 
-        Ekstra fuel miktarı MTOW margin'e yaklaşırsa CF biraz artar.
+        Önceki sürüm mesafeye göre UYDURMA kutu değerler kullanıyordu
+        (<500 Nm → %4, 1000-2000 → %12 vb.) ve sonuçlar gerçekle
+        uyuşmuyordu (LTAI→EDDF için %12.3 vs gerçek ~%7.5, ~1.6× şişme).
+
+        Şimdi: taşıma cezası, uçağın KENDİ Breguet denklemiyle, iki
+        senaryo arasındaki yakıt farkından hesaplanır:
+          A) hedef ağırlıkta mesafeyi uç
+          B) aynı yolculuk, +extra_fuel ile uç (daha ağır)
+        Fark / extra_fuel = gerçek carriage factor.
+
+        Fiziksel olarak CF, ek yakıtın kendisinin bir kısmıdır: taşınan
+        yakıtın bir bölümü onu taşımak için yanar (yakıtın 'kendi kendini
+        taşıma' maliyeti). Bu yüzden CF ~%4-10 aralığındadır (mesafeyle
+        artar), %20+ değerler fiziksel değildir.
         """
-        if distance_nm < 500:
-            cf = 0.04
-        elif distance_nm < 1000:
-            cf = 0.08
-        elif distance_nm < 2000:
-            cf = 0.12
-        elif distance_nm < 3000:
-            cf = 0.16
-        else:
-            cf = 0.22
+        if extra_fuel_kg <= 0 or distance_nm <= 0:
+            # Ek yük yoksa ceza yok. Uydurma taban değer ÜRETME.
+            return 0.0
 
-        # Ağırlık etkisi — çok agresif değil, hafif düzeltme
-        if mtow_margin_kg > 0 and extra_fuel_kg > 0:
-            load_ratio = min(1.0, extra_fuel_kg / mtow_margin_kg)
-            cf = cf * (1.0 + 0.15 * load_ratio)
+        try:
+            from src.models.fuel_model import FuelModel
+            fm = FuelModel(self.ac_type)
+            mtow = float(Assumptions.aircraft_mtow(self.ac_type))
+            oew  = float(Assumptions.aircraft_oew(self.ac_type))
+            # Taşıma ağırlığı: yük + tankerlenen yakıt, MTOW'a sığdır
+            base_w = min(mtow - extra_fuel_kg, oew + 0.55 * (mtow - oew))
+            alt_ft = 35000
+            mach   = fm.params.get('cruise_mach', 0.78)
 
-        return float(min(cf, 0.35))
+            fuel_a = fm.fuel_for_distance(
+                distance_nm=distance_nm, weight_initial_kg=base_w,
+                altitude_ft=alt_ft, mach=mach)['total_fuel_kg']
+            fuel_b = fm.fuel_for_distance(
+                distance_nm=distance_nm, weight_initial_kg=base_w + extra_fuel_kg,
+                altitude_ft=alt_ft, mach=mach)['total_fuel_kg']
+
+            cf = (fuel_b - fuel_a) / extra_fuel_kg
+            # Fiziksel sınır: %0-15. Bunun dışı model hatasıdır.
+            return float(max(0.0, min(cf, 0.12)))
+        except Exception:
+            # Model çalışmazsa: fiziksel olarak makul ve MUHAFAZAKÂR
+            # tek bir değer (mesafeyle hafif artan), kutu tablo değil.
+            cf = 0.03 + 0.000004 * distance_nm
+            return float(min(cf, 0.10))
 
     # ──────────────────────────────────────────────────────
     # Yardımcı: maksimum ekstra yakıt
@@ -249,6 +270,9 @@ class TankeringOptimizer:
                 mtow_margin_kg=max(mtow_margin, 1.0),
             )
 
+            # BÜTÜNLÜK: CF tanımı gereği yalnızca (CF × extra) kadar ek
+            # yakıt taşıma cezası olarak yanar; (1-CF)×extra hedefe varır.
+            # Önceden bu satır doğruydu ama CF 1.6× şişikti.
             extra_burn = extra * cf
             fuel_arriving = max(0.0, extra - extra_burn)
 

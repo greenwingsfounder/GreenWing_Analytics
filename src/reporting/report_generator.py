@@ -340,14 +340,28 @@ class ReportGenerator:
 
         partial_pct = float(dq.get('partial_pct', 0))
         partial_n   = int(dq.get('partial_flights', 0))
-        dq_grade    = dq.get('quality_grade', 'N/A')
+        # BÜTÜNLÜK: iki anahtar adı da desteklenir ('grade' eski sürüm).
+        dq_grade    = dq.get('quality_grade') or dq.get('grade') or 'N/A'
         dq_recs     = dq.get('recommendations', [])
 
         if dq_grade in ('A', 'B'):
             dq_bg, dq_border = '#f0fff4', '#00b894'
             dq_color  = '#00b894'
             dq_icon   = '✅'
-            dq_title  = f'Veri Kalitesi {dq_grade} — Güvenilir'
+            dq_title  = f'Veri Kalitesi {dq_grade} — Gerçek Veri'
+        elif dq_grade == 'SIM':
+            # BÜTÜNLÜK: Simülasyon verisi ASLA "güvenilir" diye sunulmaz.
+            dq_bg, dq_border = '#fff5f5', '#d63031'
+            dq_color  = '#d63031'
+            dq_icon   = '⚠'
+            dq_title  = ('SİMÜLASYON VERİSİ — Gerçek uçuş verisi DEĞİL. '
+                         'Yalnızca model gösterimi.')
+        elif dq_grade == 'MIX':
+            dq_bg, dq_border = '#fffbf0', '#e17055'
+            dq_color  = '#b35c00'
+            dq_icon   = '⚠'
+            dq_title  = ('KARIŞIK VERİ — Gerçek + simüle uçuşlar '
+                         'ayrıştırılmalı.')
         elif dq_grade == 'C':
             dq_bg, dq_border = '#fffbf0', '#fdcb6e'
             dq_color  = '#856404'
@@ -995,9 +1009,10 @@ table.route-table th{{
     </p>
     <p>
         Bu rapor {SYSTEM_NAME} tarafından üretilmiştir.
-        Veriler belirtilen döneme aittir.
-        Demonstrative analysis — operatör verisi ile kalibre
-        edildiğinde doğruluk ±2–3%'e yükselir.
+        Veriler belirtilen döneme ve belirtilen kaynağa aittir.
+        Model çıktıları fizik tabanlıdır; operatör QAR/FDR verisiyle
+        kalibre edildiğinde doğruluk artar (garanti edilen bir yüzde
+        verilmez).
     </p>
     <p>
         greenwingsanalytics@gmail.com
