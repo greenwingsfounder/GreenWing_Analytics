@@ -1589,8 +1589,21 @@ sorununu bitirir</td>
 <td>Adlar gerçeği söylesin</td>
 <td><span class="badge b-ok">DÜZELTİLDİ</span> — DATA_SOURCE_NOTE</td></tr>
 <tr><td>B738/B38M kanat açıklığı</td><td>34,32 → 35,79 m
-(737-800 gerçek)</td>
+(737-800 gerçek, winglet dahil)</td>
 <td><span class="badge b-ok">DÜZELTİLDİ</span> — AR 9,453 → 10,280</td></tr>
+<tr><td>Polar / AR çelişkisi (#85)</td><td>K=0,042 ama 1/(π·AR·e)
+ile %7,7 uyuşmuyordu</td>
+<td><span class="badge b-ok">ÇÖZÜLDÜ</span> — iki AR ayrıldı:
+geometrik 10,280 · aerodinamik 9,453 → sapma %0,3</td></tr>
+<tr><td><b>İki paralel web uygulaması (#84)</b></td>
+<td><code>web/</code> ve <code>webapp/</code> ikisi de canlıydı</td>
+<td><span class="badge b-ok">BİRLEŞTİRİLDİ</span> — web/
+<code>archive/</code>'e alındı, PDF indirme taşındı</td></tr>
+<tr><td><b>Rol + kiracı (multi-tenancy)</b></td>
+<td>Her kullanıcı her şeyi görüyordu → 2. müşteride veri karışır
+(KVKK ihlali)</td>
+<td><span class="badge b-ok">TAMAM</span> — viewer/analyst/admin +
+<code>tenant</code> alanı; <a href="/kullanicilar">Kullanıcılar</a></td></tr>
 <tr><td>Havalimanı test aralıkları (#76)</td><td>3/33 başarısız
 görünüyordu</td>
 <td><span class="badge b-ok">DÜZELTİLDİ</span> — 33/33 geçiyor</td></tr>
