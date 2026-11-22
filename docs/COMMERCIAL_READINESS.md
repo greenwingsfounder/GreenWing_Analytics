@@ -1412,3 +1412,78 @@ web/` genelinde 690 stil uyarısı var (F541 f-string, UP045
 BLE001 geniş `except`). Bunlar **kozmetik**; davranışı
 değiştirmiyor. Denetim kapsamı dışı bırakıldı — 690 dosya
 dokunuşu, kanıtlanmış bulguların regresyon riskini artırır.
+
+### 8.45 BULGU #74 — PDF'e sessizce "tofu" basılıyordu
+
+`tools/build_technical_report.py` DejaVuSans kullanıyor. Fontun
+**kapsamadığı** karakterler 6 yerde kullanılıyordu:
+
+```
+'boyutsuz', 'CI = 52 ✅'          ← denetimden ÖNCE de vardı
+['dq_box', ..., 'var ✅']          ← bu turda ekledim
+['...', '❌', '✅'] × 5            ← bu turda ekledim
+```
+
+ReportLab eksik glifi **hata vermeden** boş kutu olarak basıyor.
+Ne `"✅" in pdf_text` ne de `chr(9633)` sayımı yakaladı —
+çünkü `✅` (U+2705) ≠ `□` (U+25A1). Yalnızca sayfayı PNG'ye
+çevirip gözle bakınca fark edildi.
+
+**Ölçülen font kapsamı** (`fontTools`, DejaVuSans.ttf, 5.955 glif):
+
+| Karakter | Kod | Fontta |
+|---|---|---|
+| ✅ | U+2705 | **YOK** |
+| ❌ | U+274C | **YOK** |
+| 📈 | U+1F4C8 | **YOK** |
+| 🔬 | U+1F52C | **YOK** |
+| ✓ | U+2713 | var |
+| ✗ | U+2717 | var |
+| ⚠ | U+26A0 | var |
+| ± → ≤ ≥ × | — | var |
+
+**Düzeltme:** `✅`/`❌` → `✓` / `"yok"–"var ✓"`.
+PDF metninde U+2705/U+274C kalmadı, `✓` 11 kez basılıyor.
+
+### 8.46 Kendi hatam — testin ilk yasak listesi de yanlıştı
+
+`tests/test_pdf_glyphs.py` yazarken yasak listesine `✌` (U+270C)
+ve `😀` (U+1F600) koydum, "hiçbir TTF kapsamaz" diye. **Test beni
+yanılttı:** ikisi de DejaVuSans'ta **VAR**.
+
+```
+✗ font ✌ VICTORY HAND'ı KAPSAMIYOR (beklenti)
+✗ font 😀 emoji (hiçbir TTF kapsamaz)'ı KAPSAMIYOR (beklenti)
+```
+
+Listeyi ölçüme göre düzelttim. Bu, denetimin kendi kuralının
+test yazarken de geçerli olduğunu gösteriyor: **varsayım değil,
+ölçüm.**
+
+### 8.47 tests/test_pdf_glyphs.py — 28 kontrol
+
+Bu hata bir daha sessizce oluşmasın diye üç katmanlı kontrol:
+
+| Katman | Ne yapar |
+|---|---|
+| **[A] statik** | `build_technical_report.py` içinde yasaklı glif var mı |
+| **[B] dinamik** | Üretilen PDF metninde var mı (varsa zaten tofu) |
+| **[C] font** | DejaVuSans hangi karakterleri kapsıyor (fontTools) |
+
+**[C] atlanmıyor** — font yolu `/usr/share/fonts/truetype/dejavu`
+sabit olarak aranıyor. İlk sürümde yanlış yollara bakıyordu ve
+sessizce atlıyordu; "atan test kanıt sağlamaz" ilkesiyle
+düzeltildi.
+
+### 8.48 13. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 74 | PDF'e sessizce eksik glif basılıyordu | ✅ |
+| — | Kendi yasak listem yanlıştı (ölçümle düzeltildi) | ✅ |
+
+```
+Test dosyası        : 19 → 20 · 0 hata
+test_pdf_glyphs     : — → 28
+Kapsanan katman     : statik kod / dinamik PDF / font cmap
+```
