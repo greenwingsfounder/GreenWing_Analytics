@@ -1047,11 +1047,15 @@ def section_tests():
 
     gap(2)
     callout(
-        'Toplam: ~1.200 doğrulama · 19/19 dosya geçiyor',
-        'Bu sayı, denetim <b>öncesinde</b> de 16/16 olarak raporlanıyordu '
-        'ama üç dosya hiç çalıştırılmamıştı. Test sayısı tek başına '
-        'hiçbir şey kanıtlamaz; kanıt, testlerin <b>gerçekten '
-        'çalıştırıldığı</b> ve <b>doğru değerleri</b> kontrol ettiğidir.',
+        'Toplam: 1.475 doğrulama · 19/19 dosya geçiyor',
+        '1.329\'u test dosyalarında, 146\'sı modül içi '
+        '<code>validate_*()</code> fonksiyonlarında (test '
+        'dosyalarından çağrılıyor).<br/><br/>'
+        'Bu sayı, denetim <b>öncesinde</b> de 16/16 olarak '
+        'raporlanıyordu ama üç dosya hiç çalıştırılmamıştı. Test '
+        'sayısı tek başına hiçbir şey kanıtlamaz; kanıt, testlerin '
+        '<b>gerçekten çalıştırıldığı</b> ve <b>doğru değerleri</b> '
+        'kontrol ettiğidir.',
     )
 
     h2('5.1 Testlerin kendisi de yanlış olabilir')
@@ -1090,12 +1094,19 @@ def section_audit():
       '<code>docs/COMMERCIAL_READINESS.md</code> §8\'de.')
 
     callout(
-        'Dürüstlük notu: 3 yanlış pozitif de var',
+        'Dürüstlük notu: 3 yanlış pozitif + 1 doğrulanamayan iddia',
         'Denetim sırasında "hata" dediğim üç şey (ICAO yoğunluk '
         'referansı, <code>np.convolve</code> kenar etkisi, TAT ram '
         'rise) hesap yapılınca <b>doğru çıktı</b>. Üçünü de geri '
-        'aldım ve <code>§8.25–8.27</code>\'de yazdım. Yanlış bulguyu '
-        'sessizce silmek de bir tür gizleme olurdu.',
+        'aldım ve <code>§8.25–8.27</code>\'de yazdım.<br/><br/>'
+        'Dördüncüsü (B77W L/D "gerçek 18–20 olmalı") kaynak '
+        'taramasında <b>çürütülemedi de doğrulanamadı da</b>: bir '
+        'bağımsız kaynak modelin değerini birebir destekliyor '
+        '(maks L/D 15,68 vs model 15,55), ikisi çelişiyor. '
+        '<b>Kodu değiştirmedim</b> — kanıtsız katsayı değiştirmek, '
+        'bu denetimin kovaladığı hatanın ta kendisi olurdu.<br/><br/>'
+        '<b>"Doğrulayamadım" ≠ "yanlıştı".</b> İkisini karıştırmak '
+        'bilançoyu yalana çevirir.',
         color=AMBER, bg='#FFFBEB',
     )
 
