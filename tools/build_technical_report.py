@@ -285,8 +285,9 @@ def section_toc():
         ('', '4.3', 'Sürükleme poları: neden düzeltmedik?'),
         ('', '4.4', 'Adım tırmanışı fiziği'),
         ('', '4.5', 'Atmosfer modeli — ICAO Doc 7488'),
-        ('', '4.6', 'Cost Index — boyut analizi'),
-        ('', '4.7', 'Maliyet modeli ve sınırları'),
+        ('', '4.6', 'NOx modeli — BFFM2 doğrulaması'),
+        ('', '4.7', 'Cost Index — boyut analizi'),
+        ('', '4.8', 'Maliyet modeli ve sınırları'),
         ('5', 'Testler — sistem kendini nasıl doğruluyor?', '~950 kontrol, 16 dosya'),
         ('', '5.1', 'Testlerin kendisi de yanlış olabilir'),
         ('6', 'Satır satır denetim — 20 gerçek hata', '41.656 satır, 2 tur'),
@@ -771,7 +772,36 @@ def section_correctness():
         color=NAVY, bg='#EFF6FF',
     )
 
-    h2('4.6 Cost Index — boyut analizi')
+    h2('4.6 NOx modeli — BFFM2 doğrulaması')
+
+    p('Denetimde en ciddi bulgu buradaydı: <code>nox_bffm2()</code> '
+      'fonksiyonu BFFM2 adını taşıyordu ama BFFM2\'nin üç temel '
+      'mekanizmasını içermiyordu. Denetimde ölçülen davranış:')
+
+    table([
+        ['Girdi', 'Aralık', 'Eski davranış', 'Yeni davranış'],
+        ['Yakıt akışı', '0,20 → 0,60 kg/s', '10,47 sabit', '8,0 → 16,3 g/kg'],
+        ['Mach', 'M0,60 → M0,85', 'değişmiyor', '10,0 → 11,1 g/kg'],
+        ['İrtifa (sabit itki)', '25k → 41k ft', 'değişmiyor', '9,3 → 7,5 g/kg'],
+        ['Nem', 'kuru → nemli', 'etkili', 'etkili'],
+    ], [34 * mm, 34 * mm, 34 * mm, 36 * mm], fs=8)
+
+    p('Gerçek BFFM2 uygulandıktan sonra <b>referans noktası tam tutuyor</b>: '
+      'deniz seviyesi statik tam itki (1,287 kg/s) → 27,40 g/kg, '
+      'EDB sertifikasyon değeri 27,4 ile aynı. Gerçek cruise çıktısı '
+      '12,9 g/kg — EDB cruise aralığı (12–18) içinde.')
+
+    callout(
+        'Bu hata neden testlerden kaçtı?',
+        'Mevcut test yalnızca <code>check_range("NOx EI", 1.0, 20.0)</code> '
+        'diyordu. Sabit 10,47 bu aralığın tam ortasında — test geçiyordu. '
+        'Test <b>"değer makul aralıkta mı"</b> diye bakıyordu, '
+        '<b>"girdiye tepki veriyor mu"</b> diye bakmıyordu. '
+        '29 yeni regresyon testi bu boşluğu kapatıyor.',
+        color=NAVY, bg='#EFF6FF',
+    )
+
+    h2('4.7 Cost Index — boyut analizi')
 
     p('Cost Index (CI), havayolunun "zaman mı yakıt mı" tercihidir. '
       'Denetimde burada <b>boyut hatası</b> bulundu:')
@@ -789,7 +819,7 @@ def section_correctness():
       '<code>0.85 $/kg × 100 ÷ 2.20462 = 38.56 cent/lb</code>, '
       'dolayısıyla <code>CI = 2000 ÷ 38.56 = 52</code>.')
 
-    h2('4.7 Maliyet modeli — ve sınırları')
+    h2('4.8 Maliyet modeli — ve sınırları')
 
     p('Sistem iki ayrı para kaynağı üretir ve bunları <b>asla '
       'toplamaz</b>:')
@@ -950,6 +980,15 @@ def section_audit():
         ['21', 'scripts/02', 'Rüzgâr kaynağı (gerçek ADS-B / mevsimsel tahmin) '
          'yalnız konsola basılıyordu',
          'Raporda hangi rüzgârın kullanıldığı bilinmiyordu'],
+        ['22', 'emission_model.py', 'nox_bffm2: 4 girdiden 2\'si (yakıt akışı, '
+         'Mach) HİÇ kullanılmıyordu',
+         'Yakıt akışı 0,3→1,8 kg/s arasında EI 10,47 SABİT kalıyordu'],
+        ['23', 'emission_model.py', 'SAF tablosunda \'FT_SPK\', docstring\'de '
+         '\'FT-SPK\'; <code>.get(x, 0.72)</code> sessizce HEFA\'ya düşüyordu',
+         'FT-SPK %90 yerine %72 azaltım; bilinmeyen tip de HEFA sayılıyordu'],
+        ['24', 'emission_model.py', 'CORSIA MRV: <code>fuel_kg=\'abc\'</code> '
+         '→ TypeError; -500 toplama giriyor; rapor düşen kaydı göstermiyor',
+         'Resmî uyum raporu üretilemiyor; denetçi eksik kaydı göremezdi'],
     ]
     table(audit, [7 * mm, 34 * mm, 60 * mm, 65 * mm], fs=7.5)
 
