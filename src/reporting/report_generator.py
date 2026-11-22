@@ -152,6 +152,38 @@ class ReportGenerator:
         output_filename: Optional[str] = None,
     ) -> dict:
 
+        # ══════════════════════════════════════════════════════
+        # DENETİM #56 — BOŞ VERİYLE "success" RAPORU
+        # ══════════════════════════════════════════════════════
+        # `generate_fleet_report({})` çağrısı 23 KB'lik bir HTML
+        # üretiyor ve `status: "success"` dönüyordu: 0 uçuş,
+        # 0 t yakıt, $0 tasarruf. Panelden "rapor hazır" diye
+        # indirilebiliyordu.
+        #
+        # Sıfır uçuşlu bir analiz raporu, teslim edilebilir bir
+        # çıktı değildir. Boş/eksik özette rapor üretilmemeli;
+        # çağıran açık hata almalı.
+        if not isinstance(fleet_summary, dict) or not fleet_summary:
+            return {
+                'status' : 'error',
+                'message': ('Boş fleet_summary: analiz edilecek uçuş verisi '
+                            'yok. Rapor üretilmedi. Önce scripts/02 ve '
+                            'scripts/03 çalıştırılmalı.'),
+                'html_path': None,
+                'report_id': None,
+            }
+
+        _meta0 = fleet_summary.get('report_metadata', {}) or {}
+        if int(_meta0.get('total_flights_analyzed', 0) or 0) <= 0:
+            return {
+                'status' : 'error',
+                'message': ('total_flights_analyzed = 0: rapor üretilecek '
+                            'uçuş yok. Sıfır uçuşlu rapor teslim edilebilir '
+                            'bir çıktı değildir.'),
+                'html_path': None,
+                'report_id': None,
+            }
+
         if output_filename is None:
             output_filename = (
                 f"GreenWing_Fleet_Report_"

@@ -786,25 +786,63 @@ class FleetAnalyzer:
 
         bm_fuel_list     = []
         bm_distance_list = []
+        skipped          = []
 
         for result in self.flight_results:
             is_partial = result.get(
                 '_data_quality', {}
             ).get('is_partial', False)
 
-            fuel     = float(result['fuel_analysis']['estimated_total_fuel_kg'])
-            distance = float(result['basic_metrics']['great_circle_distance_nm'])
-            co2      = float(result['emissions']['emissions']['CO2_kg'])
-            ac_type  = result['flight_info']['aircraft_type']
+            # DENETİM #57 — DOĞRUDAN İNDEKSLEME
+            # Eski kod result['emissions']['emissions']['CO2_kg'] ve
+            # result['savings_opportunities'] alanlarını DOĞRUDAN
+            # indeksliyordu. analyze_trajectory() bu alanları üretse de
+            # dışarıdan gelen / kısmi kayıtlar (örn. yalnız
+            # flight_info+basic_metrics+fuel_analysis) KeyError ile
+            # TÜM filo özetini çökertiyordu. Tek bozuk kayıt yüzünden
+            # 14 uçuşluk rapor üretilemez hale geliyordu.
+            #
+            # .get() zincirine geçildi; eksik kayıt atlanıyor ve
+            # sayısı raporlanıyor (sessizce yutulmuyor).
+            try:
+                fuel = float(
+                    result.get('fuel_analysis', {})
+                          .get('estimated_total_fuel_kg', 0) or 0)
+                distance = float(
+                    result.get('basic_metrics', {})
+                          .get('great_circle_distance_nm', 0) or 0)
+                _em = result.get('emissions') or {}
+                co2 = float((_em.get('emissions') or {}).get('CO2_kg', 0) or 0)
+                # emissions YOKSA sessizce tahmin etme: bu, hangi kaydın
+                # eksik olduğunu gizler. Yalnızca logla ve atla.
+                # (İlk denemede `co2 = fuel * EI_CO2` ile türetmiştim;
+                #  bozuk kayıt "atlanan: 0" olarak rapora girdi —
+                #  yani hata daha da görünmez hale geldi.)
+                if co2 <= 0:
+                    skipped.append(
+                        f"{result.get('flight_info', {}).get('callsign', '?')}: "
+                        f"emissions.CO2_kg eksik/sıfır "
+                        f"(tahmin edilmedi)")
+                    continue
+                ac_type = (result.get('flight_info') or {}).get(
+                    'aircraft_type', 'B738')
+            except (TypeError, ValueError, AttributeError) as exc:
+                skipped.append(f"{result.get('flight_info', {}).get('callsign', '?')}: {exc}")
+                continue
+
+            if fuel <= 0 or distance <= 0:
+                skipped.append(
+                    f"{result.get('flight_info', {}).get('callsign', '?')}: "
+                    f"fuel={fuel} distance={distance}")
+                continue
 
             total_fuel     += fuel
             total_distance += distance
             total_co2      += co2
 
-            savings_tf  = result['savings_opportunities']['total_per_flight']
-            savings_ann = result['savings_opportunities'].get(
-                'annual_projection', {}
-            )
+            _sv = result.get('savings_opportunities') or {}
+            savings_tf  = _sv.get('total_per_flight') or {}
+            savings_ann = _sv.get('annual_projection') or {}
 
             flight_fuel_save = float(savings_tf.get('fuel_saving_kg', 0))
             flight_cost_save = float(savings_tf.get('cost_saving_usd', 0))
@@ -820,8 +858,9 @@ class FleetAnalyzer:
             total_annual_usd   += flight_annual
 
             # Rota
-            origin    = result['basic_metrics'].get('origin_icao', 'UNK')
-            dest      = result['basic_metrics'].get('destination_icao', 'UNK')
+            _bm_ = result.get('basic_metrics') or {}
+            origin    = _bm_.get('origin_icao', 'UNK')
+            dest      = _bm_.get('destination_icao', 'UNK')
             route_key = f"{origin}-{dest}"
 
             rd = route_data[route_key]
@@ -831,7 +870,8 @@ class FleetAnalyzer:
             rd['total_co2']         += co2
             rd['fuel_list'].append(fuel)
             rd['efficiency_list'].append(
-                result['route_analysis'].get('route_efficiency_pct', 95)
+                (result.get('route_analysis') or {}).get(
+                    'route_efficiency_pct', 95)
             )
             rd['total_saving_fuel'] += flight_fuel_save
             rd['total_saving_cost'] += flight_cost_save
@@ -1017,6 +1057,9 @@ class FleetAnalyzer:
                 'reporting_standard'     : (
                     'GreenWing Analytics Fleet Report v1.0'
                 ),
+                # DENETİM #57: bozuk kayıtlar sessizce yutulmasın
+                'skipped_records'        : len(skipped),
+                'skipped_details'        : skipped[:10],
                 'benchmark_basis': (
                     f"{bm_n_valid} tam uçuş"
                     if exclude_partial_from_benchmark

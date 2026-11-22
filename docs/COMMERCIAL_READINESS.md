@@ -644,3 +644,85 @@ validation     : 91 → 99 → 103 → 123
 emission       : 118 → 149
 Toplam bulgu   : #1–53
 ```
+
+### 8.20 "Dijital İkiz" kalibrasyonu — faktörler tescil harfinden (P0)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 54 | `tail_performance_calibrator.py` | Sınıf kendini "Kuyruk Bazlı Dijital İkiz ve Motor Aşınma Kalibrasyon Motoru" diye tanıtıyor, MRO bakım önerileri üretiyordu. Faktörler ise **tescil numarasının son harfinden** üretiliyordu: `cd0 = 0.98 + (ord(reg[-1]) % 15) * 0.01`. |
+| 55 | `tail_performance_calibrator.py` | Gerçek kalibrasyona delege edilirken alan adları eşlenmiyordu: `ModelCalibrator` `cruise_altitude_ft`/`takeoff_weight_kg`/`cruise_mach` beklerken tail kaydı `cruise_alt_ft`/`weight_kg`/`mach` kullanıyor. |
+
+**Ölçülen etki (#54):**
+
+```
+TC-SPO: cd0=1.020  sfc=1.033   (son harf 'O' = 79)
+TC-SPA: cd0=1.030  sfc=0.988   (son harf 'A' = 65)
+TC-JAA: cd0=1.030  sfc=0.988   (son harf 'A' = 65)  ← TC-SPA ile AYNI
+
+1 uçuş  → cd0 1.02 / sfc 1.033
+200 uçuş → cd0 1.02 / sfc 1.033   ← veriden öğrenme YOK
+```
+
+Farklı havayolu, farklı uçak → birebir aynı "aşınma". Buna rağmen
+çıktı `"status": "SUCCESS"` dönüyor ve **"Gövde Yıkama ÖNERİLİR /
+YÜKSEK öncelik"** gibi MRO aksiyonu üretiyordu. Uydurma sayıdan
+bakım kararı — ticari olarak en riskli bulgu.
+
+**Testin rolü:** `tests/test_tail_calibrator.py` eski test
+`results["status"] == "SUCCESS"` ve `0.95 <= cd0 <= 1.25`
+diyordu — yani **sahte davranışı yeşil tutuyordu**.
+
+**Düzeltme:**
+- `_generate_mock_degradation` (harf fonksiyonu) **kaldırıldı**
+- `demo_mode` parametresi eklendi (varsayılan `False`)
+- `demo_mode=False` + yeterli veri yok → `calibration: None`,
+  `status: INSUFFICIENT_DATA`, faktör **üretilmez**
+- `demo_mode=True` → `status: "DEMO"`, `estimated: True`,
+  bakım önerilerinde `[TAHMİNİ — …]` ibaresi
+- Gerçek veri (≥3 uçuş) → `ModelCalibrator`'a delege, alan adları
+  normalize edilir, `calibrated_from_data: True`
+- Özet çıktı: `estimated_twins`, `insufficient_data_twins`
+
+**Doğrulama:** 4 gerçek uçuş → `cd0=1.2476`, `sfc=1.0388`,
+`status=SUCCESS`. Testler 25/25.
+
+### 8.21 Rapor üretici boş veriyle "success" dönüyordu (P1)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 56 | `report_generator.py` | `generate_fleet_report({})` → 23 KB'lik HTML, `status: "success"`, `report_id` üretiyordu. İçerik: **0 uçuş, 0 t yakıt, $0 tasarruf**. Panelden "rapor hazır" diye indirilebiliyordu. |
+| 57 | `fleet_analyzer.py` | `generate_fleet_summary()` dört yerde **doğrudan indeksleme** yapıyordu (`result['emissions']['emissions']['CO2_kg']`, `result['savings_opportunities']['total_per_flight']`, `result['route_analysis']`). Tek bozuk kayıt tüm filo özetini `KeyError` ile çökertiyordu. |
+
+**Düzeltme (#56):** Boş `fleet_summary` veya
+`total_flights_analyzed = 0` → `status: "error"`, `html_path: None`.
+Sıfır uçuşlu rapor teslim edilebilir çıktı değildir.
+
+**Düzeltme (#57):** Tüm erişimler `.get()` zincirine çevrildi.
+Bozuk kayıt **atlanıyor** ve `report_metadata.skipped_records` +
+`skipped_details` ile raporlanıyor.
+
+**Kendi hatam (belgelenmeye değer):** İlk düzeltmemde eksik
+`emissions` alanını `co2 = fuel × EI_CO2` ile **tahmin ettim**.
+Sonuç: bozuk kayıt "atlanan: 0" olarak rapora girdi — hata
+**daha da görünmez** hale geldi. Doğrusu: tahmin etme, atla ve
+bildir. (Kod yorumuna yazıldı.)
+
+### 8.22 7. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| 4 | 38–45 | BFFM2, SA, SAF anahtarı, CORSIA MRV |
+| 5 | 46–47 | FAR 25.251 buffet, müşteri verisi kapısı |
+| 6 | 48–53 | İş mantığı doğrulayıcı: 4 çökme, 2 sessiz aralık |
+| **7** | **54–57** | **Dijital ikiz uydurma, boş rapor, KeyError** |
+
+```
+Test dosyası   : 16/16 · 0 hata
+tail           : 18 → 25 kontrol
+validation     : 123
+emission       : 149
+Toplam bulgu   : #1–57
+```

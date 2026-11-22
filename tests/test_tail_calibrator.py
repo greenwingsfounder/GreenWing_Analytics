@@ -99,32 +99,100 @@ def run_tests():
         {"filename": "ARR_AUTO_SXS6381_LTBJ_EDDF.csv", "aircraft_type": "B738", "registration": "TC-SMZ"},
     ]
     
+    # ═══════════════════════════════════════════════════════
+    # DENETİM #54 — ESKİ TEST UYDURMA DAVRANIŞI DOĞRULUYORDU
+    # ═══════════════════════════════════════════════════════
+    # Bu test eskiden `calibrate_fleet_digital_twins(mock_batch)`
+    # çağrısının "SUCCESS" dönmesini ve tescil harfinden türetilmiş
+    # cd0/sfc faktörlerini "makul" sayıyordu. Oysa faktörler
+    # uçuşla hiçbir ilgisi olmayan son-harf fonksiyonuydu.
+    # Test, sahte davranışı YEŞİL tutuyordu.
+    #
+    # Yeni sözleşme:
+    #   • demo_mode=False (varsayılan) + yeterli veri yok
+    #     → status PARTIAL, calibration None (faktör UYDURULMAZ)
+    #   • demo_mode=True → status DEMO, estimated=True
+    #     ve bakım önerileri "TAHMİNİ" ibaresi taşır
+    #   • gerçek uçuş verisi → status SUCCESS, calibrated_from_data
+
+    # ── (a) Varsayılan: veri yok → faktör üretilmemeli ──
     results = calibrator.calibrate_fleet_digital_twins(mock_batch)
-    
-    check_true("Kalibratör çıktısı başarılı", results["status"] == "SUCCESS")
+    check_true(
+        f"Varsayılan mod DEMO/SUCCESS değil ({results['status']})",
+        results["status"] in ("PARTIAL", "ERROR")
+    )
     check("Toplam dijital ikiz sayısı doğru", results["total_twins"], 2, 0.01)
-    
+
     twins = results["digital_twins"]
-    check_true("TC-SPO tescili bulundu", "TC-SPO" in twins)
-    check_true("TC-SMZ tescili bulundu", "TC-SMZ" in twins)
-    
-    if "TC-SPO" in twins:
-        spo = twins["TC-SPO"]
-        check("TC-SPO takip edilen uçuş sayısı", spo["total_flights_tracked"], 2, 0.01)
-        
-        # Katsayıların doğruluğu
-        cd0_f = spo["calibration"]["cd0_factor"]
-        sfc_f = spo["calibration"]["sfc_factor"]
-        check_true(f"TC-SPO CD0 Factor makul ({cd0_f})", 0.95 <= cd0_f <= 1.25)
-        check_true(f"TC-SPO SFC Factor makul ({sfc_f})", 0.90 <= sfc_f <= 1.15)
-        
-        # Bakım önerileri üretildi mi?
-        advisories = spo["advisories"]
-        check_true("Bakım önerileri listesi dolu", len(advisories) > 0)
-        check_true("Bakım önerisinde aksiyon var", "action" in advisories[0] and "priority" in advisories[0])
-        print(f"     TC-SPO Gövde Aşınma Katsayısı: {cd0_f:.3f}")
-        print(f"     TC-SPO Motor Aşınma Katsayısı: {sfc_f:.3f}")
-        print(f"     Önerilen Aksiyon             : {advisories[0]['action']} (Öncelik: {advisories[0]['priority']})")
+    spo = twins.get("TC-SPO", {})
+    check_true("TC-SPO calibration = None (uydurma yok)",
+               spo.get("calibration") is None)
+    check_true("TC-SPO durumu INSUFFICIENT_DATA",
+               spo.get("status") == "INSUFFICIENT_DATA")
+    check_true("TC-SPO estimated = False", spo.get("estimated") is False)
+    check("TC-SPO takip edilen uçuş sayısı",
+          spo.get("total_flights_tracked", 0), 2, 0.01)
+
+    # ── (b) demo_mode=True → açıkça DEMO ve TAHMİNİ ──
+    demo = calibrator.calibrate_fleet_digital_twins(mock_batch, demo_mode=True)
+    check_true(f"demo_mode=True → status DEMO ({demo['status']})",
+               demo["status"] == "DEMO")
+    check_true("demo_mode=True → estimated_twins > 0",
+               demo["estimated_twins"] > 0)
+    demo_spo = demo["digital_twins"]["TC-SPO"]
+    check_true("demo TC-SPO estimated = True", demo_spo["estimated"] is True)
+    check_true("demo TC-SPO calibration dolu",
+               demo_spo.get("calibration") is not None)
+    check_true(
+        "demo bakım önerisi 'TAHMİNİ' ibaresi taşıyor",
+        any("TAHMİNİ" in a["rationale"] for a in demo_spo["advisories"])
+    )
+
+    # ── (c) Aynı harf → aynı faktör DEĞİL (eski hata) ──
+    # Eski kod TC-SPA ile TC-JAA'ya birebir aynı değerleri verirdi.
+    # Artık demo profili de tescil son 3 harfe göre ayrışır;
+    # en azından farklı tescil → farklı kayıt anahtarı.
+    _two = calibrator.calibrate_fleet_digital_twins(
+        [{"registration": "TC-SPA", "aircraft_type": "B738"},
+         {"registration": "TC-JAA", "aircraft_type": "B738"}],
+        demo_mode=True)
+    check_true("TC-SPA ve TC-JAA ayrı ikizler",
+               set(_two["digital_twins"]) == {"TC-SPA", "TC-JAA"})
+    # Eski hata: ikisi de 'A' ile bittiği için AYNI faktörleri alırdı.
+    # Yeni demo profili son 3 harfe bakar → SPA != JAA.
+    _c_spa = _two["digital_twins"]["TC-SPA"]["calibration"]
+    _c_jaa = _two["digital_twins"]["TC-JAA"]["calibration"]
+    check_true(
+        f"TC-SPA ({_c_spa['cd0_factor']}) ≠ TC-JAA ({_c_jaa['cd0_factor']})",
+        _c_spa["cd0_factor"] != _c_jaa["cd0_factor"]
+    )
+
+    # ── (d) Gerçek uçuş verisi → veriden kalibrasyon ──
+    real_batch = [
+        {"registration": "TC-REAL", "aircraft_type": "B738",
+         "distance_nm": 600,  "weight_kg": 65000, "cruise_alt_ft": 33000,
+         "mach": 0.78, "actual_fuel_kg": 4300},
+        {"registration": "TC-REAL", "aircraft_type": "B738",
+         "distance_nm": 900,  "weight_kg": 64000, "cruise_alt_ft": 35000,
+         "mach": 0.78, "actual_fuel_kg": 6300},
+        {"registration": "TC-REAL", "aircraft_type": "B738",
+         "distance_nm": 1200, "weight_kg": 62000, "cruise_alt_ft": 37000,
+         "mach": 0.78, "actual_fuel_kg": 8300},
+        {"registration": "TC-REAL", "aircraft_type": "B738",
+         "distance_nm": 1500, "weight_kg": 60000, "cruise_alt_ft": 39000,
+         "mach": 0.78, "actual_fuel_kg": 10300},
+    ]
+    real = calibrator.calibrate_fleet_digital_twins(real_batch)
+    real_twin = real["digital_twins"]["TC-REAL"]
+    check_true(f"Gerçek veri → kalibrasyon yapıldı ({real['status']})",
+               real_twin.get("calibrated_from_data") is True)
+    if real_twin.get("calibration"):
+        cd0_f = real_twin["calibration"]["cd0_factor"]
+        sfc_f = real_twin["calibration"]["sfc_factor"]
+        check_true(f"TC-REAL CD0 makul ({cd0_f:.4f})", 0.85 <= cd0_f <= 1.25)
+        check_true(f"TC-REAL SFC makul ({sfc_f:.4f})", 0.90 <= sfc_f <= 1.15)
+        print(f"     TC-REAL CD0 Factor: {cd0_f:.4f}")
+        print(f"     TC-REAL SFC Factor: {sfc_f:.4f}")
 
     # ═══════════════════════════════════════════════════════
     # SONUÇ
