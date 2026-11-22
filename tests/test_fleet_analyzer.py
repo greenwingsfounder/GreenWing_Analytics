@@ -247,6 +247,77 @@ def run_tests() -> bool:
             pass
 
     # ═══════════════════════════════════════════════════
+    # [G] #73 — KALİBRASYON BLOKLARI HTML'E BASILIYOR MU?
+    # ═══════════════════════════════════════════════════
+    print("\n  [G] Kalibrasyon blokları HTML'de (#73)")
+
+    # ÖNCE: `cal_html`, `avm_html`, `cal_box_html` üçü de
+    # hesaplanıyor ama HİÇBİRİ şablona bağlı değildi (ruff F841).
+    # Yani rapor "model kalibre edildi, doğruluk %12 → %4,5"
+    # bilgisini üretiyor ama müşteriye GÖSTERMİYORDU.
+    _cal_summary = {
+        'report_metadata': {'total_flights_analyzed': 14},
+        'data_quality': {'quality_grade': 'MIX', 'partial_pct': 7.0,
+                         'partial_flights': 1},
+        'fleet_metrics': {'total_fuel_tonnes': 78.9,
+                          'total_co2_tonnes': 249.3,
+                          'avg_fuel_per_flight_kg': 5634,
+                          'avg_fuel_per_nm': 5.1},
+        'savings_opportunities': {
+            'annualized_cost_saving_usd': 1549998,
+            'annualized_fuel_saving_tonnes': 1434,
+            'annualized_co2_saving_tonnes': 4532,
+            'total_fuel_saving_kg': 1388,
+            'total_cost_saving_usd': 4831,
+            'total_co2_saving_kg': 4386,
+            'uncertainty': {'available': True,
+                            'total_uncertainty_pct': 26.6,
+                            'low_usd': 1137699, 'high_usd': 1962297,
+                            'dominant_source': 'wind',
+                            'dominant_effect_pct': 22.0,
+                            'note': 'Taahhüt değil'},
+        },
+        'airport_analysis': {'avg_sar_loss_pct': 4.35,
+                             'avg_deviation_from_optimum_ft': 700,
+                             'flights_with_step_climb': 0,
+                             'deviation_pct': 55},
+        'benchmark': {'fleet_fuel_per_nm': 5.1,
+                      'industry_avg_fuel_per_nm': 8.2,
+                      'industry_best_fuel_per_nm': 6.8,
+                      'rating': 'İYİ', 'gap_to_best_pct': 12},
+        'calibration': {'n_calibrated_flights': 14,
+                        'avg_cd0_factor': 1.2476,
+                        'avg_sfc_factor': 1.0388,
+                        'accuracy_before_pct': 12.0,
+                        'accuracy_after_pct': 4.5,
+                        'improvement_pct': 7.5},
+        'actual_vs_model': {'total_actual_fuel_kg': 78900,
+                            'total_model_fuel_kg': 81200,
+                            'diff_pct': -2.9},
+    }
+    _rc = ReportGenerator().generate_fleet_report(
+        _cal_summary, output_filename='_t73.html')
+
+    check_true("kalibrasyonlu rapor üretildi",
+               _rc.get('status') == 'success', str(_rc.get('status')))
+
+    if _rc.get('html_path'):
+        _h = Path(_rc['html_path']).read_text(encoding='utf-8')
+        check_true("kalibrasyon kutusu HTML'de",
+                   'Model Kalibrasyonu' in _h)
+        check_true("CD0 faktörü görünüyor (1.2476)", '1.2476' in _h)
+        check_true("SFC faktörü görünüyor (1.0388)", '1.0388' in _h)
+        check_true("doğruluk önce→sonra (%12 → %4,5)",
+                   '12.0' in _h and '4.5' in _h)
+        check_true("gerçek vs model yakıt bloğu",
+                   'Gerçek vs Model' in _h)
+        check_true("gerçek yakıt 78.900 kg görünüyor", '78,900' in _h)
+        try:
+            Path(_rc['html_path']).unlink()
+        except OSError:
+            pass
+
+    # ═══════════════════════════════════════════════════
     # SONUÇ
     # ═══════════════════════════════════════════════════
     print(f"\n  {'─' * 50}")

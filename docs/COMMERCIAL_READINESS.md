@@ -1346,3 +1346,69 @@ Gerçek bulgu           : 70 (#1–70, #72)
 **Ticari özet:** önerilen yıllık tasarruf **$1.835.013 →
 $1.549.998** (−%15,5). Tankering bileşeni değişmedi
 (fizikten bağımsız). Giden rakam şişirilmişti.
+
+### 8.43 BULGU #73 — kalibrasyon blokları hesaplanıyor, basılmıyordu
+
+`report_generator.py`'de üç HTML bloğu **hesaplanıyor ama hiçbirine
+şablonda yer verilmiyordu** (ruff F841 yakaladı):
+
+| Değişken | Ne üretiyor | Kullanılıyor muydu |
+|---|---|---|
+| `cal_html` | Kalibrasyon kutusu (1. sürüm) | **HAYIR** |
+| `avm_html` | "Gerçek vs Model Yakıt" | **HAYIR** |
+| `cal_box` | Kalibrasyon kutusu (2. sürüm) | HAYIR |
+| `cal_box_html` | `cal_box`'ın kopyası | **HAYIR** |
+
+`{dq_box}` (veri kalitesi) şablonda vardı; `cal_*` ve `avm_*`
+**hiçbiri yoktu**. Yani müşteri raporunda:
+
+- Model **kalibre edildi mi** — görünmüyordu
+- CD0/SFC faktörü ne — görünmüyordu
+- Doğruluk %12 → %4,5 iyileşti mi — görünmüyordu
+- Gerçek yakıt ile model yakıtı ne kadar tutuyor — görünmüyordu
+
+Ürünün **en güçlü kanıtı** (gerçek yakıt verisiyle kalibrasyon)
+üretiliyor ama teslim edilmiyordu.
+
+**Kök neden:** kopyala-yapıştır. İki ayrı geliştirme turunda aynı
+kutu iki kez yazılmış (`cal_html` ve `cal_box`), ikisi de
+şablona bağlanmamış.
+
+**Düzeltme:** daha zengin olan `cal_box` (CD0 + SFC + doğruluk
+önce→sonra + uçuş sayısı) ve `avm_html` (gerçek vs model kg)
+şablona bağlandı. `cal_html` ve `cal_box_html` (birebir kopya)
+kaldırıldı. Kullanılmayan `numpy` importu ve `avm` değişkeni de
+gitti.
+
+**Doğrulama (enjekte edilmiş kalibrasyon verisiyle):**
+
+| Kontrol | Önce | Sonra |
+|---|---|---|
+| "Model Kalibrasyonu" HTML'de | ❌ | ✅ |
+| CD0 faktörü (1,2476) | ❌ | ✅ |
+| SFC faktörü (1,0388) | ❌ | ✅ |
+| Doğruluk %12 → %4,5 | ❌ | ✅ |
+| "Gerçek vs Model Yakıt" | ❌ | ✅ |
+| Gerçek yakıt 78.900 kg | ❌ | ✅ |
+
+`tests/test_fleet_analyzer.py` [G] bloğu: **7 yeni kontrol**.
+fleet/report dosyası 20 → **27**.
+
+### 8.44 12. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 73 | Kalibrasyon blokları hesaplanıyor, basılmıyordu | ✅ |
+
+```
+Test dosyası   : 19 · 0 hata
+fleet/report   : 20 → 27
+ruff (dokunulan dosyalar): F841/F401 = 0
+```
+
+**Kalan ruff bulguları hakkında:** `src/ tests/ tools/ scripts/
+web/` genelinde 690 stil uyarısı var (F541 f-string, UP045
+`Optional` → `| None`, I001 import sırası, C408 `dict()` çağrısı,
+BLE001 geniş `except`). Bunlar **kozmetik**; davranışı
+değiştirmiyor. Denetim kapsamı dışı bırakıldı — 690 dosya
+dokunuşu, kanıtlanmış bulguların regresyon riskini artırır.

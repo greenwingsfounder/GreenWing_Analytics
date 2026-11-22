@@ -9,7 +9,6 @@ import os
 from datetime import datetime
 from typing import Optional
 
-import numpy as np
 
 try:
     import plotly.graph_objects as go
@@ -335,26 +334,13 @@ class ReportGenerator:
         cal = fleet_summary.get('calibration') or {}
         actual_vs = fleet_summary.get('actual_vs_model') or {}
         
-        cal_html = ""
-        if cal and cal.get('n_calibrated_flights', 0) > 0:
-            cal_html = f"""
-            <div style="background:#f0f9ff;border:2px solid #0984e3;border-radius:8px;padding:14px 18px;margin:18px 0 25px 0;">
-                <div style="font-weight:700;color:#0984e3;margin-bottom:8px;font-size:14px;">
-                    🔬 MODEL KALİBRASYONU (Gerçek Yakıt Verisiyle)
-                </div>
-                <div style="display:flex;gap:22px;flex-wrap:wrap;font-size:12.5px;line-height:1.4;">
-                    <div><strong>CD0 faktörü:</strong> {cal.get('avg_cd0_factor', 1.0):.4f}</div>
-                    <div><strong>SFC faktörü:</strong> {cal.get('avg_sfc_factor', 1.0):.4f}</div>
-                    <div><strong>Doğruluk iyileşmesi:</strong> <span style="color:#00b894;font-weight:600;">+{cal.get('accuracy_improvement', 0):.1f}%</span></div>
-                    <div><strong>Kalibre edilen uçuş:</strong> {cal.get('n_calibrated_flights', 0)}</div>
-                </div>
-                <div style="margin-top:6px;font-size:11.5px;color:#444;">
-                    Bu rapor <strong>müşteri gerçek yakıt verisi</strong> ile kalibre edilmiş model kullanılarak üretilmiştir.
-                    Model hatası %{fleet_summary.get('calibration', {}).get('accuracy_before', 10):.1f} → %{fleet_summary.get('calibration', {}).get('accuracy_after', 4):.1f}
-                </div>
-            </div>
-            """
-        
+        # DENETİM #73: `cal_html` bloğu KALDIRILDI. Bu blok
+        # `cal_box` (aşağıda) ile birebir aynı bilgiyi üretiyordu
+        # ama ikisi de HTML'e basılmıyordu. Tek kaynak `cal_box`
+        # tutuldu (daha zengin: CD0/SFC + doğruluk + uçuş sayısı).
+        cal = fleet_summary.get('calibration') or {}
+        actual_vs = fleet_summary.get('actual_vs_model') or {}
+
         # Also show actual vs model if present
         avm_html = ""
         if actual_vs and actual_vs.get('total_actual_fuel_kg'):
@@ -371,7 +357,6 @@ class ReportGenerator:
         # === CALIBRATION BOX (auto-rendered for pre-real pipeline) ===
         cal_box = ""
         cal = fleet_summary.get('calibration') or {}
-        avm = fleet_summary.get('actual_vs_model') or {}
         if cal and cal.get('n_calibrated_flights', 0) > 0:
             cal_box = f'''
             <div style="background:#f0f9ff;border:2px solid #0984e3;border-radius:8px;padding:13px 18px;margin:10px 0 22px 0;">
@@ -435,7 +420,6 @@ class ReportGenerator:
                 f'font-size:11.5px;">{items}</ul>'
             )
 
-        cal_box_html = cal_box
         dq_box = f"""
         <div style="background:{dq_bg};border:1px solid {dq_border};
                     border-left:4px solid {dq_border};border-radius:6px;
@@ -734,6 +718,26 @@ table.route-table th{{
 <div class="section">
     <h2>🔍 Veri Kalitesi</h2>
     {dq_box}
+    <!-- ══════════════════════════════════════════════════════
+         DENETİM #73 — KALİBRASYON BLOKLARI HESAPLANIYOR AMA
+         HTML'E BASILMIYORDU
+         ══════════════════════════════════════════════════════
+         `cal_html` / `avm_html` / `cal_box_html` üçü de
+         hesaplanıyor, üçü de hiçbir yerde kullanılmıyordu
+         (ruff F841). Yani rapor "model kalibre edildi,
+         doğruluk %X → %Y" bilgisini ÜRETİYOR ama müşteriye
+         GÖSTERMİYORDU. Ticari olarak bu, ürünün en güçlü
+         kanıtını (gerçek yakıt verisiyle kalibrasyon) saklamak
+         demek. Ayrıca "gerçek vs model yakıt" karşılaştırması
+         da basılmıyordu.
+
+         Düzeltme: daha zengin olan `cal_box` (CD0/SFC faktörü,
+         doğruluk önce→sonra, uçuş sayısı) + `avm_html`
+         (gerçek vs model kg) şablona bağlandı.
+         `cal_html` ve `cal_box_html` (birebir kopya) kaldırıldı.
+    -->
+    {cal_box}
+    {avm_html}
 </div>
 
 <!-- ════════════════════════════════════════════════════
