@@ -194,6 +194,53 @@ def run_tests():
         print(f"     TC-REAL CD0 Factor: {cd0_f:.4f}")
         print(f"     TC-REAL SFC Factor: {sfc_f:.4f}")
 
+    # ── (e) [59] TESCİL YOKSA ERROR — tek uçağa atfetme ──
+    # DENETİM #59: batch_results içinde registration hiç yoksa
+    # tüm uçuşlar tek varsayılan tescile düşüyordu. 14 farklı
+    # uçak tek "dijital ikiz" gibi kalibre edilip cd0 sınıra
+    # dayanıyordu (1.248). Bu sessizce yapılmamalı.
+    _no_reg = [
+        {"callsign": "X1", "aircraft_type": "B738",
+         "distance_nm": 600, "estimated_fuel_kg": 4300},
+        {"callsign": "X2", "aircraft_type": "B738",
+         "distance_nm": 900, "estimated_fuel_kg": 6300},
+        {"callsign": "X3", "aircraft_type": "A320",
+         "distance_nm": 1200, "estimated_fuel_kg": 8300},
+    ]
+    _nr = calibrator.calibrate_fleet_digital_twins(_no_reg)
+    check_true(f"Tescilsiz batch → ERROR ({_nr['status']})",
+               _nr["status"] == "ERROR")
+    check_true("Tescilsiz batch → mesaj tescil istiyor",
+               "registration" in _nr["message"])
+    check_true("Tescilsiz batch → ikiz üretilmedi",
+               _nr["total_twins"] == 0)
+
+    # demo_mode ile tescilsiz çalışabilmeli (açık istek)
+    _nr_demo = calibrator.calibrate_fleet_digital_twins(_no_reg, demo_mode=True)
+    check_true(f"Tescilsiz + demo_mode → çalışır ({_nr_demo['status']})",
+               _nr_demo["status"] in ("DEMO", "PARTIAL"))
+
+    # ── (f) [58] Özet durum TÜM kayıtları kapsamalı ──────
+    # DENETİM #58: CALIBRATION_FAILED hiçbir sayaca girmiyordu
+    # → 1 başarısız ikizle "SUCCESS" dönüyordu.
+    _fail = [
+        {"registration": "TC-FAIL", "aircraft_type": "B738",
+         "distance_nm": 600, "actual_fuel_kg": 4300},
+        {"registration": "TC-FAIL", "aircraft_type": "B738",
+         "distance_nm": 900, "actual_fuel_kg": 6300},
+        {"registration": "TC-FAIL", "aircraft_type": "B738",
+         "distance_nm": 1200, "actual_fuel_kg": "BOZUK"},
+        {"registration": "TC-FAIL", "aircraft_type": "B738",
+         "distance_nm": 1500, "actual_fuel_kg": 10300},
+    ]
+    try:
+        _fr = calibrator.calibrate_fleet_digital_twins(_fail)
+        _ok = _fr["status"] != "SUCCESS" or \
+              _fr.get("calibrated_twins") == _fr["total_twins"]
+        check_true(f"Bozuk veri → SUCCESS değil ({_fr['status']})", _ok)
+    except Exception:
+        check_true("Bozuk veri → çökmedi", False)
+
     # ═══════════════════════════════════════════════════════
     # SONUÇ
     # ═══════════════════════════════════════════════════════

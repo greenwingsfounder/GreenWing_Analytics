@@ -126,6 +126,36 @@ class TailPerformanceCalibrator:
                 tail_groups[reg] = []
             tail_groups[reg].append(r)
             
+        # DENETİM #59 — TESCİL BİLİNMİYORSA "KUYRUK BAZLI" ANALİZ ANLAMSIZ
+        # batch_results içinde `registration` alanı HİÇ yoksa tüm uçuşlar
+        # tek varsayılan tescile (TC-SXS) düşer. 14 farklı rota/uçak tek
+        # "dijital ikiz" gibi kalibre edilir → faktörler sınıra dayanır
+        # (cd0 1.248) ve tek uçağa atfedilir. Bu, kuyruk bazlı analizin
+        # varlık sebebini ortadan kaldırır; sessizce yapılmamalı.
+        n_missing_reg = sum(
+            1 for r in batch_results
+            if not (r.get("registration") or r.get("tail_number"))
+        )
+        registration_incomplete = n_missing_reg == len(batch_results)
+        if registration_incomplete and not demo_mode:
+            return {
+                "status" : "ERROR",
+                "message": (
+                    f"Hiçbir uçuşta `registration`/`tail_number` yok "
+                    f"({n_missing_reg}/{len(batch_results)}). Kuyruk bazlı "
+                    f"kalibrasyon için tescil ZORUNLU; tüm uçuşları tek "
+                    f"uçağa atfetmek yanıltıcı sonuç verir (cd0 sınıra "
+                    f"dayanır). Uçuş kayıtlarına tescil ekleyin veya "
+                    f"demo_mode=True ile açıkça demo çalıştırın."),
+                "demo_mode"     : False,
+                "total_twins"   : 0,
+                "estimated_twins": 0,
+                "insufficient_data_twins": 0,
+                "calibration_failed_twins": 0,
+                "calibrated_twins": 0,
+                "digital_twins" : {},
+            }
+
         twins = {}
         
         for reg, flights in tail_groups.items():
@@ -176,7 +206,13 @@ class TailPerformanceCalibrator:
                 # düşer (35.000 ft, tahmini ağırlık) → yanlış
                 # kalibrasyon, üstelik hata mesajı yok.
                 def _norm(f: dict) -> dict:
-                    return {
+                    # DENETİM #58 — None ALANLAR GEÇİRİLMEMELİ
+                    # İlk sürümde `f.get("cruise_mach") or f.get("mach")`
+                    # ikisi de yoksa **None** döndürüyordu. None, "alan
+                    # verilmemiş" demek değildir: ModelCalibrator onu
+                    # AÇIK değer sanıp reddediyor ("Mach: None kabul
+                    # edilmez"). Doğrusu: None ise anahtarı HİÇ koyma.
+                    out = {
                         "distance_nm"      : f.get("distance_nm") or f.get("distance"),
                         "actual_fuel_kg"   : (f.get("actual_fuel_kg")
                                               or f.get("estimated_fuel_kg")),
@@ -185,8 +221,10 @@ class TailPerformanceCalibrator:
                                                or f.get("altitude_ft")),
                         "takeoff_weight_kg": (f.get("takeoff_weight_kg")
                                               or f.get("weight_kg")),
-                        "cruise_mach"      : f.get("cruise_mach") or f.get("mach"),
+                        "cruise_mach"      : (f.get("cruise_mach")
+                                              or f.get("mach")),
                     }
+                    return {k: v for k, v in out.items() if v is not None}
                 norm_flights = [_norm(f) for f in usable]
 
                 # Gerçek kalibrasyon model_calibrator'a delege edilir.
@@ -268,20 +306,38 @@ class TailPerformanceCalibrator:
             }
             
         self.fleet_twins = twins
+        # DENETİM #58 — ÖZET DURUM YANLIŞTI
+        # Eski mantık yalnız DEMO ve INSUFFICIENT_DATA sayıyordu.
+        # CALIBRATION_FAILED kayıtlar hiçbir sayaca girmediği için
+        # 1 başarısız + 0 diğer → status "SUCCESS" çıkıyordu
+        # ("Tüm dijital ikizler gerçek veriden kalibre edildi" derken
+        #  tek ikiz başarısız!). Durum artık her kaydı kapsıyor.
+        n_total     = len(twins)
         n_estimated = sum(1 for t in twins.values() if t.get("estimated"))
         n_insuff    = sum(1 for t in twins.values()
                           if t.get("status") == "INSUFFICIENT_DATA")
-        if n_estimated:
+        n_failed    = sum(1 for t in twins.values()
+                          if t.get("status") == "CALIBRATION_FAILED")
+        n_ok        = n_total - n_estimated - n_insuff - n_failed
+
+        if n_total == 0:
+            status = "ERROR"
+            msg = "Hiç dijital ikiz üretilemedi."
+        elif n_estimated and n_ok == 0 and n_failed == 0 and n_insuff == 0:
             status = "DEMO"
             msg = (f"{n_estimated} dijital ikiz DEMO değerleriyle "
                    f"üretildi — gerçek kalibrasyon değildir.")
-        elif n_insuff:
-            status = "PARTIAL"
-            msg = (f"{n_insuff} tescil için yeterli veri yok; "
-                   f"faktör üretilmedi.")
-        else:
+        elif n_ok == n_total:
             status = "SUCCESS"
-            msg = "Tüm dijital ikizler gerçek veriden kalibre edildi."
+            msg = f"Tüm dijital ikizler ({n_ok}) gerçek veriden kalibre edildi."
+        else:
+            status = "PARTIAL"
+            bits = []
+            if n_ok:        bits.append(f"{n_ok} kalibre")
+            if n_estimated: bits.append(f"{n_estimated} DEMO")
+            if n_insuff:    bits.append(f"{n_insuff} yetersiz veri")
+            if n_failed:    bits.append(f"{n_failed} kalibrasyon hatası")
+            msg = (f"{n_total} ikizden " + ", ".join(bits) + ".")
 
         return {
             "status"        : status,
@@ -290,5 +346,7 @@ class TailPerformanceCalibrator:
             "total_twins"   : len(twins),
             "estimated_twins": n_estimated,
             "insufficient_data_twins": n_insuff,
+            "calibration_failed_twins": n_failed,
+            "calibrated_twins": n_ok,
             "digital_twins" : twins,
         }

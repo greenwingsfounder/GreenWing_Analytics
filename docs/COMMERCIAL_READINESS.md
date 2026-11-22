@@ -726,3 +726,56 @@ validation     : 123
 emission       : 149
 Toplam bulgu   : #1–57
 ```
+
+### 8.23 Uydurma faktörlerin çıktıya sızması (P0 — kanıtlı)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 58 | `tail_performance_calibrator.py` | (a) `_norm()` eşlemesinde `f.get("cruise_mach") or f.get("mach")` ikisi de yoksa **`None`** döndürüyordu; `ModelCalibrator` bunu açık değer sanıp `"Mach: None kabul edilmez"` ile reddediyordu. (b) Özet durum yalnız `DEMO` ve `INSUFFICIENT_DATA` sayıyordu — **`CALIBRATION_FAILED` hiçbir sayaca girmiyordu**, bu yüzden 1 başarısız ikizle `status: "SUCCESS"` dönüyordu. |
+| 59 | `tail_performance_calibrator.py` + `scripts/03` | `batch_results` içinde `registration` alanı **hiç yok** (14/14). Tüm uçuşlar tek varsayılan tescile (`TC-SXS`) düşüyordu. Sonuç: 14 farklı rota/uçak tek "dijital ikiz" gibi kalibre edildi ve **`cd0 = 1.248`** (üst sınır 1.25) çıktı — yani sınıra dayanmış uydurma bir sonuç, tek uçağa atfedilmiş. |
+
+**Kanıt (yayınlanmış çıktı dosyası):**
+
+`reports/case_studies/fleet_digital_twins_20261122.json` — düzeltme
+öncesi:
+```
+status: SUCCESS | twins: 1
+TC-SXS: cd0=1.06 sfc=0.988 | AIRFRAME_WASH   ← ord('S')'ten gelmişti
+```
+`cd0 = 0.98 + (ord('S')=83 % 15 = 8) × 0.01 = 1.06` → **"Gövde Yıkama
+ÖNERİLİR"** bakım kararı. Tamamen uydurma.
+
+**Düzeltme:**
+- `_norm()` `None` alanları **sözlükten çıkarıyor** (None ≠ "verilmedi")
+- Özet durum artık `calibrated_twins` / `estimated_twins` /
+  `insufficient_data_twins` / `calibration_failed_twins` dörtlüsünü
+  kapsıyor; yalnız hepsi kalibre ise `SUCCESS`
+- `registration` hiç yoksa (ve `demo_mode=False`) → **`ERROR`** ve
+  "kuyruk bazlı kalibrasyon için tescil ZORUNLU" mesajı; tek uçağa
+  atfetme engellendi
+- `scripts/03` artık durum + DEMO/yetersiz-veri uyarılarını basıyor
+  ve `calibration: None` durumunu "veri yok — kalibrasyon üretilmedi"
+  diye raporluyor
+
+**Test:** tail 25 → **30** kontrol; tescilsiz batch → `ERROR`,
+bozuk veri → `SUCCESS` değil.
+
+### 8.24 8. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1–6 | 1–53 | bkz. yukarıdaki tablolar |
+| 7 | 54–57 | Dijital ikiz uydurma, boş rapor, KeyError |
+| **8** | **58–59** | **None alanlar, yanlış özet durumu, tescilsiz batch** |
+
+**Bu turda öğrenilen:** Uydurma davranışı kaldırmak yetmiyor —
+onun **çıktıya sızıp sızmadığını** da izlemek gerekiyor. Burada
+uydurma faktör `reports/case_studies/` altında **yayınlanmış bir
+dosyaya** yazılmıştı ve özet durum yanlış olduğu için kimse fark
+etmiyordu.
+
+```
+Test dosyası   : 16/16 · 0 hata
+tail           : 18 → 25 → 30
+Toplam bulgu   : #1–59
+```

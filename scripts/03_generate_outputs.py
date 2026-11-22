@@ -654,18 +654,39 @@ def main():
     print(f"{'─'*65}")
     
     calibrator = TailPerformanceCalibrator()
+    # DENETİM #54: bu çağrı eskiden demo_mode olmadan yapılıyordu ve
+    # faktörler TESCİL HARFİNDEN uyduruluyordu (yayınlanmış
+    # fleet_digital_twins_*.json içinde TC-SXS için cd0=1.06 →
+    # "AIRFRAME_WASH" önerisi buradan geliyordu).
+    # Artık: gerçek uçuş yakıtı varsa ondan kalibre; yoksa faktör
+    # ÜRETİLMEZ ve durum açıkça bildirilir.
     twins_results = calibrator.calibrate_fleet_digital_twins(results)
-    
+
     twins_path = os.path.join(REPORTS_CASE_STUDIES, f"fleet_digital_twins_{date_str}.json")
     with open(twins_path, 'w', encoding='utf-8') as f:
         json.dump(twins_results, f, indent=2, default=str, ensure_ascii=False)
-        
+
     print(f"\n  ✅ Dijital İkizler Veritabanı: {twins_path}")
-    if twins_results["status"] == "SUCCESS":
+    print(f"     Durum: {twins_results['status']} — {twins_results.get('message','')}")
+    if twins_results.get('estimated_twins'):
+        print(f"     ⚠ {twins_results['estimated_twins']} ikiz DEMO değerleriyle "
+              f"(gerçek kalibrasyon DEĞİL)")
+    if twins_results.get('insufficient_data_twins'):
+        print(f"     ⚠ {twins_results['insufficient_data_twins']} tescil için yeterli "
+              f"uçuş verisi yok — faktör üretilmedi")
+
+    if twins_results["status"] in ("SUCCESS", "DEMO"):
         twins = twins_results["digital_twins"]
         print(f"     İşlenen Uçak Sayısı: {len(twins)} adet tescilli uçak")
         for reg, tw in list(twins.items())[:3]:
-            print(f"     ✈️ {reg} ({tw['aircraft_type']}) | CD0: {tw['calibration']['cd0_factor']:.3f} | SFC: {tw['calibration']['sfc_factor']:.3f} | Öneri: {tw['advisories'][0]['action']}")
+            cal = tw.get('calibration')
+            if not cal:
+                print(f"     ✈️ {reg} ({tw['aircraft_type']}) | veri yok — "
+                      f"kalibrasyon üretilmedi")
+                continue
+            print(f"     ✈️ {reg} ({tw['aircraft_type']}) | "
+                  f"CD0: {cal['cd0_factor']:.3f} | SFC: {cal['sfc_factor']:.3f} | "
+                  f"Öneri: {tw['advisories'][0]['action']}")
     print(f"     Kalite: {quality_report['quality_grade']} — {quality_report['quality_desc']}")
     print(f"     Ort. tasarruf: {round(avg_fuel_opt)} kg / ${round(avg_saving):.0f} / uçuş")
     print(f"     Yıllık: ${sv['annualized_cost_saving_usd']:,}")
