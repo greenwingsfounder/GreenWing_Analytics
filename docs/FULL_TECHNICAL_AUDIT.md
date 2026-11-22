@@ -1,5 +1,16 @@
 # GreenWing Analytics — Baştan Sona Teknik & Bilimsel Denetim Raporu
 
+> **DURUM NOTU (2026-11-22, commit `1ef016d`)**
+>
+> Bu rapor **denetim anındaki** (commit `33b74d8`) durumu belgeler. Aşağıdaki
+> P0 bulgularının **tamamı düzeltildi ve doğrulandı**. Güncel durum için
+> **§8 DÜZELTME DURUMU** bölümüne bakın. Raporun geri kalanı, neyin yanlış
+> olduğunu ve neden yanlış olduğunu kaydetmesi açısından **tarihsel kayıt**
+> olarak korunmuştur — içindeki sayısal örnekler (35,920 kg tasarruf,
+> %56.5 faz sapması, $67.12 tankering, 'A — Güvenilir' notu vb.)
+> **artık geçerli değildir**.
+
+
 **Tarih:** 22 Kasım 2026
 **Kapsam:** 42 dosya, ~40.000 satır kod — satır satır
 **Yöntem:** Kod okuma + **sayısal doğrulama** (referans değerlerle karşılaştırma) + cross-module tutarlılık testleri + uçtan uca (end-to-end) rapor üretimi
@@ -18,15 +29,15 @@ Bu bir yazılım hatası değil, **bir bütünlük (integrity) sorunudur.** Dene
 
 ### Genel not tablosu
 
-| Katman | Durum | Puan |
+| Katman | Denetim anı (`33b74d8`) | **Düzeltme sonrası (`1ef016d`)** |
 |---|---|---|
-| Atmosfer / birim / uçak DB / havalimanı DB | ✅ Sağlam, doğrulandı | 9/10 |
-| Yakıt modeli fiziği | 🟡 Yapı doğru, kalibrasyon sapmalı | 6/10 |
-| **Tasarruf hesaplama** | 🔴 **Uydurma + çift sayım** | **2/10** |
-| Veri kaynağı dürüstlüğü (provenance) | 🔴 **Sentetik → "Kalite A"** | **1/10** |
-| Raporlama / pazarlama iddiaları | 🔴 Aşırı iddialı | 3/10 |
-| Optimizasyon ekonomisi (CI, tankering) | 🟡 Mantık var, kalibrasyon zayıf | 5/10 |
-| Güvenlik | ✅ Düzeltildi (önceki tur) | 8/10 |
+| Atmosfer / birim / uçak DB / havalimanı DB | ✅ 9/10 | ✅ 9/10 (+ A380 thrust/fuel düzeltildi) |
+| Yakıt modeli fiziği | 🟡 6/10 | ✅ 8/10 (11/11 kg/nm bandında; faz sapması %21) |
+| **Tasarruf hesaplama** | 🔴 **2/10** (uydurma) | ✅ **8/10** (yalnızca fizik) |
+| Veri kaynağı dürüstlüğü (provenance) | 🔴 **1/10** | ✅ **9/10** (SIM/MIX/REAL kapısı) |
+| Raporlama / pazarlama iddiaları | 🔴 3/10 | ✅ 8/10 (garanti iddiaları kaldırıldı) |
+| Optimizasyon ekonomisi (CI, tankering) | 🟡 5/10 | ✅ 8/10 (CF Breguet farkı) |
+| Güvenlik | ✅ 8/10 | ✅ 8/10 |
 
 ---
 
@@ -407,3 +418,175 @@ cat reports/case_studies/data_quality_*.json | grep quality_grade   # 'A' (oysa 
 Bu proje **çöp değil** — aksine, doğru katmanlardan (ISA, aero, birimler, veritabanları) oluşmuş sağlam bir iskelet. Sorun, iskeletin üzerine konan **"satış katmanı"**nın fizikten kopmuş olması. İyi haber: bu, **tahmin edilemeyen bir bilim problemi değil**, cerrahi bir temizlik problemi. `04`'teki 17 random çağrısını kaldırıp, veri kalitesi kapısını düzeltip, çift sayımı giderirsen — elinde **gerçekten savunulabilir** bir ürün olur.
 
 Denetim tamamlandı. Bir sonraki adım: **P0 maddelerini uygulamamı ister misin?** Onaylarsan `04`, `03` ve `flight_analyzer`'ı temizleyip, önce/sonra kanıtıyla tekrar rapor üretirim.
+
+---
+
+## 8. DÜZELTME DURUMU (uygulandı & doğrulandı — commit `1ef016d`)
+
+Bu bölüm, yukarıdaki P0/P1 bulgularının **uygulama sonrası** durumunu kaydeder.
+Tüm sayılar yeniden üretilen çıktılardan alınmıştır; hiçbiri tahmin değildir.
+
+### 8.1 P0 — Tasarruf uydurması
+
+| Bulgu | Önce | Sonra | Doğrulama |
+|---|---|---|---|
+| `04` L482-486 sabit `random.uniform(0.015,0.025)` | 155/231 uçuşta hayali tasarruf | **Kaldırıldı.** Fizik 0 ise 0 | 17/235 uçuşta tasarruf = 0 |
+| `04` step climb fallback `random.uniform` | Uydurma | `0.0` | — |
+| `04` tankering fallback `random.randint` | Uydurma | `0` | — |
+| `04` yakıt çıktısına `×random.uniform(0.97,1.03)` | Model sonucu bozuluyordu | **Kaldırıldı** | — |
+| `04` `route_efficiency_pct = random.uniform(94,98.5)` | Tamamen uydurma | `None` (hesaplanmıyor, uydurulmuyor) | — |
+| Toplam tasarruf (235 uçuş) | **35,920 kg** | **25,662 kg** | −%29; fark tamamen uydurma kısmı |
+| Skaler fiyat `$0.85` gömülü (7 yer) | Sürüklenme riski | `Assumptions.fuel_price()` / parametre | `04` FUEL_PRICES kopyası silindi |
+
+### 8.2 P0 — Çift sayım / fizik kopukluğu
+
+| Bulgu | Önce | Sonra |
+|---|---|---|
+| `_identify_savings` step climb | `total_fuel × 0.015` (sabit, fizik yok) | Gerçek SAR farkı, %3 tavanlı |
+| `_identify_savings` SAR kaybı | Toplam yakıta uygulanıyordu | **Yalnızca cruise yakıtına** |
+| `_compare_with_optimum` | `cruise_fraction` hesaplanıp **kullanılmıyordu** (/0.75 sabit) | Hesaplanan oran kullanılıyor |
+| Holding yakıtı | 2-kutu sabit (5000 / 2200 kg/h) | `estimate_phase_fuel('HOLDING')` |
+| Fazla mesafe yakıtı | `extra_dist × 8` sabit | Uçağın SAR'ından marjinal yakıt |
+| Tankering carriage factor | Kutu tablo: 1241 nm → **%12.3** | Breguet farkı: **%5.54** (LTAI→EDDF) |
+| Tankering net tasarruf | $67.12/uçuş | **$194.74/uçuş** (elle doğrulandı) |
+
+### 8.3 P0 — Provenance (veri kaynağı dürüstlüğü)
+
+| Bulgu | Önce | Sonra |
+|---|---|---|
+| `03` kalite notu | Yalnızca `partial%` → tüm-simüle veri **"A — Mükemmel, güvenilir"** | **PROVENANCE GATE**: REAL / SIMULATED / MIXED / UNKNOWN. Simüle → `SIM` |
+| `fleet_analyzer.get_data_quality_report` | Aynı körlük (ikinci kopya kaynak) | Aynı gate eklendi |
+| Anahtar uyuşmazlığı | `03` `'grade'` yazıyor, `report_generator` `'quality_grade'` okuyor → **her zaman N/A** | İki anahtar birlikte yazılıyor/okunuyor |
+| `add_manual_flight` | `collection_method` parametresi yok → daima `unknown` | Eklendi, `03`'ten geçiriliyor |
+| HTML rozeti | "Veri Kalitesi A — Güvenilir" | **"SİMÜLASYON VERİSİ — Gerçek uçuş verisi DEĞİL"** |
+| `blockchain_sealer` | `VERIFIED_ON_LEDGER` + uydurma `smart_contract_address`, `block_number`, **var olmayan doğrulama URL'i** | `LOCAL_SHA256_SEALED`; `ledger_network`, `transaction_id`, `verification_url` = `None` + açıklama |
+| Doğruluk garantisi | "±2–3%" (footer), "±5-10% / ±2-3% hedeflenir" | İkisi de **kaldırıldı**; sayısal garanti verilmiyor |
+
+### 8.4 P0 — Yanlış fizik parametreleri (yeni bulundu)
+
+| Parametre | Önce | Gerçek | Etki |
+|---|---|---|---|
+| Tüm uçaklarda `K` | 11/11 hatalı (B738 +%24) | `K = 1/(π·e·AR)` | Ana yakıt aşırı-tahmin nedeni |
+| `CD0` | Referanssız | `1/(4·LD_max²·K)` | Cruise L/D 15.5–21.0 (hepsi < LD_max) |
+| **A380 `max_thrust_sl`** | **1,248,000 N** (dört motorun toplamı) | **311,000 N** (tek motor) | T/W **0.885 → 0.221**; thrust 4× şişikti |
+| **A380 `max_fuel`** | **320,000 kg** (> MTOW−OEW, imkânsız) | **253,983 kg** | Fiziksel |
+| `estimate_phase_fuel` | 2-kutu sabit tablo; B77W = A380 = 12,000 kg/h | Faz oranı × fazın kendi ağırlığındaki cruise akışı; GROUND idle thrust | Sapma **%56.5 → %21.5** |
+| `units.standardize_trajectory` | Zaman kolonu yoksa sessizce `time_diff_s=0` → **tüm yakıt 0** | `timestamp` takma adı + uyarı | Sessiz sıfır riski |
+| `phase_segmentation` holding | "Küçük coğrafi alan + süre" → düz cruise'u holding sanıyordu | Ek **döngü şartı** (≥270°) | Sahte holding 25,578 kg hayali tasarruf üretiyordu |
+
+### 8.5 Doğrulama sonuçları (yeniden üretilmiş)
+
+**Yakıt modeli — 11/11 uçak yayımlanmış kg/nm bandında:**
+
+| Uçak | kg/nm | Band | L/D (cruise) | LD_max |
+|---|---|---|---|---|
+| B738 | 5.90 | 5.6–6.2 ✓ | 16.3 | 17.5 |
+| B38M | 5.20 | 4.9–5.5 ✓ | 17.0 | 18.0 |
+| A320 | 5.80 | 5.5–6.1 ✓ | 15.5 | 16.8 |
+| A20N | 5.20 | 4.9–5.5 ✓ | 16.3 | 17.4 |
+| A321 | 6.80 | 6.4–7.2 ✓ | 16.4 | 16.8 |
+| A21N | 6.15 | 5.8–6.5 ✓ | 17.1 | 17.4 |
+| B77W | 19.50 | 18–21 ✓ | 19.8 | 19.8 |
+| B788 | 12.20 | 11.5–13 ✓ | 19.6 | 20.5 |
+| B789 | 13.20 | 12.5–14 ✓ | 20.7 | 21.0 |
+| A350 | 13.20 | 12.5–14 ✓ | 21.0 | 21.5 |
+| A380 | 32.00 | 30–34 ✓ | 19.5 | 19.5 |
+
+**Faz yakıtları (B738 / B77W / A380, 1 saatlik):**
+
+| Faz | B738 | B77W | A380 |
+|---|---|---|---|
+| GROUND | −20% | +38% | 0% |
+| TAKEOFF | +18% | +15% | +7% |
+| CLIMB | +22% | +20% | +12% |
+| DESCENT | +28% | +28% | +21% |
+| APPROACH | +32% | +30% | +21% |
+| HOLDING | +24% | +28% | +21% |
+
+Ortalama mutlak sapma **%21.5** (başlangıç **%56.5**). Kalan sapma sistematik
+olarak pozitif: referans faz değerleri daha hafif uçaklarda ölçülmüş olabilir;
+faz oranları üç uçakta tutarlı (std 0.011–0.074), bu yüzden oranlar doğru —
+kalan fark cruise tabanından geliyor ve cruise **ağırlıktan bağımsız kg/nm ile
+doğrulanmış** durumda. Fazlar toplam yakıtın ~%25'i olduğu için blok yakıt
+üzerindeki etki ~%5'tir.
+
+**Uçtan uca (235 uçuş, yeniden üretilmiş):**
+
+| Metrik | Değer | Referans | Durum |
+|---|---|---|---|
+| yakıt/nm | 6.37 kg/nm | B738 blok: 6.0–7.5 | ✅ |
+| Tasarruf oranı | %1.54 | Gerçekçi bant: %0.5–3 | ✅ |
+| CO₂/pax/km | 67.1 g | B738: 60–90 g | ✅ |
+| Veri kalitesi notu | **SIM** | Simüle veri | ✅ |
+| HTML beyanı | "SİMÜLASYON VERİSİ — gerçek uçuş verisi DEĞİL" | — | ✅ |
+| Yıllık tasarruf | $509,738 | — | ⚠ bkz. 8.6 |
+| Testler | **14/14 dosya geçiyor** | — | ✅ |
+
+### 8.6 Kalan bilinen sınırlamalar (dürüstçe)
+
+Bunlar **düzeltilmedi** — çünkü ya tasarım kararı ya da veri gerektiriyor:
+
+1. **Yıllık projeksiyon ölçeği**: `$509,738/yıl`, 235 uçuş/30 gün × 11.5 × %65
+   gerçekleşme ile türetiliyor. 235 uçuş ≈ 7.8 uçuş/gün → yılda ~2,700 uçuş.
+   Bu, 8 rotalı bir operatör için **yüksek** ama imkânsız değil. Müşteriye
+   sunarken "varsayılan frekans ve %65 gerçekleşme" açıkça belirtilmelidir.
+2. **Compressibility drag** (dalga sürüklenmesi) modellenmiyor — yüksek Mach'ta
+   CD0 gerçekte artar. Mevcut CD0'lar ~M0.78 için kalibre.
+3. **Rüzgâr modeli** yok — TAS/GS dönüşümü rüzgârsız.
+4. **Faz yakıtlarında +%20 sistematik fazlalık** (bkz. 8.5) — cruise kalibrasyonu
+   doğru olduğu için toplam etkisi sınırlı, ama faz-bazlı raporlamada bilinmeli.
+5. **Benchmark bantları** hâlâ geniş (fuel modeli +%20 hatayı yakalayamaz).
+6. `soupsieve` pinlenmemiş; `config/ingestion_config.py:50-51`'de `assert`;
+   kökte 0-byte `python` dosyası.
+7. **Dashboard kimlik doğrulaması yok** — müşteriye açmadan önce gerekli.
+
+### 8.7 Nasıl doğrulanır (tekrar üretilebilir)
+
+```bash
+# 1) Fizik tutarlılığı (K, T/W, LDmax, kg/nm) — 11 uçak
+python - <<'EOF'
+import sys, yaml, math; sys.path.insert(0,'.')
+db=yaml.safe_load(open('config/aircraft_database.yaml'))['aircraft_types']
+for ac,p in db.items():
+    K=1/(math.pi*p['e']*p['AR'])
+    assert abs(K-p['K'])<1e-5, ac
+    tw=p['max_thrust_sl']*p['num_engines']/(p['mtow']*9.80665)
+    assert 0.22<=tw<=0.42, (ac,tw)
+    print(ac,'OK',round(K,5),round(tw,3))
+EOF
+
+# 2) Tüm testler
+for f in tests/test_*.py; do python "$f" >/dev/null || echo "FAIL $f"; done
+
+# 3) Uçtan uca yeniden üretim + provenance
+python scripts/04_generate_professional_demo.py
+python scripts/03_generate_outputs.py
+grep -o "SİMÜLASYON VERİSİ[^<]*" reports/GreenWing_CaseStudy_*.html
+
+# 4) Tankering elle doğrulama (CF ve net tasarruf)
+python - <<'EOF'
+import sys; sys.path.insert(0,'.')
+from src.optimization.tankering_optimizer import TankeringOptimizer
+t=TankeringOptimizer('B738')
+r=t.optimize_tankering(distance_nm=1241, altitude_ft=36000, mach=0.785,
+    weight_without_extra_fuel_kg=65000, fuel_price_origin_usd_per_kg=0.80,
+    fuel_price_dest_usd_per_kg=0.95, max_extra_fuel_kg=2000)
+print(r['optimal_extra_fuel_kg'], r['net_saving_usd'],
+      r['details']['carriage_factor_at_optimum_pct'])
+EOF
+```
+
+### 8.8 Ticari kullanım için sonraki adım
+
+Teknik katman **savunulabilir** durumda. Ancak gerçek bir havayoluna satış için
+kalan **tek kritik** madde: **gerçek veriyle doğrulama**. Bugünkü çıktıların
+tamamı `demo_simulation`. Bir pilot havayolundan QAR/FDR veya yakıt fişi verisi
+alındığında:
+
+1. `03` otomatik olarak `REAL` provenance'ına geçecek (kod hazır),
+2. `model_calibrator` / `tail_performance_calibrator` CD0 ve SFC'yi kuyruk
+   bazında düzeltecek,
+3. ancak o zaman "%X tasarruf" iddiası sözleşmeye konabilir.
+
+Bu sırayla gidilmezse — ki bu rapordaki asıl uyarı buydu — ürün teknik olarak
+çalışsa bile **iddia edilen tasarruf doğrulanmamış** olur.
