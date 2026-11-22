@@ -289,6 +289,60 @@ def run_all_tests():
                    altitude_ft=35000, mach=0.785
                ))
 
+    # ─── [46] FAR 25.251 BOYUT DOĞRULAMASI ───────────────
+    # DENETİM #46: Eski kod `cl_limit = cl_buffet_onset / 1.3`
+    # kullanıyordu. Bu BOYUT HATASI: 1g buffet onset CL'i 0.62
+    # olan kanat, 1.3g'de 1.3 KAT kaldırma üretir → izin verilen
+    # 1g CL = 0.62 × 1.3 = 0.806. Bölünce 0.477 çıkıyor ve
+    # B738'in NORMAL seyir CL'si (0.48–0.55) "güvensiz" oluyordu.
+    #
+    # Not: yukarıdaki "normal cruise" testi CL=0.40 kullanıyor —
+    # tam da bu hata yüzünden düşürülmüş bir değer. Aşağıdaki
+    # testler GERÇEK seyir CL'lerini kilitler.
+
+    _bm_real = PhysicsValidator.check_buffet_margin(0.52, 0.785, 'B738')
+    check_pass("buffet_margin: B738 gerçek seyir CL=0.52 (limit 0.806)", _bm_real)
+    assert_check(
+        "buffet FAR limiti = onset × 1.3",
+        abs(_bm_real.stats['cl_limit_far25'] - 0.62 * 1.3) < 0.001,
+        f"limit={_bm_real.stats['cl_limit_far25']}, beklenen={0.62*1.3:.3f}"
+    )
+
+    # Aynı CL, ama limit ONSET'i aşan bir uçuş → gerçekten hata olmalı
+    _bm_over = PhysicsValidator.check_buffet_margin(0.85, 0.785, 'B738')
+    check_fail("buffet_margin: CL=0.85 onset üstü hata", _bm_over)
+
+    # Limit ile onset arasında: hata yok, uyarı var
+    # Limit ile onset arası: HATA yok ama UYARI olmalı
+    _bm_mid = PhysicsValidator.check_buffet_margin(0.78, 0.785, 'B738')
+    assert_check(
+        f"buffet_margin: CL=0.78 hata YOK "
+        f"(marj %{_bm_mid.stats['buffet_margin_pct']})",
+        _bm_mid.is_valid
+    )
+    assert_check(
+        "buffet_margin: CL=0.78 uyarı var (1g onset üstü)",
+        len(_bm_mid.warnings) > 0
+    )
+    # Onset altı: CL=0.52 hem geçerli hem UYARISIZ olmalı
+    _bm_ok = PhysicsValidator.check_buffet_margin(0.52, 0.785, 'B738')
+    assert_check("buffet_margin: CL=0.52 uyarısız", len(_bm_ok.warnings) == 0)
+
+    # Yön kontrolü: CL arttıkça marj AZALMALI
+    _m1 = PhysicsValidator.check_buffet_margin(0.40, 0.785, 'B738').stats['buffet_margin_pct']
+    _m2 = PhysicsValidator.check_buffet_margin(0.60, 0.785, 'B738').stats['buffet_margin_pct']
+    assert_check(
+        f"buffet marjı CL ile azalıyor (%{_m1:.1f} > %{_m2:.1f})", _m1 > _m2)
+
+    # Optimizer ile tutarlılık: ikisi de CL_onset'in ALTINDA limit vermeli
+    # (optimizer 0.90×onset operasyonel; validator 1.3×onset FAR)
+    # → FAR limiti daha gevşek olmalı, yoksa optimizer gereksiz kısıtlar
+    _far_limit = _bm_real.stats['cl_limit_far25']
+    assert_check(
+        f"FAR limiti ({_far_limit:.3f}) operasyonel limitten (0.90×0.62=0.558) gevşek",
+        _far_limit > 0.62 * 0.90
+    )
+
     # ─── check_buffet_margin ─────────────────────────────
     # CL=0.35 düşük CL → buffet marjı rahat, B738 ile
     result_bm = PhysicsValidator.check_buffet_margin(0.35, 0.785, 'B738')

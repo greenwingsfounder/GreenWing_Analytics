@@ -492,3 +492,50 @@ Test dosyası      : 16/16 · 0 hata
 emission          : 118 → 149 kontrol
 Yeni regresyon    : §7b (7) + §18b (4) + §19b (6) + §26b (12) = 29
 ```
+
+### 8.14 FAR 25.251 buffet marjı — boyut hatası (P0)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 46 | `physics_validator.py` | `check_buffet_margin()` FAR 25.251'e atıf yapıyordu ama formülü **bölüyordu**: `cl_limit = cl_buffet_onset / 1,3`. Ayrıca `CL > cl_buffet_onset` kontrolü **önce** geldiği için `CL > cl_limit` (asıl FAR kontrolü) `elif` olarak **hiç çalışmıyordu**. |
+
+**Fizik:** 1g buffet onset CL'i 0,62 olan bir kanat, 1,3g manevrada
+1,3 katı kaldırma üretir → o noktada 1g CL'i `0,62 × 1,3 = 0,806`
+olan uçuş buffet'a girer. Yani limit **çarpılır**, bölünmez.
+
+**Ölçülen etki (B738, FL350, M0,78):**
+
+| | Eski | Yeni |
+|---|---|---|
+| cl_limit | 0,62 / 1,3 = **0,477** | 0,62 × 1,3 = **0,806** |
+| CL=0,48 (normal seyir) | **HATA** "güvensiz" | geçer, marj %40 |
+| CL=0,55 (normal seyir) | **HATA** | geçer, marj %32 |
+| CL=0,78 (yüksek) | **HATA** | geçer + uyarı, marj %3 |
+| CL=0,85 (gerçekten riskli) | HATA | HATA ✓ |
+
+Yani eski kod **tüm normal seyir uçuşlarını "güvensiz"** diye
+işaretliyordu. Test dosyasındaki yorum bunu ele veriyordu:
+> *"CL=0,498 M0,785 DEFAULT buffet tablosuyla FAR 25.251 sınırını
+> aşabilir. B738 tablosu kullanarak test ediyoruz."*
+
+Test, CL'yi **0,40'a düşürerek** hatayı gizlemişti. §[46]'da
+gerçek seyir CL'leri (0,52) ve sınır davranışı kilitlendi.
+
+**Çelişki notu:** `altitude_optimizer.py` zaten **doğru** yapıyordu
+(`cl_limit = cl_buffet × 0,90` operasyonel kaçınma). İki modül
+aynı fiziksel büyüklük için farklı sonuç veriyordu. Artık validator
+FAR limitini (1,3×onset) veriyor, optimizer operasyonel limitini
+(0,90×onset) — ikisi de onset'in altında/üstünde tutarlı.
+`PhysicsValidator` hiçbir üretim kodundan çağrılmıyordu
+(`fuel_model.py` sadece **import** ediyor, kullanmıyor — ölü import);
+yani hata canlı çıktıya sızmamıştı, ama denetim raporu için kritik.
+
+### 8.15 5. tur sonrası durum
+
+```
+Test dosyası       : 16/16 · 0 hata
+emission           : 149 kontrol
+validation         : 91 → 99 kontrol
+Yeni regresyon     : §7b(7) + §18b(4) + §19b(6) + §26b(12) + §46(7)
+Toplam bulgu       : #1–46
+```

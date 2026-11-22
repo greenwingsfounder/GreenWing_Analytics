@@ -198,8 +198,21 @@ class PhysicsValidator:
             ValidationResult
 
         Not:
-            FAR 25.251: Uçak cruise'da minimum 1.3g buffet marjına sahip olmalı.
-            Bu: CL_operating ≤ CL_buffet_onset / required_margin
+            FAR 25.251: Uçak cruise'da minimum 1.3g manevra yükünde
+            buffet onset'e girmemeli.
+
+            DENETİM #46 — BOYUT HATASI:
+            Eski kod `cl_limit = cl_buffet_onset / required_margin`
+            kullanıyordu, yani 0.62 / 1.3 = 0.4769. Bu YANLIŞ: 1g
+            buffet onset CL'i 0.62 olan bir kanat, 1.3g'de 1.3 katı
+            kaldırma üretir → o noktada 1g CL'i 0.62 × 1.3 = 0.806
+            olan uçuş buffet'a girer. Yani limit ÇARPILMALI.
+
+            Sonuç: eski kod B738'in FL350/M0.78'deki NORMAL seyir
+            CL'sini (0.48–0.55) "far exceed" diye HATA olarak
+            işaretliyordu. Tüm normal uçuşlar "güvensiz" görünüyordu.
+
+            Formül: CL_operating ≤ CL_onset,1g · required_margin
         """
         result = ValidationResult()
 
@@ -211,8 +224,10 @@ class PhysicsValidator:
         closest_mach = min(mach_keys, key=lambda m: abs(m - mach))
         cl_buffet_onset = buffet_table[closest_mach]
 
-        # Gerekli CL limiti
-        cl_limit = cl_buffet_onset / required_margin
+        # Gerekli CL limiti — ÇARPIM (denetim #46: bölme yanlıştı)
+        # 1g buffet onset CL'i olan kanat, n_g manevrada n_g katı
+        # kaldırma üretir → izin verilen 1g CL = onset × n_g
+        cl_limit = cl_buffet_onset * required_margin
 
         # Marj hesabı
         margin_pct = (cl_limit - CL) / cl_limit * 100 if cl_limit > 0 else 0
@@ -222,17 +237,28 @@ class PhysicsValidator:
         result.stats["buffet_margin_pct"] = round(margin_pct, 1)
         result.stats["reference_mach"]   = closest_mach
 
-        if CL > cl_buffet_onset:
-            result.add_error(
-                f"CL={CL:.4f} buffet onset ({cl_buffet_onset:.4f}) üstünde! "
-                f"Mach={mach:.3f}, {aircraft_type}. "
-                f"Bu irtifada uçuş güvensiz."
-            )
-        elif CL > cl_limit:
+        # DENETİM #46b — KONTROL SIRASI HATASI
+        # Eski kod önce `CL > cl_buffet_onset` (1g onset) kontrolü
+        # yapıp HATA veriyordu; `CL > cl_limit` (1.3g = onset×1.3)
+        # kontrolü ise elif olduğu için HİÇ ÇALIŞMIYORDU.
+        # Sonuç: onset ile FAR limiti arasındaki bölge (0.62–0.806)
+        # hem "güvenli" (FAR marjı var) hem "hata" (onset üstü)
+        # sayılıyordu — çelişki.
+        #
+        # Doğru sıralama: önce FAR limiti (1.3g), sonra onset.
+        #   CL > cl_limit          → HATA (FAR 25.251 ihlali)
+        #   cl_onset < CL ≤ limit  → UYARI (1g onset üstü, marj ince)
+        #   CL ≤ cl_onset          → bilgi
+        if CL > cl_limit:
             result.add_error(
                 f"CL={CL:.4f} FAR 25.251 limitini ({cl_limit:.4f}) aşıyor! "
-                f"Buffet marjı yetersiz: %{margin_pct:.1f} "
-                f"(minimum gerekli: {(required_margin-1)*100:.0f}g marjı)."
+                f"1.3g manevrada buffet. Mach={mach:.3f}, {aircraft_type}."
+            )
+        elif CL > cl_buffet_onset:
+            result.add_warning(
+                f"CL={CL:.4f} 1g buffet onset ({cl_buffet_onset:.4f}) üstünde "
+                f"ama FAR limiti ({cl_limit:.4f}) içinde. "
+                f"1.3g marjı yalnız %{margin_pct:.1f} — dikkat."
             )
         elif margin_pct < 15:
             result.add_warning(
