@@ -91,3 +91,5 @@ reports/optimizations/*.html
 reports/optimizations/*.csv
 *.xlsx
 *.pdf
+# Teslimat: teknik doğrulama raporu sürüm kontrolünde tutulur
+!reports/GreenWing_Teknik_Rapor.pdf

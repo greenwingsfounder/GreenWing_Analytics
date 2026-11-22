@@ -41,7 +41,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from fastapi import Cookie, FastAPI, Form, HTTPException, Query, Request, Response  # noqa: E402
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse  # noqa: E402
+from fastapi.responses import (  # noqa: E402
+    FileResponse, HTMLResponse, JSONResponse, RedirectResponse,
+)
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.templating import Jinja2Templates  # noqa: E402
 
@@ -50,6 +52,8 @@ from src.security.auth import (AuthConfigError, DashboardAuth,  # noqa: E402
 
 APP_VERSION = '2.0.0'
 RESULTS_FILE = ROOT / 'reports' / 'optimizations' / 'batch_results.json'
+# Teknik rapor PDF — panelden indirilebilir
+REPORT_PDF   = ROOT / 'reports' / 'GreenWing_Teknik_Rapor.pdf'
 PROVENANCE_FILE = ROOT / 'docs' / 'model_provenance.json'
 
 app = FastAPI(title='GreenWing Analytics', version=APP_VERSION,
@@ -200,6 +204,30 @@ def auth_failure_response() -> Response:
 
 
 # ── Sayfalar ──────────────────────────────────────────────
+@app.get('/rapor.pdf')
+def download_report(gw_session: str | None = Cookie(None)):
+    """
+    Teknik doğrulama raporunu PDF olarak indir.
+
+    Rapor, batch_results.json'dan üretilir; kimlik doğrulaması
+    gerektirir çünkü analiz sonuçlarını içerir.
+    """
+    ok, _user = current_user(gw_session)
+    if not ok:
+        return RedirectResponse('/login?next=/rapor.pdf', status_code=303)
+    if not REPORT_PDF.exists():
+        raise HTTPException(
+            status_code=404,
+            detail='Rapor henüz üretilmemiş. '
+                   'tools/build_technical_report.py çalıştırın.',
+        )
+    return FileResponse(
+        REPORT_PDF,
+        media_type='application/pdf',
+        filename='GreenWing_Teknik_Rapor.pdf',
+    )
+
+
 @app.get('/healthz')
 def healthz() -> dict:
     return {'status': 'ok', 'version': APP_VERSION,
