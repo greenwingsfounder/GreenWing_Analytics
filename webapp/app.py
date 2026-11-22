@@ -1278,20 +1278,30 @@ yakıt ±%7</td><td><span class="badge b-ok">9/10</span></td></tr>
 <p>Asimetri net: <b>teknik 8–9, ticari 1–2.</b> İyi haber — ticari taraf
 teknik taraftan çok daha hızlı kapanır.</p>
 
-<h2>2 · Aşama 0 — bu hafta (1–2 hafta)</h2>
+<h2>2 · Aşama 0 — durum</h2>
 <div class="wrap"><table>
-<thead><tr><th>Yapılacak</th><th>Neden</th><th>Süre</th></tr></thead>
+<thead><tr><th>Yapılacak</th><th>Neden</th><th>Durum</th></tr></thead>
 <tbody>
 <tr><td><b>Rüzgârı GFS'e bağla</b></td><td>Belirsizlik ±%26 → ±%12.
-<b>En yüksek getirili tek iş.</b></td><td>1–2 gün</td></tr>
+<b>En yüksek getirili tek iş.</b></td>
+<td><span class="badge b-ok">KOD HAZIR</span> — <code>wind_gfs.py</code>
+3 kademeli zincir; GRIB2 verisi konunca devreye girer</td></tr>
 <tr><td>Gerçek uçuş topla (ADSB.lol, 24 saat)</td><td>"0 gerçek"
-sorununu bitirir</td><td>1 gün + bekleme</td></tr>
-<tr><td>İsimleri düzelt</td><td><code>opensky_real</code> →
-<code>synthetic_demo</code></td><td>2 saat</td></tr>
-<tr><td>B738 açıklığı 35,79 m</td><td>Bilinen hata, 1 satır</td>
-<td>5 dakika</td></tr>
-<tr><td>Havalimanı test aralıkları (#76)</td><td>3/33 görünümünü
-kaldır</td><td>30 dakika</td></tr>
+sorununu bitirir</td>
+<td><span class="badge b-warn">BEKLİYOR</span> — ağ erişimi gerekli</td></tr>
+<tr><td>Klasör/veri kaynağı adlandırması (#79)</td>
+<td>Adlar gerçeği söylesin</td>
+<td><span class="badge b-ok">DÜZELTİLDİ</span> — DATA_SOURCE_NOTE</td></tr>
+<tr><td>B738/B38M kanat açıklığı</td><td>34,32 → 35,79 m
+(737-800 gerçek)</td>
+<td><span class="badge b-ok">DÜZELTİLDİ</span> — AR 9,453 → 10,280</td></tr>
+<tr><td>Havalimanı test aralıkları (#76)</td><td>3/33 başarısız
+görünüyordu</td>
+<td><span class="badge b-ok">DÜZELTİLDİ</span> — 33/33 geçiyor</td></tr>
+<tr><td>Pilot veri paketi</td><td>Müşteriye "ne göndereceğiz"
+belli olsun</td>
+<td><span class="badge b-ok">HAZIR</span> —
+<code>deliverables/pilot_paketi/</code></td></tr>
 </tbody></table></div>
 <div class="note-box ok"><div class="t">Aşama 0'ın tek hedefi</div>
 Sistemi <b>"sıfır gerçek veri"</b> durumundan <b>"doğrulanmış gerçek
@@ -1313,6 +1323,19 @@ gerçek veriye</td><td>Toplam sapma <b>±%5</b></td></tr>
 <tr><td>Sun</td><td>Tek sayfa tasarruf + belirsizlik</td>
 <td>Müşteri "mantıklı" diyor</td></tr>
 </tbody></table></div>
+<div class="note-box ok"><div class="t">
+Pilot paketi hazır — müşteriye bugün gönderilebilir</div>
+<code>deliverables/pilot_paketi/</code> içinde üç dosya var:<br><br>
+<b>01_YAKIT_VERISI_SABLONU.csv</b> — 16 kolon (8 zorunlu),
+2 örnek satır dolu. Müşteri Excel'de açar, doldurur, CSV kaydeder.<br>
+<b>02_VERI_ISTEK_MEKTUBU.md</b> — ne istediğimizi, neden, gizlilik ve
+zaman planıyla anlatan mektup.<br>
+<b>03_KABUL_KRITERLERI.md</b> — MAPE ≤ %10, toplam sapma ≤ %5,
+sistematik yanlılık ≤ %3. Sözleşmeye girecek cümle taslağı dahil.<br><br>
+Yeniden üretmek için:
+<code>python tools/build_pilot_data_package.py --airline "Pegasus"</code>
+</div>
+
 <div class="note-box warnbox"><div class="t">Kritik: pilot ücretsiz olmalı</div>
 Ücretsiz pilot hem müşteriyi ikna eder hem sana doğruluk verisi verir.
 <b>Karşılığında veri iste</b> — bu senin en değerli varlığın.<br><br>

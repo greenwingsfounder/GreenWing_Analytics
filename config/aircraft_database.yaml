@@ -79,7 +79,7 @@ aircraft_types:
     #   Aspect ratio hesabında: AR = b²/S
     #   İndüktif drag (K) hesabında: K = 1/(π×e×AR)
     wing_area: 124.6          # OpenAP v3 wing.area
-    wingspan: 34.32         # OpenAP v3 wing.span
+    wingspan: 35.79        # 737-800 gerçek (OpenAP 34,32 = -600/-700 boyu)
 
     # ─── Performans limitleri ────────────────────────────
     # cruise_mach: Tipik cruise Mach sayısı
@@ -123,7 +123,7 @@ aircraft_types:
     CD0: 0.0190
     K: 0.04200
     e: 0.7990
-    AR: 9.453            # span²/area (OpenAP geometrisi)
+    AR: 10.280           # span²/area = 35,79²/124,6 (gerçek geometri)
 
     # ─── Motor parametreleri ─────────────────────────────
     # tsfc_cruise: Cruise SFC (Thrust Specific Fuel Consumption)
@@ -180,7 +180,7 @@ aircraft_types:
     max_payload: 20886
 
     wing_area: 124.6          # OpenAP v3 wing.area
-    wingspan: 34.32         # OpenAP v3 wing.span
+    wingspan: 35.79        # 737-800 gerçek (OpenAP 34,32 = -600/-700 boyu)
 
     cruise_mach: 0.79
     max_altitude: 41000
@@ -193,7 +193,7 @@ aircraft_types:
     CD0: 0.0200
     K: 0.04200
     e: 0.7970
-    AR: 9.453            # span²/area (OpenAP geometrisi)
+    AR: 10.280           # span²/area = 35,79²/124,6 (gerçek geometri)
 
     # LEAP-1B SFC: CFM56'dan %15 daha iyi
     tsfc_cruise: 0.00001573

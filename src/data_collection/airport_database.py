@@ -869,21 +869,37 @@ def validate_airport_database() -> bool:
     # ─── [3] Mesafe hesabı ────────────────────────────────
     print("\n  [3] Mesafe Hesabı")
 
+    # DENETİM #76 — BEKLENEN ARALIKLAR YANLIŞTI
+    # ---------------------------------------------
+    # Bu testler 3/33 başarısız veriyordu. Sorun VERİDE değil,
+    # TESTİN beklediği aralıklardaydı. Modülün haversine hesabı
+    # bağımsız elle hesapla %0,00 hata veriyor (7 rota doğrulandı).
+    #
+    # Büyük daire mesafeleri (doğru değerler):
+    #   IST (41,2753 N 28,7519 E) → LON (51,4706 N −0,4619 E)
+    #     = 1.343,6 nm  ·  eski test 1.500-1.600 bekliyordu  ✗
+    #   IST → ANK (40,1281 N 32,9951 E) = 205,0 nm
+    #     eski test 180-200 bekliyordu  ✗ (205 sınırın 5 nm üstü)
+    #   IST → DXB (25,2528 N 55,3644 E) = 1.635,2 nm
+    #     eski test 1.500-1.600 bekliyordu  ✗
+    #
+    # Yeni aralıklar gerçek değerin ±%1,5 bandıdır: hem hesabın
+    # bozulmadığını yakalar hem de yanlış alarm üretmez.
     d_ist_lon = db.get_distance('LTFM', 'EGLL')
     if d_ist_lon:
-        check_range("IST→LON", d_ist_lon, 1500, 1600)
+        check_range("IST→LON", d_ist_lon, 1323, 1364)   # 1343,6 ± %1,5
     else:
         fail("IST→LON", "None döndü")
 
     d_ist_ank = db.get_distance('LTFM', 'LTAC')
     if d_ist_ank:
-        check_range("IST→ANK", d_ist_ank, 180, 200)
+        check_range("IST→ANK", d_ist_ank, 202, 208)     # 205,0 ± %1,5
     else:
         fail("IST→ANK", "None döndü")
 
     d_ist_dxb = db.get_distance('LTFM', 'OMDB')
     if d_ist_dxb:
-        check_range("IST→DXB", d_ist_dxb, 1500, 1600)
+        check_range("IST→DXB", d_ist_dxb, 1611, 1660)   # 1635,2 ± %1,5
     else:
         fail("IST→DXB", "None döndü")
 
