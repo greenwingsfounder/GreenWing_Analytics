@@ -235,14 +235,26 @@ class CustomerFuelIngestor:
         # rota, mesafe, tarih). Yoksa sabit havuza düş.
         try:
             import json as _json
-            _batch = (Path(_PROJECT_ROOT) / 'reports' / 'optimizations'
-                      / 'batch_results.json')
+            # DENETİM #95: 02 (analiz) ve 04 (demo) FARKLI şemalar
+            # üretiyor. Öncelik 02'nin çıktısında; yoksa demoya düş.
+            # İkisini karıştırmak 13/13 → 5/30 düşüşüne yol açıyordu.
+            _opt = Path(_PROJECT_ROOT) / 'reports' / 'optimizations'
+            _batch = None
+            for _cand in ('batch_results.json', 'demo_batch_results.json'):
+                _p = _opt / _cand
+                if _p.exists():
+                    _batch = _p
+                    break
+            if _batch is None:
+                _batch = _opt / 'batch_results.json'
             if _batch.exists():
                 _data = _json.loads(_batch.read_text(encoding='utf-8'))
                 _derived = [
                     {'callsign': d.get('callsign'),
-                     'origin': d.get('origin_airport') or d.get('origin'),
-                     'dest': d.get('dest_airport') or d.get('destination'),
+                     'origin': (d.get('origin')
+                                or d.get('origin_airport')),
+                     'dest': (d.get('destination')
+                              or d.get('dest_airport')),
                      'distance_nm': float(d.get('distance_nm') or 0),
                      'ac': d.get('aircraft_type') or 'B738',
                      'flight_date': str(d.get('flight_date') or '')[:10],

@@ -1,7 +1,7 @@
 # GreenWing Analytics — Proje Yapı Ağacı
 
 > Otomatik üretildi: `python tools/build_tree.py`  
-> **138 gösterilen dosya** · **174 git-takipli dosya** · **95 Python modülü** · **52.031 satır kod**
+> **140 gösterilen dosya** · **176 git-takipli dosya** · **96 Python modülü** · **52.198 satır kod**
 > (Arşiv `archive/` ayrı blokta gösterilir, sayıya dahil değil.)
 
 **İşaretler:** ★ = kritik dosya · ⚠️ = dikkat · (0 byte) = silinecek
@@ -43,11 +43,12 @@
 │   ├── raw/   (0 dosya)
 │   │   └── opensky/
 │   └── openap_reference.json [6 KB]
-├── deliverables/   (4 dosya)
-│   └── pilot_paketi/   (4 dosya)
+├── deliverables/   (5 dosya)
+│   └── pilot_paketi/   (5 dosya)
 │       ├── 01_YAKIT_VERISI_SABLONU.csv  — ★ Müşteriden istenecek CSV
 │       ├── 02_VERI_ISTEK_MEKTUBU.md  — ★ Havayoluna gönderilecek mektup
 │       ├── 03_KABUL_KRITERLERI.md  — ★ Başarı ölçütleri (MAPE ≤ %10)
+│       ├── 04_PILOTLA_KONUSMA_REHBERI.md
 │       └── OKU.md  — ★ Pilot paketi: nasıl kullanılır
 ├── docs/   (8 dosya)
 │   ├── COMMERCIAL_READINESS.md  — Ticarileşme hazırlık değerlendirmesi
@@ -131,10 +132,11 @@
 │   ├── logging_config.py  — Hesaplama izleme / log sistemi
 │   ├── units.py  — ★ Birim dönüşümü + fizik sabitleri — TEK KAYNAK
 │   └── utils.py  — Ortak yardımcılar (haversine, biçimlendirme)
-├── tests/   (25 dosya)
+├── tests/   (26 dosya)
 │   ├── __init__.py  — Test Package
 │   ├── test_aircraft_data_provenance.py  — ★ Uçak verisi kaynak doğrulaması
 │   ├── test_atmosphere.py  — ISA atmosfer (ICAO elle hesap)
+│   ├── test_audit_honesty.py  — Denetim dürüstlük testleri — DENETİM #94.
 │   ├── test_auth.py  — Kimlik: parola, oturum, rol, kiracı
 │   ├── test_emission.py  — Emisyon + CORSIA
 │   ├── test_fleet_analyzer.py  — Filo analizi

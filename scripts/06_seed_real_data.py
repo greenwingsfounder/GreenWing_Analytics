@@ -173,7 +173,13 @@ def seed_real_flights():
         df.to_csv(filepath, index=False)
         print(f"  ✅ Havuza Eklendi: {filename:<35} | {dist_nm:>4.0f} Nm | Holding: {str(holding):<5} | Step: {str(step):<5}")
         
-    print(f"🎉 Toplam {len(flights)} adet gerçekçi uçuş verisi başarıyla arşivlendi.")
+    # DENETİM #96: mesaj "gerçekçi uçuş verisi" diyordu — "gerçek"
+    # diye okunuyor. Script sentetik üretiyor (kendi docstring'i de
+    # öyle diyor). Denetim #89'un kalıntısı.
+    print(f"🧪 Toplam {len(flights)} adet SENTETİK uçuş izi üretildi.")
+    print("   ⚠️  Bunlar GERÇEK radar verisi DEĞİL — test/demo içindir.")
+    print("   Gerçek veri: scripts/01 (OpenSky) veya "
+          "scripts/08 (canlı filo).")
 
 if __name__ == "__main__":
     seed_real_flights()

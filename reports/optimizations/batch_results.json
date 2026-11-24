@@ -61,7 +61,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.865,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:30.380245"
+    "timestamp": "2026-11-24T12:10:23.841144"
   },
   {
     "filename": "ARR_PGT_PGT501_20261122_121559.csv",
@@ -125,7 +125,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.816,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:30.832320"
+    "timestamp": "2026-11-24T12:10:24.353253"
   },
   {
     "filename": "ARR_PGT_PGT802_20261122_121651.csv",
@@ -189,7 +189,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.515,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:31.202651"
+    "timestamp": "2026-11-24T12:10:24.739238"
   },
   {
     "filename": "ARR_SXS_SXS1409_20261122_121559.csv",
@@ -253,7 +253,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:31.715624"
+    "timestamp": "2026-11-24T12:10:25.279580"
   },
   {
     "filename": "ARR_SXS_SXS1409_LTAI_EDDF.csv",
@@ -317,7 +317,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:32.221063"
+    "timestamp": "2026-11-24T12:10:25.809973"
   },
   {
     "filename": "ARR_SXS_SXS5720_20261122_121612.csv",
@@ -381,7 +381,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.872,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:32.693014"
+    "timestamp": "2026-11-24T12:10:26.286385"
   },
   {
     "filename": "ARR_SXS_SXS6381_20261122_121559.csv",
@@ -445,7 +445,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.843,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:33.168926"
+    "timestamp": "2026-11-24T12:10:26.761637"
   },
   {
     "filename": "ARR_THY_THY1011_20261122_121638.csv",
@@ -509,7 +509,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.634,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:33.769992"
+    "timestamp": "2026-11-24T12:10:27.340482"
   },
   {
     "filename": "ARR_THY_THY1587_20261122_121559.csv",
@@ -573,7 +573,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.808,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:34.213370"
+    "timestamp": "2026-11-24T12:10:27.792195"
   },
   {
     "filename": "ARR_THY_THY1629_20261122_121612.csv",
@@ -637,7 +637,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.737,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:34.625881"
+    "timestamp": "2026-11-24T12:10:28.198704"
   },
   {
     "filename": "ARR_THY_THY1865_20261122_121651.csv",
@@ -701,7 +701,7 @@
     "is_partial_flight": true,
     "fuel_per_nm": 5.482,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:35.009152"
+    "timestamp": "2026-11-24T12:10:28.592546"
   },
   {
     "filename": "ARR_THY_THY1951_20261122_121625.csv",
@@ -765,7 +765,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.97,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:35.515617"
+    "timestamp": "2026-11-24T12:10:29.102003"
   },
   {
     "filename": "ARR_THY_THY501_20261122_121559.csv",
@@ -829,7 +829,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.771,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:35.985074"
+    "timestamp": "2026-11-24T12:10:29.566848"
   },
   {
     "filename": "ARR_THY_THY764_20261122_121612.csv",
@@ -893,6 +893,6 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.894,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:26:36.417412"
+    "timestamp": "2026-11-24T12:10:29.976977"
   }
 ]

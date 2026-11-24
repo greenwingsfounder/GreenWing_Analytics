@@ -757,7 +757,15 @@ def main():
 
     # JSON kaydet
     os.makedirs(REPORTS_OPTIMIZATIONS, exist_ok=True)
-    results_path = os.path.join(REPORTS_OPTIMIZATIONS, "batch_results.json")
+    # DENETİM #95: bu şema 02'ninkinden FARKLI (origin/destination YOK,
+    # flight_date farklı anlamda). Aynı dosyaya yazınca 02'nin çıktısını
+    # EZİYORDU ve kalibrasyon zinciri 13/13'ten 5/30'a düşüyordu.
+    # Ayrı dosya + aynı alan adları.
+    for _r in all_results:
+        _r.setdefault('origin', _r.get('origin_airport'))
+        _r.setdefault('destination', _r.get('dest_airport'))
+    results_path = os.path.join(REPORTS_OPTIMIZATIONS,
+                                "demo_batch_results.json")
 
     with open(results_path, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, default=str, ensure_ascii=False)

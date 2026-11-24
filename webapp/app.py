@@ -1336,6 +1336,9 @@ style="color:#6b7280">{esc(desc)}</div></td>
              'Pilotla Konuşma Rehberi',
              'Sahada pilotla nasıl konuşulur: 30 sn anlatım, '
              'sorular, kırmızı çizgiler'),
+            ('script', 'SCRIPT_REHBERI.md', 'Script Rehberi',
+             '10 betik ne işe yarar, hangi sırada çalışır, neyi '
+             'ezer — sözleşme tablosu'),
         ))
 
     pdf_rows = ''.join(
@@ -2142,6 +2145,7 @@ MD_FILES = {
     'denetim': ('docs/FULL_TECHNICAL_AUDIT.md', 'FULL_TECHNICAL_AUDIT.md'),
     'pilot': ('deliverables/pilot_paketi/04_PILOTLA_KONUSMA_REHBERI.md',
               'PILOTLA_KONUSMA_REHBERI.md'),
+    'script': ('docs/SCRIPT_REHBERI.md', 'SCRIPT_REHBERI.md'),
 }
 
 

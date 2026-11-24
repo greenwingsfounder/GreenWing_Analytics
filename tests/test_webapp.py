@@ -143,6 +143,10 @@ def main() -> int:
     check('pilot rehberi içeriği doğru',
           b'Pilot' in _r.content and
           'saha' in _r.content.decode('utf-8', 'ignore').lower())
+    _s = fresh.get(f'/indir/script.md?token={token}')
+    check('script rehberi indirilebiliyor',
+          _s.status_code == 200 and len(_s.content) > 3000,
+          f'HTTP {_s.status_code}, {len(_s.content)} bayt')
     r = fresh.get(f'/atlas?token={token}')
     check('kod atlası 200', r.status_code == 200)
     check('kod atlası her sayının kaynağını gösteriyor',
