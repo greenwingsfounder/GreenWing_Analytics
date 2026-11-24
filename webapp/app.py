@@ -396,6 +396,7 @@ NAV = [
     ('/denetim', 'Denetim'),
     ('/el-kitabi', 'El Kitabı'),
     ('/atlas', 'Kod Atlası'),
+    ('/dokumanlar', 'Dokümanlar'),
     ('/basit', 'Basit Anlatım'),
     ('/kullanicilar', 'Kullanıcılar'),
     ('/ticari', 'Ticari Plan'),
@@ -1287,6 +1288,128 @@ tek yerde</td><td><span class="badge b-ok">kaynaklı</span></td></tr>
 """
     return HTMLResponse(page('El Kitabı', body, user=user, token=token,
                              active='/el-kitabi'))
+
+
+# ══════════════════════════════════════════════════════════════════════
+# SAYFA 5a — DOKÜMANLAR (indirme merkezi)
+# ══════════════════════════════════════════════════════════════════════
+@app.get('/dokumanlar', response_class=HTMLResponse)
+def documents(request: Request, gw_session: str | None = Cookie(None),
+              token: str = Query('')):
+    ok, user = _check(gw_session, token)
+    if not ok:
+        return RedirectResponse('/giris?next=/dokumanlar', status_code=303)
+
+    def sz(path: Path) -> str:
+        if not path.exists():
+            return '—'
+        n = path.stat().st_size
+        return f'{n / 1024:.0f} KB' if n > 1024 else f'{n} B'
+
+    md = ROOT / 'docs'
+    docs_rows = ''.join(
+        f"""<tr><td><b>{esc(title)}</b><div class="small"
+style="color:#6b7280">{esc(desc)}</div></td>
+<td class="small">{sz(md / fn)}</td>
+<td><a href="/indir/{key}.md?token={token}">.md indir</a></td>
+<td><a href="/atlas?token={token}">sitede oku</a></td></tr>"""
+        for key, fn, title, desc in (
+            ('atlas', 'KOD_ATLASI.md', 'Kod Atlası',
+             'Her modül: ne yapar + sayıları nereden gelir'),
+            ('agac', 'YAPI_AGACI.md', 'Yapı Ağacı',
+             'Her dosya ne işe yarar (otomatik üretilir)'),
+            ('kullanim', 'NASIL_KULLANIRIM.md', 'Nasıl Kullanırım',
+             'Sıfırdan kurulum, çalıştırma, sık hatalar'),
+            ('kaynak', 'MODEL_PROVENANCE.md', 'Model Kaynakları',
+             'Her sayının kaynak envanteri'),
+            ('denetim', 'FULL_TECHNICAL_AUDIT.md', 'Tam Teknik Denetim',
+             '81+ bulgu: ne bulundu, nasıl düzeltildi'),
+        ))
+
+    pdf_rows = ''.join(
+        f"""<tr><td><b>{esc(title)}</b><div class="small"
+style="color:#6b7280">{esc(desc)}</div></td>
+<td class="small">{sz(ROOT / 'reports' / fn)}</td>
+<td><a href="/rapor/{key}.pdf?token={token}">PDF indir</a></td></tr>"""
+        for key, fn, title, desc in (
+            ('teknik', 'GreenWing_Teknik_Rapor.pdf', 'Teknik Rapor',
+             '12 sayfa: fizik doğrulaması, katsayılar, kaynaklar'),
+            ('elkitabi', 'GreenWing_Proje_El_Kitabi.pdf', 'Proje El Kitabı',
+             '18 sayfa: proje nasıl çalışır, ne bulundu, ne düzeltildi'),
+        ))
+
+    body = f"""
+<h1>Dokümanlar
+<span class="sub">Her şey burada. Kaybolmaz, aramazsın.
+İndir, dışa aktar, paylaş.</span></h1>
+
+<div class="note-box warn"><div class="t">PDF'e basınca kod sayfası
+çıkıyorsa — burayı kullan</div>
+Tarayıcının "Yazdır → PDF" işlevi bu sayfalarda <b>kod</b> üretiyor
+(denetim #82). Onun yerine aşağıdaki <b>.md indir</b> bağlantılarını
+kullan: düz metin dosyası iner, Notion / Word / Google Docs içine
+doğrudan yapışır. Gerçek PDF'ler ayrı bölümde, hazır.
+</div>
+
+<h2>Metin dokümanları <span class="sub">(.md — her yere yapışır)</span></h2>
+<div class="wrap"><table>
+<thead><tr><th style="width:44%">Doküman</th><th>Boyut</th>
+<th>İndir</th><th>Oku</th></tr></thead>
+<tbody>{docs_rows}</tbody></table></div>
+
+<h2>PDF raporlar <span class="sub">(hazır, ReportLab ile üretilmiş)</span></h2>
+<div class="wrap"><table>
+<thead><tr><th style="width:44%">Rapor</th><th>Boyut</th>
+<th>İndir</th></tr></thead>
+<tbody>{pdf_rows}</tbody></table></div>
+
+<h2>Kod ve veri nerede?</h2>
+<div class="grid g2">
+  <div class="card info"><div class="lbl">Kod</div>
+  <div class="note">GitHub: <code>greenwingsfounder/GreenWing_Analytics</code><br>
+  İndirmek için: yeşil <b>Code</b> düğmesi → <b>Download ZIP</b><br>
+  <span class="small">"Create PR" koda katkı içindir, çalıştırmak için
+  değil.</span></div></div>
+  <div class="card info"><div class="lbl">Kurulum</div>
+  <div class="note"><code>git clone ...</code><br>
+  <code>pip install -r requirements.txt</code><br>
+  <code>python -m uvicorn webapp.app:app --port 8052</code></div></div>
+</div>
+
+<h2>Bu sitede neler var?</h2>
+<div class="wrap"><table>
+<thead><tr><th>Sayfa</th><th>Ne için</th></tr></thead>
+<tbody>
+<tr><td><a href="/?token={token}">Genel Bakış</a></td>
+<td>KPI'lar, veri kaynağı etiketi</td></tr>
+<tr><td><a href="/ucuslar?token={token}">Uçuşlar</a></td>
+<td>14 uçuşun tek tek analizi</td></tr>
+<tr><td><a href="/metodoloji?token={token}">Metodoloji</a></td>
+<td>Her formül ve katsayının kaynağı</td></tr>
+<tr><td><a href="/veri?token={token}">Veri Kaynakları</a></td>
+<td>Hangisi gerçek, hangisi sentetik</td></tr>
+<tr><td><a href="/denetim?token={token}">Denetim</a></td>
+<td>Bulunan hatalar ve durumları</td></tr>
+<tr><td><a href="/el-kitabi?token={token}">El Kitabı</a></td>
+<td>Sitede okunur sürüm</td></tr>
+<tr><td><a href="/kullanicilar?token={token}">Kullanıcılar</a></td>
+<td>Rol ve kiracı yönetimi</td></tr>
+<tr><td><a href="/atlas?token={token}">Kod Atlası</a></td>
+<td>Her modül + her sayının kaynağı</td></tr>
+<tr><td><a href="/basit?token={token}">Basit Anlatım</a></td>
+<td>Jargonsuz: ne yapar, ticarileşince ne olur</td></tr>
+<tr><td><a href="/ticari?token={token}">Ticari Plan</a></td>
+<td>Yol haritası, pilot paketi, fiyat modeli</td></tr>
+</tbody></table></div>
+
+<div class="note-box ok"><div class="t">Kural</div>
+Bu sayfa tek doğru kaynak: bir doküman burada yoksa, güncel değildir.
+Yeni doküman eklerken <code>webapp/app.py</code> içindeki
+<code>MD_FILES</code> sözlüğüne de ekle — yoksa indirilemez.
+</div>
+"""
+    return HTMLResponse(page('Dokümanlar', body, user=user, token=token,
+                             active='/dokumanlar'))
 
 
 # ══════════════════════════════════════════════════════════════════════

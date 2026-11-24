@@ -1,7 +1,7 @@
 # GreenWing Analytics — Proje Yapı Ağacı
 
 > Otomatik üretildi: `python tools/build_tree.py`  
-> **166 dosya** · **94 Python modülü** · **51.430 satır kod**
+> **166 dosya** · **94 Python modülü** · **51.559 satır kod**
 
 **İşaretler:** ★ = kritik dosya · ⚠️ = dikkat · (0 byte) = silinecek
 
