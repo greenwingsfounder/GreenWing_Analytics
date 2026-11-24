@@ -113,8 +113,13 @@ def main() -> int:
 
     print('\n5. İçerik doğruluğu')
     r = fresh.get(f'/?token={token}')
+    # NOT: metin 2026-11-22'de "SENTETİK" (büyük harf) yerine
+    # "0 gerçek · 15 sentetik" biçimine geçti — daha bilgilendirici.
+    # Test büyük harfe kilitliydi → yapay başarısızlık.
     check('sentetik veri uyarısı gösteriliyor',
-          'SENTETİK' in r.text)
+          ('SENTETİK' in r.text or 'sentetik' in r.text)
+          and 'gerçek' in r.text)
+    check('gerçek veri sayısı açıkça 0', '0 gerçek' in r.text)
     check('belirsizlik yüzdesi gösteriliyor', '±%' in r.text)
     r = fresh.get(f'/veri?token={token}')
     check('veri sayfası 7 varsayımı listeliyor',

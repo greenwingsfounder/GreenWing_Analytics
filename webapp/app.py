@@ -1502,6 +1502,29 @@ python tools/full_audit.py</pre>
 Bir sayının kaynağını gösteremiyorsan o sayıyı kullanma.
 Bu depoda her modül düzeyi sayısal sabit ya bir tanıma ya bir
 standarda dayanır ya da türetilmiştir — ve bu denetimle zorlanır.</div>
+
+<h2>İndir / dışa aktar</h2>
+<div class="note-box warn"><div class="t">PDF yerine Markdown</div>
+PDF yazdırınca kod sayfası çıkıyordu (#82). O yüzden bu
+dokümanları <b>.md (düz metin)</b> olarak indir — Notion, Word,
+Google Docs içine doğrudan yapışır. PDF raporlar ayrı:
+<a href="/rapor/teknik.pdf?token={token}">teknik</a> ·
+<a href="/rapor/elkitabi.pdf?token={token}">el kitabı</a>.
+</div>
+<div class="wrap"><table>
+<thead><tr><th>Doküman</th><th>Ne için</th><th>İndir</th></tr></thead>
+<tbody>
+<tr><td>Kod Atlası</td><td>Her modül + her sayının kaynağı</td>
+<td><a href="/indir/atlas.md?token={token}">.md</a></td></tr>
+<tr><td>Yapı Ağacı</td><td>Hangi dosya ne işe yarar (otomatik üretilir)</td>
+<td><a href="/indir/agac.md?token={token}">.md</a></td></tr>
+<tr><td>Nasıl Kullanırım</td><td>Sıfırdan kurulum ve çalıştırma</td>
+<td><a href="/indir/kullanim.md?token={token}">.md</a></td></tr>
+<tr><td>Model Kaynakları</td><td>Her sayının kaynak envanteri</td>
+<td><a href="/indir/kaynak.md?token={token}">.md</a></td></tr>
+<tr><td>Tam Teknik Denetim</td><td>Bulunan hatalar ve düzeltmeleri</td>
+<td><a href="/indir/denetim.md?token={token}">.md</a></td></tr>
+</tbody></table></div>
 """
     return HTMLResponse(page('Kod Atlası', body, user=user, token=token,
                              active='/atlas'))
@@ -1967,6 +1990,14 @@ PDF_FILES = {
     'elkitabi': ('GreenWing_Proje_El_Kitabi.pdf',
                  'GreenWing_Proje_El_Kitabi.pdf'),
 }
+# Markdown doküman indirme (PDF'e basınca kod sayfası çıkıyordu → #82)
+MD_FILES = {
+    'atlas': ('KOD_ATLASI.md', 'KOD_ATLASI.md'),
+    'agac': ('YAPI_AGACI.md', 'YAPI_AGACI.md'),
+    'kullanim': ('NASIL_KULLANIRIM.md', 'NASIL_KULLANIRIM.md'),
+    'kaynak': ('MODEL_PROVENANCE.md', 'MODEL_PROVENANCE.md'),
+    'denetim': ('FULL_TECHNICAL_AUDIT.md', 'FULL_TECHNICAL_AUDIT.md'),
+}
 
 
 @app.get('/rapor/{kind}.pdf')
@@ -1992,6 +2023,31 @@ def download_pdf(kind: str, gw_session: str | None = Cookie(None),
             detail=f'{entry[0]} henüz üretilmemiş — '
                    'tools/build_*.py çalıştırın.')
     return FileResponse(path, media_type='application/pdf',
+                        filename=entry[1])
+
+
+@app.get('/indir/{name}.md')
+def download_md(name: str, gw_session: str | None = Cookie(None),
+                token: str = Query('')):
+    """
+    Markdown doküman indir (düz metin — PDF'te kod sayfası çıkmaz).
+
+    #82: kullanıcı "PDF'e basıyorum sadece kod sayfası çıkıyor" dedi.
+    Bu uç, .md dosyayı text/markdown olarak indirir; Notion/Word
+    içine doğrudan yapıştırılabilir.
+    """
+    ok, _u = _check(gw_session, token)
+    if not ok:
+        return RedirectResponse(f'/giris?next=/indir/{name}.md',
+                                status_code=303)
+    entry = MD_FILES.get(name)
+    if entry is None:
+        raise HTTPException(status_code=404, detail='Bilinmeyen doküman')
+    path = ROOT / 'docs' / entry[0]
+    if not path.exists():
+        raise HTTPException(status_code=404,
+                            detail=f'{entry[0]} bulunamadı')
+    return FileResponse(path, media_type='text/markdown; charset=utf-8',
                         filename=entry[1])
 
 

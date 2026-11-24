@@ -21,7 +21,7 @@
     "optimum_fl": "FL320",
     "altitude_deviation_ft": 3936,
     "buffet_margin_pct": 26.7,
-    "sar_loss_pct": 2.86,
+    "sar_loss_pct": 2.87,
     "altitude_saving_kg": 0,
     "step_climb_saving_kg": 0,
     "step_plan": [],
@@ -58,7 +58,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.865,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:46.551734"
+    "timestamp": "2026-11-24T11:14:10.623139"
   },
   {
     "filename": "ARR_PGT_PGT501_20261122_121559.csv",
@@ -119,7 +119,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.816,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:47.147524"
+    "timestamp": "2026-11-24T11:14:11.120543"
   },
   {
     "filename": "ARR_PGT_PGT802_20261122_121651.csv",
@@ -154,16 +154,16 @@
     "origin_fuel_price": 0.78,
     "dest_fuel_price": 0.9,
     "fuel_optimization_kg": 165,
-    "total_cost_saving_usd": 365.22,
+    "total_cost_saving_usd": 365.23,
     "saving_breakdown": {
       "altitude_kg": 165.2,
       "step_climb_kg": 0.0,
       "tankering_usd": 236.34,
       "fuel_kg_total": 165.2
     },
-    "annual_raw_usd": 504001,
-    "annual_realistic_usd": 221602,
-    "annual_fuel_saving_usd": 115604,
+    "annual_raw_usd": 504014,
+    "annual_realistic_usd": 221610,
+    "annual_fuel_saving_usd": 115612,
     "annual_tankering_usd": 105998,
     "realization_factor": 0.65,
     "co2_kg": 13354,
@@ -180,7 +180,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.515,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:47.723313"
+    "timestamp": "2026-11-24T11:14:11.512177"
   },
   {
     "filename": "ARR_SXS_SXS1409_20261122_121559.csv",
@@ -215,16 +215,16 @@
     "origin_fuel_price": 0.8,
     "dest_fuel_price": 0.95,
     "fuel_optimization_kg": 169,
-    "total_cost_saving_usd": 381.63,
+    "total_cost_saving_usd": 381.65,
     "saving_breakdown": {
       "altitude_kg": 169.3,
       "step_climb_kg": 0.0,
       "tankering_usd": 246.22,
       "fuel_kg_total": 169.3
     },
-    "annual_raw_usd": 263327,
-    "annual_realistic_usd": 115948,
-    "annual_fuel_saving_usd": 60733,
+    "annual_raw_usd": 263335,
+    "annual_realistic_usd": 115953,
+    "annual_fuel_saving_usd": 60738,
     "annual_tankering_usd": 55215,
     "realization_factor": 0.65,
     "co2_kg": 26626,
@@ -241,7 +241,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:48.498305"
+    "timestamp": "2026-11-24T11:14:12.026179"
   },
   {
     "filename": "ARR_SXS_SXS1409_LTAI_EDDF.csv",
@@ -253,7 +253,7 @@
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
-    "collection_method": "arrivals",
+    "collection_method": "synthetic_fallback",
     "wind_source": "Mevsimsel Rüzgâr Tahmini (Climatology)",
     "wind_is_estimated": true,
     "distance_nm": 1240,
@@ -276,16 +276,16 @@
     "origin_fuel_price": 0.8,
     "dest_fuel_price": 0.95,
     "fuel_optimization_kg": 169,
-    "total_cost_saving_usd": 381.63,
+    "total_cost_saving_usd": 381.65,
     "saving_breakdown": {
       "altitude_kg": 169.3,
       "step_climb_kg": 0.0,
       "tankering_usd": 246.22,
       "fuel_kg_total": 169.3
     },
-    "annual_raw_usd": 263327,
-    "annual_realistic_usd": 115948,
-    "annual_fuel_saving_usd": 60733,
+    "annual_raw_usd": 263335,
+    "annual_realistic_usd": 115953,
+    "annual_fuel_saving_usd": 60738,
     "annual_tankering_usd": 55215,
     "realization_factor": 0.65,
     "co2_kg": 26626,
@@ -302,7 +302,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:49.556682"
+    "timestamp": "2026-11-24T11:14:12.539525"
   },
   {
     "filename": "ARR_SXS_SXS5720_20261122_121612.csv",
@@ -337,16 +337,16 @@
     "origin_fuel_price": 0.8,
     "dest_fuel_price": 0.94,
     "fuel_optimization_kg": 222,
-    "total_cost_saving_usd": 420.12,
+    "total_cost_saving_usd": 420.14,
     "saving_breakdown": {
       "altitude_kg": 221.9,
       "step_climb_kg": 0.0,
       "tankering_usd": 242.62,
       "fuel_kg_total": 221.9
     },
-    "annual_raw_usd": 289885,
-    "annual_realistic_usd": 134017,
-    "annual_fuel_saving_usd": 79610,
+    "annual_raw_usd": 289894,
+    "annual_realistic_usd": 134023,
+    "annual_fuel_saving_usd": 79616,
     "annual_tankering_usd": 54408,
     "realization_factor": 0.65,
     "co2_kg": 20000,
@@ -363,7 +363,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.872,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:50.519429"
+    "timestamp": "2026-11-24T11:14:13.008589"
   },
   {
     "filename": "ARR_SXS_SXS6381_20261122_121559.csv",
@@ -398,16 +398,16 @@
     "origin_fuel_price": 0.8,
     "dest_fuel_price": 0.95,
     "fuel_optimization_kg": 152,
-    "total_cost_saving_usd": 394.82,
+    "total_cost_saving_usd": 394.83,
     "saving_breakdown": {
       "altitude_kg": 151.6,
       "step_climb_kg": 0.0,
       "tankering_usd": 273.58,
       "fuel_kg_total": 151.6
     },
-    "annual_raw_usd": 272426,
-    "annual_realistic_usd": 115727,
-    "annual_fuel_saving_usd": 54376,
+    "annual_raw_usd": 272433,
+    "annual_realistic_usd": 115731,
+    "annual_fuel_saving_usd": 54381,
     "annual_tankering_usd": 61350,
     "realization_factor": 0.65,
     "co2_kg": 19551,
@@ -424,7 +424,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.843,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:51.302850"
+    "timestamp": "2026-11-24T11:14:13.471380"
   },
   {
     "filename": "ARR_THY_THY1011_20261122_121638.csv",
@@ -485,7 +485,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.634,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:52.123808"
+    "timestamp": "2026-11-24T11:14:14.044304"
   },
   {
     "filename": "ARR_THY_THY1587_20261122_121559.csv",
@@ -509,7 +509,7 @@
     "optimum_fl": "FL320",
     "altitude_deviation_ft": 2989,
     "buffet_margin_pct": 27.6,
-    "sar_loss_pct": 4.6,
+    "sar_loss_pct": 4.61,
     "altitude_saving_kg": 0,
     "step_climb_saving_kg": 0,
     "step_plan": [],
@@ -546,7 +546,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.808,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:52.819395"
+    "timestamp": "2026-11-24T11:14:14.495334"
   },
   {
     "filename": "ARR_THY_THY1629_20261122_121612.csv",
@@ -581,16 +581,16 @@
     "origin_fuel_price": 0.78,
     "dest_fuel_price": 0.94,
     "fuel_optimization_kg": 177,
-    "total_cost_saving_usd": 478.82,
+    "total_cost_saving_usd": 478.83,
     "saving_breakdown": {
       "altitude_kg": 177.5,
       "step_climb_kg": 0.0,
       "tankering_usd": 340.41,
       "fuel_kg_total": 177.5
     },
-    "annual_raw_usd": 330389,
-    "annual_realistic_usd": 138416,
-    "annual_fuel_saving_usd": 62079,
+    "annual_raw_usd": 330396,
+    "annual_realistic_usd": 138420,
+    "annual_fuel_saving_usd": 62083,
     "annual_tankering_usd": 76337,
     "realization_factor": 0.65,
     "co2_kg": 15102,
@@ -607,7 +607,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.737,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:53.477720"
+    "timestamp": "2026-11-24T11:14:14.926454"
   },
   {
     "filename": "ARR_THY_THY1865_20261122_121651.csv",
@@ -642,16 +642,16 @@
     "origin_fuel_price": 0.78,
     "dest_fuel_price": 0.9,
     "fuel_optimization_kg": 160,
-    "total_cost_saving_usd": 365.34,
+    "total_cost_saving_usd": 365.35,
     "saving_breakdown": {
-      "altitude_kg": 159.8,
+      "altitude_kg": 159.9,
       "step_climb_kg": 0.0,
       "tankering_usd": 240.66,
-      "fuel_kg_total": 159.8
+      "fuel_kg_total": 159.9
     },
-    "annual_raw_usd": 504166,
-    "annual_realistic_usd": 219772,
-    "annual_fuel_saving_usd": 111836,
+    "annual_raw_usd": 504178,
+    "annual_realistic_usd": 219780,
+    "annual_fuel_saving_usd": 111844,
     "annual_tankering_usd": 107936,
     "realization_factor": 0.65,
     "co2_kg": 12792,
@@ -668,7 +668,7 @@
     "is_partial_flight": true,
     "fuel_per_nm": 5.482,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:54.145244"
+    "timestamp": "2026-11-24T11:14:15.303355"
   },
   {
     "filename": "ARR_THY_THY1951_20261122_121625.csv",
@@ -729,7 +729,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.97,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:54.910369"
+    "timestamp": "2026-11-24T11:14:15.861402"
   },
   {
     "filename": "ARR_THY_THY501_20261122_121559.csv",
@@ -790,7 +790,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.771,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:55.578033"
+    "timestamp": "2026-11-24T11:14:16.340474"
   },
   {
     "filename": "ARR_THY_THY764_20261122_121612.csv",
@@ -825,16 +825,16 @@
     "origin_fuel_price": 0.78,
     "dest_fuel_price": 0.94,
     "fuel_optimization_kg": 174,
-    "total_cost_saving_usd": 475.85,
+    "total_cost_saving_usd": 475.86,
     "saving_breakdown": {
       "altitude_kg": 173.9,
       "step_climb_kg": 0.0,
       "tankering_usd": 340.22,
       "fuel_kg_total": 173.9
     },
-    "annual_raw_usd": 328333,
-    "annual_realistic_usd": 137122,
-    "annual_fuel_saving_usd": 60828,
+    "annual_raw_usd": 328340,
+    "annual_realistic_usd": 137127,
+    "annual_fuel_saving_usd": 60832,
     "annual_tankering_usd": 76294,
     "realization_factor": 0.65,
     "co2_kg": 18170,
@@ -851,6 +851,6 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.894,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-22T15:25:56.468862"
+    "timestamp": "2026-11-24T11:14:16.745435"
   }
 ]

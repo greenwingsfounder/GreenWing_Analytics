@@ -482,7 +482,7 @@ class OpenSkyCollector:
         if arrivals_df.empty:
             print("  ⚠ OpenSky API kısıtlı/boş. SENTETİK yedek arşiv devreye giriyor (gerçek veri DEĞİL).")
             
-            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "opensky_real")
+            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "synthetic_demo")
             if not os.path.exists(archive_dir):
                 # Yedek olarak proje kökünde ara
                 archive_dir = "data/archive/opensky_real"
@@ -593,7 +593,7 @@ class OpenSkyCollector:
         if departures.empty:
             print("  ⚠ OpenSky Departures API kısıtlı. SENTETİK yedek arşiv devrede (gerçek veri DEĞİL).")
             
-            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "opensky_real")
+            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "synthetic_demo")
             if not os.path.exists(archive_dir):
                 archive_dir = "data/archive/opensky_real"
                 
@@ -689,7 +689,7 @@ class OpenSkyCollector:
         if flights.empty:
             print("  ⚠ OpenSky Active Flights API kısıtlı. SENTETİK yedek arşiv devrede (gerçek veri DEĞİL).")
             
-            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "opensky_real")
+            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "synthetic_demo")
             if not os.path.exists(archive_dir):
                 archive_dir = "data/archive/opensky_real"
                 

@@ -577,9 +577,45 @@ def main():
                     )
 
             # ─── collection_method ────────────────────────
-            collection_method = _safe_str(
+            # DENETİM #91: CSV'deki 'collection_method' alanı GÜVENİLMEZ.
+            # 06_seed_real_data.py sentetik yolları synthetic_demo/ klasörüne
+            # 'collection_method=arrivals' yazarak kaydediyor. Bu etiket
+            # "gerçek uçuş" sanılıyordu — panellerde "1 gerçek + 13 sentetik"
+            # diyordu, oysa 14'ü de sentetikti.
+            #
+            # KURAL: bir kaydın gerçek sayılması için (a) dosya synthetic_
+            # içermeyen bir klasörde olacak VE (b) etiket gerçek toplama
+            # yöntemlerinden biri olacak. İkisi birden gerekli.
+            raw_method = _safe_str(
                 df['collection_method'].iloc[0], ''
             ) if 'collection_method' in df.columns and len(df) > 0 else 'unknown'
+            _path_l = str(csv_path).lower()
+            _is_synth_path = ('synthetic' in _path_l or 'demo' in _path_l
+                              or 'seed' in _path_l or 'mock' in _path_l)
+            # ── İÇERİK İMZASI (denetim #91) ──────────────────
+            # Klasör adına güvenmek yetmez: data/raw/opensky/ de
+            # sentetik. Sentetik üretici her örneği TAM 30,0 s
+            # aralıkla yazar (std = 0.0000). Gerçek ADSB düzensizdir.
+            _is_synth_content = False
+            try:
+                if 'time' in df.columns and len(df) > 5:
+                    _dt = (pd.to_datetime(df['time'])
+                           .diff().dt.total_seconds().dropna())
+                    if len(_dt) > 3 and float(_dt.std()) < 0.01:
+                        _is_synth_content = True
+            except Exception:
+                pass
+            _REAL_METHODS = ('opensky_api', 'adsb_lol', 'customer_csv',
+                             'live', 'adsb')
+            if _is_synth_path or _is_synth_content:
+                collection_method = 'synthetic_fallback'
+            elif raw_method in _REAL_METHODS:
+                collection_method = raw_method
+            elif raw_method and raw_method not in ('arrivals', 'departures'):
+                collection_method = raw_method
+            else:
+                # etiket bilinmiyor → muhafazakâr: sentetik say
+                collection_method = 'unverified'
 
             print(f"  📏 Mesafe: {distance:.0f} Nm | Heading: {heading:.0f}°")
             print(f"  ⛽ Yakıt: {estimated_fuel:,.0f} kg | FL: {cruise_alt/100:.0f}")
@@ -995,18 +1031,27 @@ def main():
         for _r in all_results:
             _m = str(_r.get('collection_method') or 'bilinmiyor')
             _methods[_m] = _methods.get(_m, 0) + 1
+        # DENETİM #91: 'unverified' (kaynağı doğrulanmamış) GERÇEK
+        # sayılamaz. Önceki sürüm sayıyordu → panel "1 gerçek" diyordu,
+        # oysa o kayıt da sentetikti (yalnızca etiketi farklıydı).
+        # "Gerçek" için POZİTİF kanıt gerekir, yokluk kanıt değildir.
+        _REAL_M = ('opensky_api', 'adsb_lol', 'customer_csv', 'live', 'adsb')
+        _real = sum(_methods.get(m, 0) for m in _REAL_M)
         _synth = (_methods.get('synthetic_fallback', 0)
                   + _methods.get('demo', 0))
-        _real = len(all_results) - _synth - _methods.get('bilinmiyor', 0)
+        _unknown = len(all_results) - _real - _synth
         print(f"  Veri kaynağı        : {dict(sorted(_methods.items()))}")
-        if _synth and _real:
-            print(f"  ⚠️  KARIŞIK VERİ: {_real} gerçek + {_synth} sentetik.")
+        if _real and (_synth or _unknown):
+            print(f"  ⚠️  KARIŞIK VERİ: {_real} gerçek + {_synth} sentetik"
+                  + (f" + {_unknown} doğrulanmamış." if _unknown else "."))
             print("      Aşağıdaki $ rakamları MÜŞTERİYE TAAHHÜT EDİLEMEZ.")
-        elif _synth:
-            print(f"  ⛔ TAMAMEN SENTETİK ({_synth} uçuş) — sadece model/arayüz")
-            print("      doğrulaması içindir. Ticari taahhüt için gerçek veri şart.")
-        else:
+        elif _real:
             print(f"  ✅ TAMAMEN GERÇEK VERİ ({_real} uçuş).")
+        else:
+            print(f"  ⛔ GERÇEK VERİ YOK — {_synth} sentetik"
+                  + (f", {_unknown} doğrulanmamış" if _unknown else "") + ".")
+            print("      Sadece model/arayüz doğrulaması içindir.")
+            print("      Ticari taahhüt için gerçek veri şart (0 kayıt).")
 
         # JSON
         os.makedirs(REPORTS_OPTIMIZATIONS, exist_ok=True)
