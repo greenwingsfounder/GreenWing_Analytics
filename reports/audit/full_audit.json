@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-11-24T11:17:33.159866",
-  "total_checks": 232,
-  "passed": 232,
+  "timestamp": "2026-11-24T11:18:29.963756",
+  "total_checks": 228,
+  "passed": 228,
   "fails": 0,
   "layers": [
     {
@@ -42,8 +42,8 @@
     {
       "code": "K6",
       "name": "Uçtan uca akış",
-      "checks": 32,
-      "passed": 32,
+      "checks": 28,
+      "passed": 28,
       "findings": []
     },
     {

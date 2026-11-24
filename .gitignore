@@ -86,10 +86,19 @@ data/calibrations/
 data/customer_fuel/
 data/mocks/
 data/archive/opensky_real/
+# ── ÜRETİLEN ÇIKTILAR (her çalıştırmada yeniden üretilir) ──
+# Tarihli raporlar: depoya girmez, aksi hâlde her çalıştırmada
+# yeni bir dosya birikir ve depo şişer.
 reports/case_studies/
 reports/optimizations/*.html
 reports/optimizations/*.csv
 *.xlsx
 *.pdf
 # Teslimat: teknik doğrulama raporu sürüm kontrolünde tutulur
+# Ama iki PDF depoda kalır: müşteriye hazır teslim.
 !reports/GreenWing_Teknik_Rapor.pdf
+!reports/GreenWing_Proje_El_Kitabi.pdf
+
+# HTML raporlar da üretilir (yeniden üretilebilir)
+reports/GreenWing_CaseStudy_*.html
+reports/GreenWing_Fleet_Report_*.html

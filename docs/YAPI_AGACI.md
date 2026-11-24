@@ -1,12 +1,12 @@
 # GreenWing Analytics — Proje Yapı Ağacı
 
 > Otomatik üretildi: `python tools/build_tree.py`  
-> **166 dosya** · **94 Python modülü** · **51.559 satır kod**
+> **160 dosya** · **94 Python modülü** · **51.577 satır kod**
 
 **İşaretler:** ★ = kritik dosya · ⚠️ = dikkat · (0 byte) = silinecek
 
 ```
-├── config/   (18 dosya)
+├── config/   (10 dosya)
 │   ├── __init__.py  — Configuration Package
 │   ├── aircraft_database.yaml  — ★ 14 uçak tipi: ağırlık, kanat, polar
 │   ├── aircraft_polar_sources.yaml  — Polar değerlerin kaynak izi
@@ -17,7 +17,7 @@
 │   ├── phase_thrust_table.yaml  — Faz bazlı itki tablosu
 │   ├── saf_database.yaml  — SAF türleri ve özellikleri
 │   └── settings.py  — Sistem ayarları (units.py'den okur)
-├── data/   (62 dosya)
+├── data/   (32 dosya)
 │   ├── calibrations/   (1 dosya)
 │   │   └── OKU.md
 │   ├── customer_fuel/   (1 dosya)
@@ -74,27 +74,21 @@
 │   ├── NASIL_KULLANIRIM.md
 │   ├── SECURITY_AUDIT.md  — Güvenlik denetimi
 │   └── YAPI_AGACI.md  — ★ Bu ağaç (bu dosya)
-├── reports/   (16 dosya)
+├── reports/   (10 dosya)
 │   ├── audit/   (1 dosya)
 │   │   └── full_audit.json [1 KB]
-│   ├── case_studies/   (8 dosya)
+│   ├── case_studies/   (4 dosya)
 │   │   ├── case_study_20261122.json [33 KB]
-│   │   ├── case_study_20261124.json [33 KB]
 │   │   ├── corsia_report_20261122.json [2 KB]
-│   │   ├── corsia_report_20261124.json [2 KB]
 │   │   ├── data_quality_20261122.json [4 KB]
-│   │   ├── data_quality_20261124.json [4 KB]
-│   │   ├── fleet_digital_twins_20261122.json [0 KB]
-│   │   └── fleet_digital_twins_20261124.json [0 KB]
+│   │   └── fleet_digital_twins_20261122.json [0 KB]
 │   ├── optimizations/   (1 dosya)
 │   │   └── batch_results.json [25 KB]
 │   ├── GreenWing_CaseStudy_20261122.html
-│   ├── GreenWing_CaseStudy_20261124.html
 │   ├── GreenWing_Fleet_Report_20261122.html
 │   ├── GreenWing_Proje_El_Kitabi.pdf [116 KB]
-│   ├── GreenWing_Teknik_Rapor.pdf [138 KB]
-│   └── QA_rapor3.html
-├── scripts/   (20 dosya)
+│   └── GreenWing_Teknik_Rapor.pdf [138 KB]
+├── scripts/   (10 dosya)
 │   ├── 01_collect_data.py  — ① Veri topla (OpenSky/ADSB.lol)
 │   ├── 02_analyze_and_optimize.py  — ② ★ Ana boru hattı: analiz + optimizasyon
 │   ├── 03_generate_outputs.py  — ③ Rapor üret (HTML/JSON)
@@ -105,8 +99,8 @@
 │   ├── 08_automated_fleet_tracker.py  — ⑧ Otomatik filo takibi
 │   ├── 09_clean_and_backup.py  — ⑨ Temizlik + yedekleme
 │   └── 10_pre_real_ingestion_demo.py  — ⑩ Müşteri verisi kabul demo
-├── src/   (87 dosya)
-│   ├── analysis/   (16 dosya)
+├── src/   (45 dosya)
+│   ├── analysis/   (8 dosya)
 │   │   ├── __init__.py  — Analysis Package
 │   │   ├── benchmark.py  — Bağımsız kaynakla karşılaştırma
 │   │   ├── fleet_analyzer.py  — Filo geneli: yakıt, tasarruf, CO₂
@@ -115,16 +109,16 @@
 │   │   ├── phase_segmentation.py  — Uçuşu fazlara ayır
 │   │   ├── sensitivity.py  — Hassasiyet: hangi parametre ne kadar etkiler
 │   │   └── uncertainty.py  — ★ Belirsizlik bütçesi / güven aralığı
-│   ├── data_collection/   (6 dosya)
+│   ├── data_collection/   (3 dosya)
 │   │   ├── __init__.py  — Data Collection Package
 │   │   ├── airport_database.py  — 60+ havalimanı + eşleştirme
 │   │   └── opensky_collector.py  — OpenSky OAuth2 + tarihsel veri
-│   ├── ingestion/   (8 dosya)
+│   ├── ingestion/   (4 dosya)
 │   │   ├── __init__.py
 │   │   ├── calibration_pipeline.py  — Uçtan uca kalibrasyon akışı
 │   │   ├── customer_fuel_ingestor.py  — Müşteri yakıt CSV → normalize
 │   │   └── flight_matcher.py  — Yakıt kaydı ↔ radar izi eşleştirme
-│   ├── models/   (18 dosya)
+│   ├── models/   (9 dosya)
 │   │   ├── __init__.py  — Physics Models Package
 │   │   ├── aircraft_performance.py  — Kaldırma, sürükleme, L/D, buffet
 │   │   ├── atmosphere.py  — ISA standart atmosfer: T/P/ρ/ses hızı
@@ -134,23 +128,23 @@
 │   │   ├── saf_model.py  — SAF karışımı ve CO₂ azaltımı
 │   │   ├── wind_gfs.py  — GFS rüzgârı (3 kademeli zincir)
 │   │   └── wind_model.py  — Rüzgâr profili (ölçüm DEĞİL, varsayım)
-│   ├── optimization/   (12 dosya)
+│   ├── optimization/   (6 dosya)
 │   │   ├── __init__.py  — Optimization Package
 │   │   ├── altitude_optimizer.py  — Optimum irtifa + step climb
 │   │   ├── cost_index_optimizer.py  — CI → hız optimizasyonu
 │   │   ├── model_calibrator.py  — Modeli müşteri verisine göre ayarla
 │   │   ├── tail_performance_calibrator.py  — Kuyruk bazlı dijital ikiz
 │   │   └── tankering_optimizer.py  — Yakıt tankering kararı
-│   ├── reporting/   (7 dosya)
+│   ├── reporting/   (5 dosya)
 │   │   ├── templates/
 │   │   │   ├── corsia_report_template.html
 │   │   │   ├── fleet_report_template.html
 │   │   ├── __init__.py  — Reporting Package
 │   │   └── report_generator.py  — HTML/JSON rapor + CORSIA belgesi
-│   ├── security/   (4 dosya)
+│   ├── security/   (2 dosya)
 │   │   ├── __init__.py  — Güvenlik yardımcıları — dashboard kimlik doğrulama.
 │   │   └── auth.py  — ★ Oturum + rol + kiracı
-│   ├── validation/   (8 dosya)
+│   ├── validation/   (4 dosya)
 │   │   ├── __init__.py  — Validation Package
 │   │   ├── business_validator.py  — İş mantığı tutarlı mı
 │   │   ├── data_validator.py  — Girdi verisi sağlıklı mı
@@ -159,7 +153,7 @@
 │   ├── logging_config.py  — Hesaplama izleme / log sistemi
 │   ├── units.py  — ★ Birim dönüşümü + fizik sabitleri — TEK KAYNAK
 │   └── utils.py  — Ortak yardımcılar (haversine, biçimlendirme)
-├── tests/   (68 dosya)
+├── tests/   (24 dosya)
 │   ├── __init__.py  — Test Package
 │   ├── test_aircraft_data_provenance.py  — ★ Uçak verisi kaynak doğrulaması
 │   ├── test_atmosphere.py  — ISA atmosfer (ICAO elle hesap)
@@ -182,9 +176,9 @@
 │   ├── test_units.py  — Birim dönüşümleri
 │   ├── test_utils.py  — Yardımcılar
 │   ├── test_validation.py  — Doğrulayıcılar
-│   ├── test_webapp.py  — Site: 10 sayfa, API, PDF, rol
+│   ├── test_webapp.py  — Site: 11 sayfa, API, PDF/.md, rol
 │   └── test_wind_provider.py  — Rüzgâr zinciri
-├── tools/   (22 dosya)
+├── tools/   (11 dosya)
 │   ├── build_handbook.py  — PDF: proje el kitabı
 │   ├── build_pilot_data_package.py  — Pilot veri paketi üretir
 │   ├── build_provenance.py  — Model kaynak envanteri
@@ -196,9 +190,15 @@
 │   ├── openap_reference.py  — OpenAP referans karşılaştırması
 │   ├── sync_fuel_coef.py  — Yakıt katsayısı senkron
 │   └── sync_openap_params.py  — OpenAP → YAML senkron
-├── webapp/   (2 dosya)
-│   └── app.py  — ★ 10 sayfalı site + API + PDF indirme
+├── webapp/   (1 dosya)
+│   └── app.py  — ★ 11 sayfalı site + API + PDF/.md indirme
+├── .env.example  — Ortam değişkenleri örneği (sırlar burada DEĞİL)
+├── .gitignore  — Sürüm kontrolü dışında tutulacaklar
 ├── README.md  — Giriş: ne bu, nasıl çalıştırılır
 ├── requirements.txt  — Python bağımlılıkları
-└── setup.py  — Paket kurulumu (pip install -e .)
+├── setup.py  — Paket kurulumu (pip install -e .)
+└── archive/   (2 eski sürüm — KULLANILMIYOR, silinmedi)
+    ├── dashboard_v0/
+    └── web_v1/
+        README.md  — neden arşivlendi
 ```

@@ -89,7 +89,7 @@ DESC: dict[str, str] = {
     'config/demo_scenarios.yaml': 'Demo senaryoları (ticari kullanılmaz)',
 
     # webapp
-    'webapp/app.py': '★ 10 sayfalı site + API + PDF indirme',
+    'webapp/app.py': '★ 11 sayfalı site + API + PDF/.md indirme',
 
     # tools
     'tools/full_audit.py': '★ 7 katmanlı tam denetim (228 kontrol)',
@@ -117,7 +117,7 @@ DESC: dict[str, str] = {
     'scripts/10_pre_real_ingestion_demo.py': '⑩ Müşteri verisi kabul demo',
 
     # tests
-    'tests/test_webapp.py': 'Site: 10 sayfa, API, PDF, rol',
+    'tests/test_webapp.py': 'Site: 11 sayfa, API, PDF/.md, rol',
     'tests/test_auth.py': 'Kimlik: parola, oturum, rol, kiracı',
     'tests/test_units.py': 'Birim dönüşümleri',
     'tests/test_atmosphere.py': 'ISA atmosfer (ICAO elle hesap)',
@@ -216,16 +216,18 @@ def build() -> list[str]:
             branch = '└── ' if last else '├── '
             rel = item.relative_to(ROOT).as_posix()
             if item.is_dir():
-                n = len([x for x in item.rglob('*') if x.is_file()])
+                n = len([x for x in item.rglob('*') if x.is_file()
+                         and not any(s in x.parts for s in SKIP_DIRS)
+                         and x.suffix not in SKIP_EXT])
                 out.append(f'{prefix}{branch}{item.name}/'
                            + (f'   ({n} dosya)' if depth < 2 else ''))
                 walk(item, prefix + ('    ' if last else '│   '), depth + 1)
             else:
                 stats['files'] += 1
                 desc = DESC.get(rel) or module_purpose(item)
-                if item.suffix not in ('.py', '.md', '.yaml', '.yml',
-                                       '.csv', '.json', '.txt', '.sh',
-                                       '.html', '.pdf'):
+                _ok_suffix = ('.py', '.md', '.yaml', '.yml', '.csv',
+                              '.json', '.txt', '.sh', '.html', '.pdf')
+                if depth > 0 and item.suffix not in _ok_suffix:
                     continue
                 size = ''
                 if item.suffix in ('.pdf', '.json'):
@@ -237,6 +239,22 @@ def build() -> list[str]:
                 out.append(line)
 
     walk(ROOT)
+    # Son satırdaki '└──' işaretini '├──' yap (archive gelecek)
+    for i in range(len(out) - 1, -1, -1):
+        if '└── ' in out[i]:
+            out[i] = out[i].replace('└── ', '├── ', 1)
+            break
+    # ── ARŞİV: taranmaz ama VAR OLDUĞU BİLİNMELİ ──────────
+    arch = ROOT / 'archive'
+    if arch.exists():
+        subs = sorted(x.name for x in arch.iterdir() if x.is_dir())
+        out.append(f'└── archive/   ({len(subs)} eski sürüm — '
+                   'KULLANILMIYOR, silinmedi)')
+        for i, s in enumerate(subs):
+            b = '    └── ' if i == len(subs) - 1 else '    ├── '
+            out.append(f'{b}{s}/')
+            if i == len(subs) - 1:
+                out.append('        README.md  — neden arşivlendi')
     return out, stats
 
 
