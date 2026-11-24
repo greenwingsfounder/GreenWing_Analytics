@@ -108,6 +108,9 @@ Tam ağaç: [`docs/YAPI_AGACI.md`](docs/YAPI_AGACI.md)
 
 ```bash
 # 7 katmanlı tam denetim (228 kontrol)
+# ÖNEMLİ: K7 (arayüz) için sunucu 8052'de açık olmalı —
+# kapalıysa denetim "ATLANDI" der, "temiz" demez (denetim #94).
+python -m uvicorn webapp.app:app --port 8052 &   # önce site
 python tools/full_audit.py
 
 # Belirli bir katman
@@ -122,11 +125,18 @@ python tests/test_webapp.py
 # Kalibrasyon boru hattı regresyonu (7 test)
 python -m pytest tests/test_ingestion_pipeline.py -v
 
+# Denetim dürüstlüğü (8 test) — "denetlenmemiş yeşil" geri gelmesin
+python -m pytest tests/test_audit_honesty.py -v
+
 # Yapı ağacını yenile
 python tools/build_tree.py --md
 ```
 
-**Beklenen:** `228/228 · 0 FAIL · HİÇ HATA YOK`
+**Beklenen:** `228/228 · 0 FAIL · 0 ATLANDI`
+
+Sunucu kapalıysa `K7 Arayüz` katmanı **2/2 → ATLANDI** olur ve toplam
+`220/220 · 8 ATLANDI` çıkar. Bu bir hata değil — arayüzün test
+edilmediğini dürüstçe söylemesidir.
 
 ---
 

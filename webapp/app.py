@@ -1300,6 +1300,13 @@ def documents(request: Request, gw_session: str | None = Cookie(None),
     if not ok:
         return RedirectResponse('/giris?next=/dokumanlar', status_code=303)
 
+    def _doc_path(rel: str) -> Path:
+        """Belge yolu: 'docs/...' → ROOT/docs/...  ·  '../...' → ROOT/...
+        (pilot paketi docs/ dışında; kopyalamak yerine doğrudan okuyoruz.)"""
+        if rel.startswith('../'):
+            return (ROOT / 'docs' / rel).resolve()
+        return ROOT / 'docs' / rel
+
     def sz(path: Path) -> str:
         if not path.exists():
             return '—'
@@ -1310,7 +1317,7 @@ def documents(request: Request, gw_session: str | None = Cookie(None),
     docs_rows = ''.join(
         f"""<tr><td><b>{esc(title)}</b><div class="small"
 style="color:#6b7280">{esc(desc)}</div></td>
-<td class="small">{sz(md / fn)}</td>
+<td class="small">{sz(_doc_path(fn))}</td>
 <td><a href="/indir/{key}.md?token={token}">.md indir</a></td>
 <td><a href="/atlas?token={token}">sitede oku</a></td></tr>"""
         for key, fn, title, desc in (
@@ -1324,6 +1331,11 @@ style="color:#6b7280">{esc(desc)}</div></td>
              'Her sayının kaynak envanteri'),
             ('denetim', 'FULL_TECHNICAL_AUDIT.md', 'Tam Teknik Denetim',
              '81+ bulgu: ne bulundu, nasıl düzeltildi'),
+            ('pilot', '../deliverables/pilot_paketi/'
+                      '04_PILOTLA_KONUSMA_REHBERI.md',
+             'Pilotla Konuşma Rehberi',
+             'Sahada pilotla nasıl konuşulur: 30 sn anlatım, '
+             'sorular, kırmızı çizgiler'),
         ))
 
     pdf_rows = ''.join(
@@ -1999,13 +2011,18 @@ gerçek veriye</td><td>Toplam sapma <b>±%5</b></td></tr>
 </tbody></table></div>
 <div class="note-box ok"><div class="t">
 Pilot paketi hazır — müşteriye bugün gönderilebilir</div>
-<code>deliverables/pilot_paketi/</code> içinde üç dosya var:<br><br>
+<code>deliverables/pilot_paketi/</code> içinde dört dosya var:<br><br>
 <b>01_YAKIT_VERISI_SABLONU.csv</b> — 16 kolon (8 zorunlu),
 2 örnek satır dolu. Müşteri Excel'de açar, doldurur, CSV kaydeder.<br>
 <b>02_VERI_ISTEK_MEKTUBU.md</b> — ne istediğimizi, neden, gizlilik ve
 zaman planıyla anlatan mektup.<br>
 <b>03_KABUL_KRITERLERI.md</b> — MAPE ≤ %10, toplam sapma ≤ %5,
-sistematik yanlılık ≤ %3. Sözleşmeye girecek cümle taslağı dahil.<br><br>
+sistematik yanlılık ≤ %3. Sözleşmeye girecek cümle taslağı dahil.<br>
+<b>04_PILOTLA_KONUSMA_REHBERI.md</b> — <i>bu sende kalır, müşteriye
+gitmez.</i> Pilotla konuşurken ne diyeceğin: 30 saniyelik anlatım,
+pilotun soracağı 6 soru ve cevapları, söylenmemesi gerekenler,
+"30 uçuşu nasıl isteyeceğin".<br>
+<a href="/indir/pilot.md">Sitede oku / indir →</a><br><br>
 Yeniden üretmek için:
 <code>python tools/build_pilot_data_package.py --airline "Pegasus"</code>
 </div>
@@ -2114,12 +2131,17 @@ PDF_FILES = {
                  'GreenWing_Proje_El_Kitabi.pdf'),
 }
 # Markdown doküman indirme (PDF'e basınca kod sayfası çıkıyordu → #82)
+# (kaynak yolu — ROOT'a göre, indirme adı)
+# Yol tam verilir; böylece docs/ dışındaki belgeler de (ör. pilot
+# paketi) KOPYALANMADAN indirilebilir — tek kaynak ilkesi.
 MD_FILES = {
-    'atlas': ('KOD_ATLASI.md', 'KOD_ATLASI.md'),
-    'agac': ('YAPI_AGACI.md', 'YAPI_AGACI.md'),
-    'kullanim': ('NASIL_KULLANIRIM.md', 'NASIL_KULLANIRIM.md'),
-    'kaynak': ('MODEL_PROVENANCE.md', 'MODEL_PROVENANCE.md'),
-    'denetim': ('FULL_TECHNICAL_AUDIT.md', 'FULL_TECHNICAL_AUDIT.md'),
+    'atlas': ('docs/KOD_ATLASI.md', 'KOD_ATLASI.md'),
+    'agac': ('docs/YAPI_AGACI.md', 'YAPI_AGACI.md'),
+    'kullanim': ('docs/NASIL_KULLANIRIM.md', 'NASIL_KULLANIRIM.md'),
+    'kaynak': ('docs/MODEL_PROVENANCE.md', 'MODEL_PROVENANCE.md'),
+    'denetim': ('docs/FULL_TECHNICAL_AUDIT.md', 'FULL_TECHNICAL_AUDIT.md'),
+    'pilot': ('deliverables/pilot_paketi/04_PILOTLA_KONUSMA_REHBERI.md',
+              'PILOTLA_KONUSMA_REHBERI.md'),
 }
 
 
@@ -2166,7 +2188,7 @@ def download_md(name: str, gw_session: str | None = Cookie(None),
     entry = MD_FILES.get(name)
     if entry is None:
         raise HTTPException(status_code=404, detail='Bilinmeyen doküman')
-    path = ROOT / 'docs' / entry[0]
+    path = ROOT / entry[0]
     if not path.exists():
         raise HTTPException(status_code=404,
                             detail=f'{entry[0]} bulunamadı')

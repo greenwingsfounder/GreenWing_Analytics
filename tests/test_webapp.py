@@ -132,6 +132,17 @@ def main() -> int:
           '.md indir' in r.text and 'PDF indir' in r.text)
     check('dokümanlar GitHub karışıklığını açıklıyor',
           'Create PR' in r.text and 'Download ZIP' in r.text)
+    # Pilot rehberi: docs/ DIŞINDA (deliverables/) ama kopyalanmadan
+    # indirilebilmeli — MD_FILES tam yol desteği (denetim #92).
+    check('dokümanlar pilot rehberini listeliyor',
+          'Pilotla Konuşma Rehberi' in r.text)
+    _r = fresh.get(f'/indir/pilot.md?token={token}')
+    check('pilot rehberi indirilebiliyor (docs dışı yol)',
+          _r.status_code == 200 and len(_r.content) > 5000,
+          f'HTTP {_r.status_code}, {len(_r.content)} bayt')
+    check('pilot rehberi içeriği doğru',
+          b'Pilot' in _r.content and
+          'saha' in _r.content.decode('utf-8', 'ignore').lower())
     r = fresh.get(f'/atlas?token={token}')
     check('kod atlası 200', r.status_code == 200)
     check('kod atlası her sayının kaynağını gösteriyor',

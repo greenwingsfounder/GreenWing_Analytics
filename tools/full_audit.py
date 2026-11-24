@@ -88,6 +88,20 @@ class Layer:
         self.passed += 1
         self.findings.append(Finding(self.code, 'WARN', subject, detail))
 
+    def skip(self, subject: str, detail: str = '') -> None:
+        """ATLANDI — test edilmedi. 'Geçti' sayılmaz, 'başarısız' da
+        sayılmaz. DENETİM #94: K7 (arayüz) sunucu kapalıyken 'warn'
+        kullanıyordu; warn() passed'ı ARTIRIYORDU → arayüz hiç test
+        edilmeden '228/228 · HİÇ HATA YOK' denebiliyordu. Gerçekte
+        8 kontrol atlanmıştı ve bu görünmüyordu. Artık atlanan
+        kontroller AYRI sayılıyor ve raporda açıkça yazılıyor."""
+        self.checks += 1
+        self.findings.append(Finding(self.code, 'SKIP', subject, detail))
+
+    @property
+    def skips(self) -> list[Finding]:
+        return [f for f in self.findings if f.severity == 'SKIP']
+
     @property
     def fails(self) -> list[Finding]:
         return [f for f in self.findings if f.severity == 'FAIL']
@@ -833,11 +847,12 @@ def layer_ui() -> None:
     try:
         import httpx
     except ImportError:
-        lay.warn('httpx', 'kurulu değil — arayüz testi atlandı')
+        lay.skip('httpx', 'kurulu değil — arayüz testi YAPILAMADI')
         return
 
-    # 7a) Site ayakta mı
-    base = 'http://127.0.0.1:8052'
+    # 7a) Site ayakta mı — port ortamdan (varsayılan 8052)
+    _port = os.environ.get('GREENWING_AUDIT_PORT', '8052')
+    base = f'http://127.0.0.1:{_port}'
     try:
         r = httpx.get(f'{base}/giris', timeout=5)
         if r.status_code == 200 and 'GreenWing' in r.text:
@@ -845,8 +860,10 @@ def layer_ui() -> None:
         else:
             lay.fail('site /giris', f'HTTP {r.status_code}')
     except Exception as e:
-        lay.warn('site erişilemiyor',
-                 f'{type(e).__name__} — sunucu kapalı olabilir')
+        lay.skip('site erişilemiyor',
+                 f'port {_port}: {type(e).__name__} — sunucu kapalı. '
+                 'ARAYÜZ TEST EDİLMEDİ. Başlat: '
+                 'python -m uvicorn webapp.app:app --port 8052')
 
     # 7b) Giriş → token → sayfalar
     try:
@@ -875,9 +892,10 @@ def layer_ui() -> None:
         else:
             lay.fail('site giriş', f'HTTP {r.status_code} {loc[:50]}')
     except KeyError:
-        lay.warn('giriş testi', 'GREENWING_DASHBOARD_PASSWORD yok')
+        lay.skip('giriş testi',
+                 'GREENWING_DASHBOARD_PASSWORD yok — ARAYÜZ TEST EDİLMEDİ')
     except Exception as e:
-        lay.warn('giriş testi', f'{type(e).__name__}: {str(e)[:80]}')
+        lay.skip('giriş testi', f'{type(e).__name__}: {str(e)[:80]}')
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -888,11 +906,12 @@ def report() -> int:
     print('  GREENWING ANALYTICS — SIFIRDAN TAM DENETİM')
     print('═' * 74)
     total_c = total_p = 0
-    total_f = 0
+    total_f = total_s = 0
     for lay in LAYERS:
         total_c += lay.checks
         total_p += lay.passed
         total_f += len(lay.fails)
+        total_s += len(lay.skips)
         icon = '✓' if not lay.fails else '✗'
         rate = (100.0 * lay.passed / lay.checks) if lay.checks else 0.0
         print(f'\n  {icon} {lay.code} · {lay.name:24s} '
@@ -901,14 +920,20 @@ def report() -> int:
             print(f'       ✗ {f.subject}  — {f.detail}')
         for w in lay.warns[:3]:
             print(f'       ⚠ {w.subject}  — {w.detail}')
+        for s in lay.skips:
+            print(f'       ⊘ {s.subject}  — {s.detail}')
         if len(lay.warns) > 3:
             print(f'       ⚠ ... +{len(lay.warns)-3} uyarı')
 
     print('\n' + '═' * 74)
-    print(f'  TOPLAM: {total_p}/{total_c} kontrol geçti · '
-          f'{total_f} FAIL')
-    if total_f == 0:
-        print('  ✓ HİÇ HATA YOK — sistem temiz')
+    _tested = total_c - total_s
+    print(f'  TOPLAM: {total_p}/{_tested} test edilen kontrol geçti · '
+          f'{total_f} FAIL · {total_s} ATLANDI')
+    if total_f == 0 and total_s == 0:
+        print('  ✓ HİÇ HATA YOK — sistem temiz, hepsi test EDİLDİ')
+    elif total_f == 0:
+        print(f'  ⚠ HATA YOK ama {total_s} kontrol ATLANDI — '
+              'bunlar test EDİLMEDİ, "temiz" demek için yeterli değil')
     else:
         print('  ❌ DÜZELTİLMESİ GEREKEN BULGULAR VAR')
     print('═' * 74)
@@ -920,6 +945,7 @@ def report() -> int:
         'total_checks': total_c,
         'passed': total_p,
         'fails': total_f,
+        'skipped': total_s,
         'layers': [{
             'code': l.code, 'name': l.name, 'checks': l.checks,
             'passed': l.passed,

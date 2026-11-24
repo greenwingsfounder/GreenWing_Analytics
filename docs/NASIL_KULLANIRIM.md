@@ -196,6 +196,36 @@ pilot verisi geldiğinde aynı komut aynı yerde çalışır.
 
 ---
 
+## 8b. Denetimi çalıştırırken — kritik ayrıntı
+
+`tools/full_audit.py` 7 katmanı denetler. **K7 (Arayüz)** katmanı
+8052 portunda çalışan sunucuyu test eder. Sunucu kapalıysa:
+
+```
+⊘ site erişilemiyor — port 8052: ConnectError — ARAYÜZ TEST EDİLMEDİ
+TOPLAM: 220/220 test edilen kontrol geçti · 0 FAIL · 8 ATLANDI
+⚠ HATA YOK ama 8 kontrol ATLANDI — "temiz" demek için yeterli değil
+```
+
+Bu **doğru** davranış. Denetim "ben arayüzü test edemedim" diyor;
+"her şey temiz" demiyor.
+
+Tam denetim için **önce siteyi aç**, sonra denetimi koştur:
+
+```bash
+# 1. terminal
+GREENWING_DASHBOARD_PASSWORD=parola python -m uvicorn \
+    webapp.app:app --host 0.0.0.0 --port 8052
+
+# 2. terminal
+GREENWING_DASHBOARD_PASSWORD=parola python tools/full_audit.py
+# → 228/228 · 0 FAIL · 0 ATLANDI · ✓ hepsi test EDİLDİ
+```
+
+Diğer portta çalıştırıyorsan: `GREENWING_AUDIT_PORT=8053`.
+
+---
+
 ## 9. Sık yapılan hatalar
 
 | Hata | Neden | Çözüm |

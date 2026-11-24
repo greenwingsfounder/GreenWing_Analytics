@@ -1,12 +1,13 @@
 # Pilot Veri Paketi — [Havayolu]
 
-Bu klasörde üç dosya var:
+Bu klasörde dört dosya var:
 
-| Dosya | Ne için |
-|---|---|
-| `01_YAKIT_VERISI_SABLONU.csv` | Müşterinin dolduracağı dosya |
-| `02_VERI_ISTEK_MEKTUBU.md` | Veri talebini açıklayan mektup |
-| `03_KABUL_KRITERLERI.md` | Doğruluğu nasıl ölçeceğimiz |
+| Dosya | Ne için | Kim okur |
+|---|---|---|
+| `01_YAKIT_VERISI_SABLONU.csv` | Müşterinin dolduracağı dosya | Veri sahibi |
+| `02_VERI_ISTEK_MEKTUBU.md` | Veri talebini açıklayan mektup | Yakıt verimliliği müdürü |
+| `03_KABUL_KRITERLERI.md` | Doğruluğu nasıl ölçeceğimiz | Karar verici |
+| **`04_PILOTLA_KONUSMA_REHBERI.md`** | **Sahada pilotla nasıl konuşulur** | **Sen** |
 
 ## Hızlı özet
 
@@ -14,6 +15,18 @@ Bu klasörde üç dosya var:
 - Hedef: **30 uçuş**, son 3 ay
 - En kritik 3 veri: `blok_yakit_kg`, `cruise_irtifasi_ft`, `ucak_tipi`
 - Kabul eşiği: MAPE ≤ %10, toplam sapma ≤ %5
+
+## Hangi belgeyi kime vereceksin
+
+```
+Pilotla konuşuyorsan  → 04'ü OKU (kendin), kimseye verme
+Yakıt verimliliği müd. → 02 mektup + 01 şablon
+CFO / karar verici    → 03 kabul kriterleri
+Veri gelecekse        → 01 şablon
+```
+
+`04` bir satış belgesi değil — **senin saha notun.** Pilotla konuşmadan
+önce bir kez oku, 9. bölümdeki tek sayfalık özeti ezberle.
 
 ## Sıra
 
