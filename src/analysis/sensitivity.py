@@ -49,7 +49,7 @@ KULLANIM:
         'distance_nm': 1560,
         'altitude_ft': 37000,
         'mach': 0.785,
-        'fuel_price_usd': 0.85,
+        'fuel_price_usd': _DEFAULT_FUEL_PRICE,
     })
 
 Kaynak:
@@ -64,6 +64,10 @@ import numpy as np
 from typing import Optional
 
 from src.models.fuel_model import FuelModel
+from config.assumptions import Assumptions
+
+# BÜTÜNLÜK: varsayılan yakıt fiyatı TEK kaynaktan (sabit kodlanmış $0.85 değil).
+_DEFAULT_FUEL_PRICE = Assumptions.fuel_price('DEFAULT')
 
 
 # ═══════════════════════════════════════════════════════════
@@ -514,7 +518,7 @@ class SensitivityAnalyzer:
     def analyze_fuel_price_sensitivity(
         self,
         per_flight_saving_kg: float,
-        base_price_usd: float = 0.85,
+        base_price_usd: Optional[float] = None,
         variation_pct: float = 20,
         steps: int = 5,
     ) -> dict:
@@ -535,6 +539,10 @@ class SensitivityAnalyzer:
         Returns:
             dict: Hassasiyet sonuçları
         """
+        # BÜTÜNLÜK: fiyat verilmezse tek kaynaktan (Assumptions) alınır.
+        if base_price_usd is None:
+            base_price_usd = _DEFAULT_FUEL_PRICE
+
         base_saving_usd = per_flight_saving_kg * base_price_usd
 
         results = []
@@ -601,12 +609,66 @@ class SensitivityAnalyzer:
                 total_uncertainty_pct: Toplam belirsizlik tahmini
                 recommendations: İyileştirme önerileri
         """
-        weight      = params.get('weight_kg', 70000)
-        distance    = params.get('distance_nm', 1560)
-        altitude    = params.get('altitude_ft', 37000)
-        mach        = params.get('mach', 0.785)
-        fuel_price  = params.get('fuel_price_usd', 0.85)
-        saving_kg   = params.get('saving_kg', 300)
+        # ══════════════════════════════════════════════════════
+        # DENETİM #62 — None / SIFIR GİRDİDE ÇÖKÜYORDU
+        # ══════════════════════════════════════════════════════
+        # Ölçülen:
+        #   full_sensitivity_report(None)                  → AttributeError
+        #   full_sensitivity_report({'weight_kg': 0,
+        #                            'distance_nm': 0})    → ZeroDivisionError
+        #
+        # Ayrıca `{}` ile çağrıldığında 6 varsayılan sessizce
+        # kullanılıyordu ama çıktıda HANGİ değerlerin varsayılan
+        # olduğu yazmıyordu. Duyarlılık raporu, hangi girdiyle
+        # üretildiğini söylemezse yorumlanamaz.
+        if params is None:
+            raise ValueError(
+                "params None olamaz. Duyarlılık analizi için en az "
+                "weight_kg, distance_nm, altitude_ft, mach verilmeli; "
+                "varsayılanları kullanmak için {} geçin."
+            )
+        if not isinstance(params, dict):
+            raise TypeError(
+                f"params dict olmalı, alınan: {type(params).__name__}"
+            )
+
+        _defaults = {
+            'weight_kg'     : 70000,
+            'distance_nm'   : 1560,
+            'altitude_ft'   : 37000,
+            'mach'          : 0.785,
+            'fuel_price_usd': _DEFAULT_FUEL_PRICE,
+            'saving_kg'     : 300,
+        }
+        used_defaults = [k for k in _defaults if params.get(k) is None]
+        for _k in _defaults:
+            if params.get(_k) is None:
+                params = {**params, _k: _defaults[_k]}
+
+        weight      = params['weight_kg']
+        distance    = params['distance_nm']
+        altitude    = params['altitude_ft']
+        mach        = params['mach']
+        fuel_price  = params['fuel_price_usd']
+        saving_kg   = params['saving_kg']
+
+        # Fiziksel olarak geçersiz girdiler sessizce 0 bölmeye
+        # düşmesin — açık hata.
+        for _name, _val, _min in (
+            ('weight_kg', weight, 1.0),
+            ('distance_nm', distance, 1.0),
+            ('mach', mach, 0.01),
+            ('fuel_price_usd', fuel_price, 0.0),
+        ):
+            if not isinstance(_val, (int, float)) or isinstance(_val, bool):
+                raise TypeError(
+                    f"{_name} sayısal olmalı, alınan: {type(_val).__name__}"
+                )
+            if _val < _min:
+                raise ValueError(
+                    f"{_name}={_val} geçersiz (en az {_min}). "
+                    f"Duyarlılık analizi bu girdiyle anlamsız."
+                )
 
         analyses = {}
 
@@ -701,6 +763,12 @@ class SensitivityAnalyzer:
 
         return {
             'analyses'              : analyses,
+            'used_default_params'   : used_defaults,
+            'analysis_inputs'       : {
+                'weight_kg': weight, 'distance_nm': distance,
+                'altitude_ft': altitude, 'mach': mach,
+                'fuel_price_usd': fuel_price, 'saving_kg': saving_kg,
+            },
             'ranking'               : ranking,
             'dominant_source'       : dominant['parameter'],
             'dominant_effect_pct'   : dominant['effect_pct'],
@@ -874,7 +942,7 @@ def validate_sensitivity() -> bool:
     # ─── [6] Yakıt fiyatı hassasiyeti ─────────────────────
     print("\n  [6] Yakıt Fiyatı Hassasiyeti")
 
-    price_result = sa.analyze_fuel_price_sensitivity(300, 0.85)
+    price_result = sa.analyze_fuel_price_sensitivity(300, _DEFAULT_FUEL_PRICE)
 
     tests += 1
     if price_result['max_effect_pct'] > 0:
@@ -890,7 +958,7 @@ def validate_sensitivity() -> bool:
         'distance_nm'   : 1560,
         'altitude_ft'   : 37000,
         'mach'          : 0.785,
-        'fuel_price_usd': 0.85,
+        'fuel_price_usd': _DEFAULT_FUEL_PRICE,
         'saving_kg'     : 300,
     })
 

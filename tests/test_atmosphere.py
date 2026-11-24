@@ -475,6 +475,48 @@ def run_tests():
     )
 
     # ═══════════════════════════════════════════════════════
+    # ICAO DOC 7488 REFERANS TABLOSU (dış kaynak doğrulaması)
+    # ═══════════════════════════════════════════════════════
+    print("\n  [ICAO] Doc 7488 referans noktaları")
+    # Bağımsız kaynak: ICAO Doc 7488 Standart Atmosfer tablosu.
+    # Modelin kendi iç tutarlılığı değil, DIŞ referansa uyum test edilir.
+    #   h(ft) : (T °C, p Pa)
+    _icao = {
+        0     : (15.00, 101325.0),
+        10000 : (-4.81,  69681.4),
+        20000 : (-24.62, 46563.4),
+        30000 : (-44.43, 30089.0),
+        35000 : (-54.34, 23842.3),
+        36089 : (-56.50, 22632.1),   # tropopoz
+        40000 : (-56.50, 18753.9),
+        50000 : (-56.50, 11597.0),   # NOT: 7978.5 DEĞİL (sık yapılan hata)
+    }
+    _ia = ISAAtmosphere()
+    for _h, (_t, _p) in sorted(_icao.items()):
+        _tm = _ia.temperature_celsius(_h)
+        _pm = _ia.pressure(_h)
+        check(f"ICAO {_h:,} ft sıcaklık", _tm, _t, 0.15)
+        check(f"ICAO {_h:,} ft basınç (hPa)", _pm / 100, _p / 100, _p * 0.002 / 100)
+
+    # Yoğunluk ideal gaz yasasıyla tutarlı mı? (ρ = p/(R·T))
+    #
+    # DİKKAT (denetim #86): burada 287.05 gömülüydü, kod ise
+    # 287.0550227 (= 8.314462618/28.9647) kullanıyor. İki farklı
+    # R yan yana gelince test YAPAY olarak başarısız oluyordu
+    # (Δ ≈ 2e-5). Sorun modelde değil, testin kendi kopyasında.
+    # Kural: test de aynı TEK KAYNAĞI okur.
+    from src.units import _R_AIR as _R_TEST
+    for _h in (0, 20000, 35000, 45000):
+        _T, _P, _rho = _ia.get_properties(altitude_ft=_h)
+        _rho_calc = _P / (_R_TEST * _T)
+        check(f"ρ tutarlı @ {_h:,} ft (p/RT)", _rho, _rho_calc, 1e-6)
+        # AYRICA: ICAO yuvarlanmış R ile de %0,01 içinde olmalı —
+        # bu, tek kaynağın ICAO değerinden koptuğunu yakalar.
+        _rho_icao = _P / (287.05 * _T)
+        check(f"R ICAO yuvarlanmışından sapma @ {_h:,} ft",
+              _rho, _rho_icao, _rho * 1e-4)
+
+    # ═══════════════════════════════════════════════════════
     # SONUÇ
     # ═══════════════════════════════════════════════════════
     print(f"\n  {'─' * 50}")

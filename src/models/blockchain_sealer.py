@@ -69,23 +69,32 @@ class BlockchainSealer:
         # Kriptografik hash hesapla
         doc_hash = self.calculate_sha256(sealed_doc)
         
-        # Simüle edilmiş blokzincir işlem parametreleri
-        tx_id = f"tx_{uuid.uuid4().hex}"
-        prev_hash = hashlib.sha256(str(block_number - 1).encode()).hexdigest()
+        # BÜTÜNLÜK DÜZELTMESİ (P0):
+        # Önceki sürüm HİÇBİR blokzincir işlemi yapmadan belgeye
+        # "VERIFIED_ON_LEDGER", uydurma bir smart_contract_address,
+        # block_number ve VAR OLMAYAN bir doğrulama URL'i yazıyordu.
+        # Bu, denetim/uyum belgesinde yanlış beyan riski taşır.
+        #
+        # Şimdi: mühür YALNIZCA yerel SHA-256 bütünlük mührüdür.
+        # Dürüst etiketleme: "LOCAL_SHA256_SEALED" — zincire yazılmadı.
+        # Gerçek bir ledger entegrasyonu eklenirse burada
+        # "VERIFIED_ON_LEDGER" yazılabilir ve tx bilgisi gerçek ağdan gelir.
         now_utc = datetime.now(timezone.utc)
 
-        # Mühür sözlüğü
         audit_trail = {
-            "is_sealed"              : True,
-            "ledger_network"         : self.ledger_name,
-            "smart_contract_address" : self.smart_contract_address,
-            "block_number"           : block_number,
-            "block_hash"             : doc_hash,
-            "previous_block_hash"    : prev_hash,
-            "transaction_id"         : tx_id,
-            "timestamp"              : now_utc.isoformat(),
-            "verification_status"    : "VERIFIED_ON_LEDGER",
-            "verification_url"       : f"https://verify.greenwinganalytics.com/tx/{tx_id}"
+            "is_sealed"           : True,
+            "seal_type"           : "LOCAL_SHA256",
+            "hash_algorithm"      : "SHA-256",
+            "block_hash"          : doc_hash,
+            "timestamp"           : now_utc.isoformat(),
+            "verification_status" : "LOCAL_SHA256_SEALED",
+            "ledger_network"      : None,   # zincire yazılmadı
+            "transaction_id"      : None,   # zincir işlemi yok
+            "verification_url"    : None,   # doğrulama servisi yok
+            "note": ("Bu belge yerel SHA-256 ile mühürlenmiştir. "
+                     "Bir blokzincire YAZILMAMIŞTIR; harici doğrulama "
+                     "servisi yoktur. Mühür, belgenin bu noktadan sonra "
+                     "değiştirilmediğini gösterir."),
         }
 
         sealed_doc["blockchain_audit_trail"] = audit_trail

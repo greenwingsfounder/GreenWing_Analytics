@@ -50,16 +50,16 @@ setup(
     # ─── Bağımlılıklar ────────────────────────────────────
     # requirements.txt ile aynı ama burada da belirtmek iyi pratik.
     install_requires=[
-        'numpy>=1.21.0',
-        'pandas>=1.3.0',
-        'scipy>=1.7.0',
+        'numpy>=1.26.0',
+        'pandas>=2.0.0',
+        'scipy>=1.11.0',
         'plotly>=5.3.0',
-        'dash>=2.0.0',
+        'dash>=2.15.0',
         'dash-bootstrap-components>=1.0.0',
-        'requests>=2.26.0',
-        'pyyaml>=5.4.0',
+        'requests>=2.32.4',
+        'pyyaml>=6.0.1',
         'python-dotenv>=0.19.0',
-        'jinja2>=3.0.0',
+        'jinja2>=3.1.5',
         'openpyxl>=3.0.0',
         'loguru>=0.5.0',
         'tqdm>=4.62.0',

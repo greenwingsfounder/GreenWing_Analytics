@@ -161,18 +161,70 @@ def run_data_quality_check(results: list[dict]) -> dict:
 
     partial_pct = partial_count / n * 100 if n > 0 else 0
 
-    if partial_pct < 10:
-        grade = 'A'
-        desc  = 'Mükemmel — Veriler güvenilir'
-    elif partial_pct < 30:
-        grade = 'B'
-        desc  = 'İyi — Çoğu veri kullanılabilir'
-    elif partial_pct < 60:
-        grade = 'C'
-        desc  = 'Orta — Kısmi kullanım, dikkatli yorum'
+    # ──────────────────────────────────────────────────────────────
+    # PROVENANCE GATE (BÜTÜNLÜK — P0)
+    # ──────────────────────────────────────────────────────────────
+    # Önceki sürüm YALNIZCA kısmi-uçuş yüzdesine bakıyordu. Simüle
+    # edilmiş (demo_simulation) veri de 'A — Veriler güvenilir' notu
+    # alıyordu. Bu, bir havayolu müşterisine "gerçek veri" izlenimi
+    # vermek açısından yanıltıcıydı.
+    #
+    # Kural: Not, verinin KAYNAĞINA (provenance) bağlıdır.
+    #   REAL  (opensky/adsb/customer_qar) → kısmi yüzdesine göre A..D
+    #   SIM   (demo_simulation)          → SIM (en fazla 'Simülasyon')
+    #   MIX   (karışık)                  → MIX — ayrıştırılmalı
+    # ══════════════════════════════════════════════════════════════
+    # ÖNCEKİ HATA (2026-11-22 denetimi): 'synthetic_fallback'
+    # etiketi tanınmıyordu. 01_collect_data.py veri toplayamayınca
+    # bu etiketi yazıyor; sonuç:
+    #     n_real = 1 (arrivals), n_sim = 0, n_unk = 13
+    #     → provenance = 'UNKNOWN' → not '?' (Bilinmeyen veri kaynağı)
+    # Yani 13 sentetik uçuş "bilinmiyor" sayılıyordu. Bu, panelde
+    # ve raporda veri kaynağı bilgisini KAYBEDİYORDU.
+    # ══════════════════════════════════════════════════════════════
+    REAL_METHODS = {'opensky', 'adsb', 'opensky_adsb', 'arrivals', 'departures',
+                    'active_flight', 'customer_qar', 'customer_fuel',
+                    'qar', 'fdr'}
+    methods = [safe_str(r, 'collection_method', 'unknown').lower() for r in results]
+    n_real = sum(1 for m in methods if m in REAL_METHODS)
+    n_sim  = sum(1 for m in methods
+                 if ('simulation' in m or 'synthetic' in m
+                     or 'mock' in m or 'demo' in m))
+    n_unk  = n - n_real - n_sim
+
+    if n_real == n:
+        provenance = 'REAL'
+    elif n_sim == n:
+        provenance = 'SIMULATED'
+    elif n_real + n_sim == n:
+        provenance = 'MIXED'
     else:
-        grade = 'D'
-        desc  = 'Düşük — Arrivals endpoint önerilir'
+        provenance = 'UNKNOWN'
+
+    if provenance == 'SIMULATED':
+        grade = 'SIM'
+        desc  = ('SİMÜLASYON — Fizik modeli çıktısı; gerçek uçuş verisi DEĞİL. '
+                 'Doğrulama için QAR/FDR veya müşteri yakıt verisi gerekir.')
+    elif provenance == 'UNKNOWN':
+        grade = '?'
+        desc  = 'Bilinmeyen veri kaynağı — provenance etiketi eksik.'
+    elif provenance == 'MIXED':
+        grade = 'MIX'
+        desc  = (f'KARIŞIK — {n_real} gerçek + {n_sim} simüle uçuş. '
+                 'İstatistikler ayrıştırılarak raporlanmalı.')
+    else:  # REAL
+        if partial_pct < 10:
+            grade = 'A'
+            desc  = 'Mükemmel — Gerçek veri, kısmi uçuş oranı düşük'
+        elif partial_pct < 30:
+            grade = 'B'
+            desc  = 'İyi — Gerçek veri, çoğu kullanılabilir'
+        elif partial_pct < 60:
+            grade = 'C'
+            desc  = 'Orta — Gerçek veri, dikkatli yorum'
+        else:
+            grade = 'D'
+            desc  = 'Düşük — Arrivals endpoint önerilir'
 
     recommendations = []
     if partial_pct > 20:
@@ -185,7 +237,16 @@ def run_data_quality_check(results: list[dict]) -> dict:
             f"{unk_dest_count} uçuşta varış bilinmiyor. "
             "Callsign bazlı tahmin veya müşteri schedule verisi ekle."
         )
-    if partial_pct <= 10:
+    if provenance == 'SIMULATED':
+        recommendations.insert(0,
+            "Bu çıktı SİMÜLASYONDUR. Müşteri sunumu öncesi gerçek "
+            "QAR/FDR veya müşteri yakıt verisiyle değiştirilmelidir. "
+            "Aksi halde yalnızca 'demonstrasyon' olarak sunulabilir.")
+    elif provenance == 'MIXED':
+        recommendations.insert(0,
+            "Karışık veri kaynağı: gerçek ve simüle uçuşlar ayrı "
+            "raporlanmalı, birleşik istatistik SUNULMAMALIDIR.")
+    elif provenance == 'REAL' and partial_pct <= 10:
         recommendations.append("Veri kalitesi yüksek.")
 
     return {
@@ -196,6 +257,10 @@ def run_data_quality_check(results: list[dict]) -> dict:
         'partial_pct'    : round(partial_pct, 1),
         'quality_grade'  : grade,
         'quality_desc'   : desc,
+        'provenance'     : provenance,
+        'n_real'         : n_real,
+        'n_simulated'    : n_sim,
+        'n_unknown'      : n_unk,
         'details'        : details,
         'recommendations': recommendations,
     }
@@ -386,6 +451,10 @@ def main():
             step_climb_applied    = bool(r.get('step_climb_applied', False)),     # ✅
             is_partial_flight    = is_partial,
             data_source          = data_source,
+            # BÜTÜNLÜK: provenance aktarımı (yoksa kalite notu yanlış).
+            collection_method    = safe_str(r, 'collection_method', 'unknown'),
+            # BÜTÜNLÜK: tek fiyat kaynağı (sabit $0.85 gömülü değil).
+            fuel_price_usd_kg    = DEFAULT_FUEL_PRICE_USD,
         )
 
         icon = '⚠' if is_partial else '✅'
@@ -516,19 +585,28 @@ def main():
 
     case_study = {
         'title'      : 'Aviation Fuel Optimization — Demonstrative Case Study',
-        'subtitle'   : 'Based on Real ADS-B Flight Data (OpenSky Network)',
+        # GÜVENLİK/DOĞRULUK: Alt başlık artık veri kaynağını DİNAMİK olarak yansıtır.
+        # Eski sabit "Real ADS-B" ifadesi, batch_results 'demo_simulation' içerdiğinde
+        # yanlış beyandı (greenwashing/false advertising riski).
+        'subtitle'   : _resolve_data_source_subtitle(results),
         'generated'  : datetime.now().isoformat(),
         'methodology': (
             'OpenSky ADS-B + ICAO ISA Performance Model + '
             '4-Axis Optimization (Altitude, Step Climb, Cost Index, Tankering)'
         ),
         'data_quality': {
-            'grade'         : quality_report['quality_grade'],
-            'description'   : quality_report['quality_desc'],
-            'total_flights' : quality_report['total'],
-            'valid_flights' : quality_report['valid'],
+            # BÜTÜNLÜK: rapor üreticisi 'quality_grade' okuyordu ama burada
+            # 'grade' yazılıyordu → her zaman 'N/A' görünüyordu (sessiz bug).
+            'grade'          : quality_report['quality_grade'],
+            'quality_grade'  : quality_report['quality_grade'],
+            'description'    : quality_report['quality_desc'],
+            'quality_desc'   : quality_report['quality_desc'],
+            'provenance'     : quality_report.get('provenance'),
+            'total_flights'  : quality_report['total'],
+            'valid_flights'  : quality_report['valid'],
             'partial_flights': quality_report['partial'],
-            'partial_pct'   : quality_report['partial_pct'],
+            'partial_pct'    : quality_report['partial_pct'],
+            'recommendations': quality_report.get('recommendations', []),
         },
         'flights_analyzed'  : len(results),
         'airlines_analyzed' : sorted(airlines.keys()),
@@ -576,18 +654,39 @@ def main():
     print(f"{'─'*65}")
     
     calibrator = TailPerformanceCalibrator()
+    # DENETİM #54: bu çağrı eskiden demo_mode olmadan yapılıyordu ve
+    # faktörler TESCİL HARFİNDEN uyduruluyordu (yayınlanmış
+    # fleet_digital_twins_*.json içinde TC-SXS için cd0=1.06 →
+    # "AIRFRAME_WASH" önerisi buradan geliyordu).
+    # Artık: gerçek uçuş yakıtı varsa ondan kalibre; yoksa faktör
+    # ÜRETİLMEZ ve durum açıkça bildirilir.
     twins_results = calibrator.calibrate_fleet_digital_twins(results)
-    
+
     twins_path = os.path.join(REPORTS_CASE_STUDIES, f"fleet_digital_twins_{date_str}.json")
     with open(twins_path, 'w', encoding='utf-8') as f:
         json.dump(twins_results, f, indent=2, default=str, ensure_ascii=False)
-        
+
     print(f"\n  ✅ Dijital İkizler Veritabanı: {twins_path}")
-    if twins_results["status"] == "SUCCESS":
+    print(f"     Durum: {twins_results['status']} — {twins_results.get('message','')}")
+    if twins_results.get('estimated_twins'):
+        print(f"     ⚠ {twins_results['estimated_twins']} ikiz DEMO değerleriyle "
+              f"(gerçek kalibrasyon DEĞİL)")
+    if twins_results.get('insufficient_data_twins'):
+        print(f"     ⚠ {twins_results['insufficient_data_twins']} tescil için yeterli "
+              f"uçuş verisi yok — faktör üretilmedi")
+
+    if twins_results["status"] in ("SUCCESS", "DEMO"):
         twins = twins_results["digital_twins"]
         print(f"     İşlenen Uçak Sayısı: {len(twins)} adet tescilli uçak")
         for reg, tw in list(twins.items())[:3]:
-            print(f"     ✈️ {reg} ({tw['aircraft_type']}) | CD0: {tw['calibration']['cd0_factor']:.3f} | SFC: {tw['calibration']['sfc_factor']:.3f} | Öneri: {tw['advisories'][0]['action']}")
+            cal = tw.get('calibration')
+            if not cal:
+                print(f"     ✈️ {reg} ({tw['aircraft_type']}) | veri yok — "
+                      f"kalibrasyon üretilmedi")
+                continue
+            print(f"     ✈️ {reg} ({tw['aircraft_type']}) | "
+                  f"CD0: {cal['cd0_factor']:.3f} | SFC: {cal['sfc_factor']:.3f} | "
+                  f"Öneri: {tw['advisories'][0]['action']}")
     print(f"     Kalite: {quality_report['quality_grade']} — {quality_report['quality_desc']}")
     print(f"     Ort. tasarruf: {round(avg_fuel_opt)} kg / ${round(avg_saving):.0f} / uçuş")
     print(f"     Yıllık: ${sv['annualized_cost_saving_usd']:,}")
@@ -653,6 +752,34 @@ def main():
 # ═══════════════════════════════════════════════════════════
 # ÇALIŞTIRMA
 # ═══════════════════════════════════════════════════════════
+
+def _resolve_data_source_subtitle(results: list) -> str:
+    """
+    Vaka çalışması alt başlığını, gerçek veri kaynağına göre belirle.
+
+    Eski davranış: koşulsuz "Based on Real ADS-B Flight Data".
+    Yeni davranış: kayıtların collection_method alanına bakılır;
+    sentetik/simülasyon verisi varsa bunu AÇIKÇA belirtir.
+    """
+    methods = {str(r.get("collection_method", "") or "").lower() for r in results}
+    methods.discard("")
+
+    real_methods = {"arrivals", "departures", "active_flight", "opensky_adsb"}
+    synthetic_markers = {"demo_simulation", "synthetic_fallback", "mock", "simulation"}
+
+    has_synthetic = bool(methods & synthetic_markers) or any(
+        "sim" in m or "mock" in m or "demo" in m for m in methods
+    )
+    has_real = bool(methods & real_methods)
+
+    if has_synthetic and has_real:
+        return "Mixed Data: Real ADS-B + Synthetic Simulation (see provenance)"
+    if has_synthetic:
+        return "Synthetic Simulation Data — Not Real Flight Records"
+    if has_real:
+        return "Based on Real ADS-B Flight Data (OpenSky Network)"
+    return "Data Provenance Undetermined"
+
 
 if __name__ == "__main__":
     main()

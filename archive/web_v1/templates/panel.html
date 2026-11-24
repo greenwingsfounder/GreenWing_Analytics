@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GreenWing Analytics — Uçuş Paneli</title>
+<style>
+:root{
+  --bg:#0b1220;--bg2:#0e1726;--card:#151f33;--line:#243149;
+  --txt:#e8eefc;--mut:#93a4c4;--accent:#39d98a;--accent2:#5ba9ff;
+  --warn:#ffc857;--danger:#ff6b6b;--ok:#39d98a;--radius:14px;
+}
+@media (prefers-color-scheme:light){
+  :root{--bg:#f5f7fb;--bg2:#fff;--card:#fff;--line:#dfe5f0;
+        --txt:#101828;--mut:#667085;--accent:#0f9d58;--accent2:#1b6fd8}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+ font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent2)}
+header{display:flex;align-items:center;gap:14px;padding:14px 22px;
+ background:var(--bg2);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.01em}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--accent);
+ box-shadow:0 0 14px var(--accent)}
+.spacer{flex:1}
+.chip{font-size:12px;color:var(--mut);border:1px solid var(--line);
+ padding:5px 11px;border-radius:999px;white-space:nowrap}
+.chip b{color:var(--txt);font-weight:600}
+main{max-width:1240px;margin:0 auto;padding:22px 18px 64px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--mut);font-size:13.5px;margin:0 0 20px}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);
+ border-radius:var(--radius);padding:16px 18px}
+.kpi .label{font-size:11.5px;color:var(--mut);text-transform:uppercase;
+ letter-spacing:.07em;margin-bottom:8px}
+.kpi .val{font-size:26px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.kpi .val small{font-size:14px;font-weight:600;color:var(--mut);margin-left:3px}
+.kpi .src{font-size:10.5px;color:var(--mut);margin-top:7px;
+ border-top:1px dashed var(--line);padding-top:6px;line-height:1.4}
+.up{color:var(--ok)} .bad{color:var(--danger)} .warnc{color:var(--warn)}
+section{margin-top:26px}
+h2{font-size:15px;margin:0 0 12px;color:var(--mut);text-transform:uppercase;
+ letter-spacing:.08em;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;color:var(--mut);text-transform:uppercase;
+ letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line);
+ position:sticky;top:57px;background:var(--card)}
+td{padding:9px 10px;border-bottom:1px solid var(--line)}
+tbody tr:hover{background:var(--bg2)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:var(--bg2);overflow:hidden;min-width:70px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);
+ color:var(--mut);white-space:nowrap}
+.tag.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.tag.bad{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,transparent)}
+.canvas-wrap{position:relative;height:230px}
+canvas{width:100%;height:100%;display:block}
+.two{grid-template-columns:1.6fr 1fr}
+@media (max-width:880px){.two{grid-template-columns:1fr}
+ th{position:static}}
+.scroll{overflow:auto;max-height:560px;border-radius:10px}
+.empty{padding:34px;text-align:center;color:var(--mut);font-size:14px}
+footer{color:var(--mut);font-size:12px;text-align:center;padding:26px 18px;
+ border-top:1px solid var(--line);margin-top:40px}
+.loader{color:var(--mut);font-size:13px;padding:20px 0}
+.prov{display:flex;align-items:flex-start;gap:12px;padding:13px 16px;
+ border-radius:12px;margin-bottom:18px;font-size:13px;line-height:1.5;
+ border:1px solid var(--line);background:var(--card)}
+.prov.warn{border-color:color-mix(in srgb,var(--warn) 55%,transparent);
+ background:color-mix(in srgb,var(--warn) 9%,var(--card))}
+.prov.ok{border-color:color-mix(in srgb,var(--ok) 55%,transparent);
+ background:color-mix(in srgb,var(--ok) 9%,var(--card))}
+.prov.bad{border-color:color-mix(in srgb,var(--danger) 55%,transparent);
+ background:color-mix(in srgb,var(--danger) 9%,var(--card))}
+.prov b{display:block;margin-bottom:2px}
+.prov .icon{font-size:17px;line-height:1.2}
+.prov .detail{color:var(--mut);font-size:12px;margin-top:4px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span>GreenWing Analytics</div>
+  <span class="chip">v{{ version }}</span>
+  <span class="spacer"></span>
+  <span class="chip">Kullanıcı <b>{{ user }}</b></span>
+  <a class="chip" href="/rapor.pdf" title="Teknik doğrulama raporu (PDF)">📄 Teknik Rapor</a>
+  <a class="chip" href="/logout">Çıkış</a>
+</header>
+
+<main>
+  <h1>Uçuş Yakıt &amp; Emisyon Paneli</h1>
+  <p class="lead">Gerçek analiz çıktısı · <span id="src-file">yükleniyor…</span>
+     · her KPI'nın altında kaynak etiketi</p>
+
+  <div id="banner" class="loader">Veriler yükleniyor…</div>
+  <div id="provenance" hidden></div>
+
+  <div class="grid kpis" id="kpis" hidden></div>
+
+  <section id="charts" hidden>
+    <h2>Dağılım</h2>
+    <div class="grid two">
+      <div class="card">
+        <div class="label" style="font-size:11.5px;color:var(--mut);
+             text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">
+          Uçak tipine göre yakıt verimliliği (kg/nm — düşük iyi)</div>
+        <div class="canvas-wrap"><canvas id="c-type"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="label" style="font-size:11.5px;color:var(--mut);
+             text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">
+          Rota çözüm güvenilirliği</div>
+        <div class="canvas-wrap"><canvas id="c-bench"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="breakdown" hidden style="margin-top:26px">
+    <h2>Tasarruf kaynağı — karıştırılmamalı</h2>
+    <div class="grid kpis" id="bd-cards"></div>
+  </section>
+
+  <section id="table-sec" hidden>
+    <h2>Uçuşlar <span style="text-transform:none;letter-spacing:0;
+        font-weight:400;color:var(--mut)">— yakıt/deniz mili sıralı</span></h2>
+    <div class="card" style="padding:0">
+      <div class="scroll"><table id="tbl">
+        <thead><tr>
+          <th>Callsign</th><th>Tip</th><th>Rota</th>
+          <th class="num">Mesafe</th><th class="num">Yakıt</th>
+          <th class="num">kg/nm</th><th class="num">Tasarruf</th>
+          <th>Güven</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  GreenWing Analytics · veri: <code>reports/optimizations/batch_results.json</code>
+  · modeller: ICAO EDB/OpenAP yakıt, ISA atmosfer, Korn sıkıştırılabilirlik,
+  NOAA rüzgar klimatolojisi · tüm kaynaklar <code>docs/model_provenance.json</code>
+</footer>
+
+<script>
+const fmt = (v, d=0) => v==null ? '—' :
+  Number(v).toLocaleString('tr-TR',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+async function api(path){
+  const r = await fetch(path, {credentials:'same-origin'});
+  if (r.status === 401){ location.href='/login?next=/'; throw new Error('auth'); }
+  if (!r.ok) throw new Error(path+' → '+r.status);
+  return r.json();
+}
+
+function kpi(label, val, unit, src, cls=''){
+  return `<div class="card kpi">
+    <div class="label">${label}</div>
+    <div class="val ${cls}">${val}${unit?`<small>${unit}</small>`:''}</div>
+    <div class="src">${src}</div></div>`;
+}
+
+async function boot(){
+  const s = await api('/api/summary');
+  document.getElementById('src-file').textContent = s.data_source;
+  document.getElementById('banner').hidden = true;
+
+  const k = document.getElementById('kpis');
+  k.hidden = false;
+  k.innerHTML = [
+    kpi('Uçuş sayısı', fmt(s.flight_count), '',
+        `Yüksek güvenli rota: ${fmt(s.valid_routes)} · ${s.aircraft_types.length} uçak tipi`),
+    kpi('Toplam yakıt', fmt(s.total_fuel_kg), 'kg',
+        `ADS-B izinden faz modeliyle hesaplandı · ${fmt(s.total_distance_nm)} nm`),
+    kpi('Yakıt / mesafe', fmt(s.fuel_per_nm,2), 'kg/nm',
+        'ICAO EDB/OpenAP yakıt modeli · referans ±%5', 'up'),
+    kpi('Optimize edilebilir', fmt(s.optimizable_pct,1), '%',
+        `${fmt(s.optimizable_fuel_kg)} kg · irtifa + step + CI + tankering`),
+    kpi('Uçuş başına tasarruf', '$'+fmt(s.cost_saving_usd/s.flight_count,0), '',
+        `yakıt ${fmt(s.saving_breakdown.fuel_kg_total,0)} kg + `
+        + `tankering $${fmt(s.saving_breakdown.tankering_usd,0)}`, 'up'),
+    kpi('Yıllık (gerçekçi)', '$'+fmt(s.annual_realistic_usd), '',
+        `fiziksel $${fmt(s.annual_fuel_saving_usd,0)} · `
+        + `tankering $${fmt(s.annual_tankering_usd,0)} `
+        + `(%${fmt(s.annual_tankering_pct,0)})`, 'up'),
+    kpi('CO₂', fmt(s.co2_kg), 'kg',
+        'ICAO 3.16 kg CO₂/kg yakıt (CORSIA)'),
+    kpi('CO₂ / yolcu-km', fmt(s.co2_per_pax_km_g,1), 'g',
+        'IATA ortalama 90 g · hedef altı iyi'),
+  ].join('');
+
+  // Grafik 1: uçak tipine göre kg/nm (gerçek veriden)
+  const rows = await api('/api/flights?limit=500&sort=fuel_per_nm');
+  const byType = {};
+  rows.rows.forEach(r => {
+    const t = r.aircraft_type || '?';
+    (byType[t] ||= []).push(Number(r.fuel_per_nm || 0));
+  });
+  const types = Object.keys(byType).sort();
+  const avg = types.map(t => byType[t].reduce((a,b)=>a+b,0)/byType[t].length);
+
+  document.getElementById('charts').hidden = false;
+  drawBars('c-type', types, avg, 'kg/nm');
+
+  const b = s.benchmark;
+  drawBars('c-bench', Object.keys(b), Object.values(b), 'uçuş');
+
+  // ── VERİ KAYNAĞI UYARISI (ticari dürüstlük) ──────────────
+  const pv = s.data_provenance;
+  const pvEl = document.getElementById('provenance');
+  if (pv) {
+    pvEl.hidden = false;
+    const cls = pv.is_all_real ? 'ok' : (pv.is_all_synthetic ? 'bad' : 'warn');
+    const icon = pv.is_all_real ? '✅' : (pv.is_all_synthetic ? '⛔' : '⚠️');
+    const counts = Object.entries(pv.by_method)
+      .map(([k,v]) => `${k}: <b style="display:inline">${v}</b>`).join(' · ');
+    pvEl.className = 'prov ' + cls;
+    pvEl.innerHTML = `<span class="icon">${icon}</span>
+      <div><b>${pv.verdict}</b>
+      Gerçek uçuş: ${pv.real} · Sentetik: ${pv.synthetic} · Bilinmiyor: ${pv.unknown}
+      <div class="detail">${counts}. Sentetik kayıtlar model doğrulaması ve
+      arayüz gösterimi içindir; <b style="display:inline">müşteriye taahhüt
+      edilecek $ rakamları yalnızca gerçek veriyle</b> hesaplanmalıdır.</div></div>`;
+  }
+
+  // Tasarruf ayrıştırması
+  const bd = s.saving_breakdown;
+  document.getElementById('breakdown').hidden = false;
+  document.getElementById('bd-cards').innerHTML = [
+    kpi('İrtifa optimizasyonu', fmt(bd.altitude_kg,0), 'kg yakıt',
+        'Mevcut irtifadan optimuma geçiş · fiziksel yakıt kazancı', 'up'),
+    kpi('Step climb', fmt(bd.step_climb_kg,0), 'kg yakıt',
+        'Ağırlık azaldıkça kademeli yükselme', 'up'),
+    kpi('Tankering', '$'+fmt(bd.tankering_usd,0), '',
+        'Yakıt FİYAT farkı — yakıt miktarı azalmaz, sadece maliyet', 'warnc'),
+    kpi('Yakıt toplamı', fmt(bd.fuel_kg_total,0), 'kg',
+        'Gerçek yakıt tasarrufu = irtifa + step climb', 'up'),
+  ].join('');
+
+  // Tablo
+  document.getElementById('table-sec').hidden = false;
+  const tb = document.querySelector('#tbl tbody');
+  tb.innerHTML = rows.rows.map(r => {
+    const st = String(r.route_validity||'').toUpperCase();
+    const cls = st==='HIGH' ? 'ok' : (st==='LOW' ? 'bad' : '');
+    return `<tr>
+      <td>${r.callsign || '—'}</td>
+      <td>${r.aircraft_type || '—'}</td>
+      <td>${r.origin_airport||'?'} → ${r.dest_airport||'?'}</td>
+      <td class="num">${fmt(r.distance_nm,0)}</td>
+      <td class="num">${fmt(r.estimated_fuel_kg,0)}</td>
+      <td class="num"><b>${fmt(r.fuel_per_nm,2)}</b></td>
+      <td class="num">$${fmt(r.total_cost_saving_usd,0)}</td>
+      <td><span class="tag ${cls}">${st||'—'}</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">Kayıt yok</td></tr>';
+}
+
+// Basit canvas çubuk grafiği — bağımlılık yok, tema uyumlu
+function drawBars(id, labels, values, unit){
+  const cv = document.getElementById(id);
+  const dpr = devicePixelRatio || 1;
+  const rect = cv.getBoundingClientRect();
+  cv.width = rect.width*dpr; cv.height = rect.height*dpr;
+  const ctx = cv.getContext('2d'); ctx.scale(dpr,dpr);
+  const W = rect.width, H = rect.height;
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue('--accent').trim();
+  const mut = css.getPropertyValue('--mut').trim();
+  const max = Math.max(...values, 1);
+  const padB = 30, padT = 18, n = labels.length;
+  const bw = Math.min(64, (W-20)/n*0.62), gap = (W - n*bw)/Math.max(n,1);
+  ctx.clearRect(0,0,W,H);
+  values.forEach((v,i)=>{
+    const h = (H-padB-padT) * (v/max);
+    const x = gap/2 + i*(bw+gap), y = H-padB-h;
+    ctx.fillStyle = accent; ctx.globalAlpha = .85;
+    ctx.beginPath();
+    const r = Math.min(5, bw/3);
+    ctx.roundRect(x,y,bw,h,[r,r,0,0]); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = mut; ctx.font = '11px ui-sans-serif,system-ui';
+    ctx.textAlign='center';
+    ctx.fillText(labels[i].slice(0,9), x+bw/2, H-11);
+    ctx.fillStyle = css.getPropertyValue('--txt').trim();
+    ctx.fillText(Number(v).toLocaleString('tr-TR',{maximumFractionDigits:2}),
+                 x+bw/2, y-5);
+  });
+  ctx.fillStyle = mut; ctx.textAlign='left'; ctx.font='10.5px ui-sans-serif';
+  ctx.fillText(unit, 6, 12);
+}
+
+boot().catch(e => {
+  if (e.message !== 'auth')
+    document.getElementById('banner').textContent = 'Veri yüklenemedi: '+e.message;
+});
+</script>
+</body>
+</html>

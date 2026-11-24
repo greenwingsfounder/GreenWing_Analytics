@@ -43,6 +43,63 @@ def run_all_tests():
         errors.append(f"{name}: {detail}")
         print(f"  ❌ {name}: {detail}")
 
+    def assert_check(name, cond, detail=''):
+        if cond:
+            ok(name)
+        else:
+            fail(name, detail)
+
+    # ═══════════════════════════════════════════════════════════
+    # TANKERING AYRIŞTIRMASI — fiziksel vs fiyat arbitrajı
+    # ═══════════════════════════════════════════════════════════
+    from config.assumptions import TANKERING_PERSISTENCE, Assumptions
+
+    print("\n" + "-" * 62)
+    print("  Tankering ayrıştırması (fiziksel yakıt vs fiyat arbitrajı)")
+    print("-" * 62)
+
+    _a = Assumptions.annual_projection(
+        249.49, 1240, tankering_usd_per_flight=248.69)
+
+    assert_check("fiziksel yakıt payı hesaplanır",
+          abs(_a['fuel_saving_usd'] - 0.80 * 2 * 345 * 0.65) < 1.0,
+          f"gelen {_a['fuel_saving_usd']}")
+    assert_check("tankering payı %50 sürdürülebilirlikle hesaplanır",
+          abs(_a['tankering_usd'] - 248.69 * 2 * 345 * 0.65
+              * TANKERING_PERSISTENCE) < 2.0,
+          f"gelen {_a['tankering_usd']}")
+    assert_check("toplam = fiziksel + tankering",
+          abs(_a['realistic_annual_usd']
+              - (_a['fuel_saving_usd'] + _a['tankering_usd'])) <= 1,
+          f"{_a['realistic_annual_usd']} vs "
+          f"{_a['fuel_saving_usd'] + _a['tankering_usd']}")
+    assert_check("SÜRDÜRÜLEBİLİRLİK: tankering payı tekrarlanabilir yakıttan büyük",
+          _a['tankering_usd'] > _a['fuel_saving_usd'])
+    assert_check("tankering olmadan toplam = yalnızca fiziksel",
+          Assumptions.annual_projection(10.0, 800)['tankering_usd'] == 0)
+    assert_check("TANKERING_PERSISTENCE 0-1 arası",
+          0.0 < TANKERING_PERSISTENCE <= 1.0)
+    assert_check("persistence %50 muhafazakâr",
+          TANKERING_PERSISTENCE == 0.50)
+
+    print("\n" + "-" * 62)
+    print("  Blok-saat fiziksel tavanı")
+    print("-" * 62)
+
+    # 8000 nm rotada 1 sefer/gün fiziksel değil → kırpılmalı
+    _cap = Assumptions.annual_projection(100.0, 8000)
+    assert_check("8000 nm: frekans kırpıldı", _cap['capacity_capped'])
+    assert_check("8000 nm: yıllık blok-saat ≤ 4500",
+          _cap['annual_block_hours'] <= 4500.5,
+          f"gelen {_cap['annual_block_hours']}")
+    _short = Assumptions.annual_projection(100.0, 400)
+    assert_check("400 nm: kırpma yok", not _short['capacity_capped'])
+    assert_check("400 nm: blok-saat makul",
+          1000 <= _short['annual_block_hours'] <= 4500,
+          f"gelen {_short['annual_block_hours']}")
+
+
+
     def check_pass(name: str, result: ValidationResult) -> None:
         if result.is_valid:
             ok(name)
@@ -183,6 +240,69 @@ def run_all_tests():
     check_fail("customer_df: negatif fuel_kg",
                DataValidator.validate_customer_dataframe(neg_fuel_cdf))
 
+    # ─── [47] MÜŞTERİ VERİSİ ÇOKLU SÜTUN KONTROLÜ ────────
+    # DENETİM #47: Eski kod yalnız fuel_kg kontrol ediyordu.
+    # distance_nm=-100 ve weight_kg=300.000 hiç yakalanmıyordu.
+    _neg_dist_cdf = pd.DataFrame({
+        'origin': ['LTFM'], 'destination': ['EGLL'],
+        'fuel_kg': [12000], 'distance_nm': [-100],
+    })
+    check_fail("customer_df: negatif distance_nm → hata",
+               DataValidator.validate_customer_dataframe(_neg_dist_cdf))
+
+    _absurd_cdf = pd.DataFrame({
+        'origin': ['LTFM'], 'destination': ['EGLL'],
+        'fuel_kg': [12000], 'distance_nm': [1200],
+        'weight_kg': [800_000], 'cruise_alt_ft': [60_000],
+    })
+    _abs_res = DataValidator.validate_customer_dataframe(_absurd_cdf)
+    # Not: 600 t üst sınırı A380 MTOW (575 t) bazlı. 300 t B738 için
+    # imkânsız ama genel aralık kabul eder — tip bazlı kontrol yok
+    # (bilinçli: sütunda aircraft_type yoksa hangi uçak bilinmiyor).
+    assert_check(
+        "customer_df: 800 t ağırlık yakalanıyor (uyarı)",
+        any('weight_kg' in w for w in _abs_res.warnings),
+        f"warnings={_abs_res.warnings}"
+    )
+    assert_check(
+        "customer_df: 60.000 ft yakalanıyor (uyarı)",
+        any('cruise_alt_ft' in w for w in _abs_res.warnings)
+    )
+
+    # Normal aralıktaki veri UYARI üretmemeli (yanlış pozitif kontrolü)
+    _clean_cdf = pd.DataFrame({
+        'origin': ['LTFM'], 'destination': ['EGLL'],
+        'fuel_kg': [12000], 'distance_nm': [1200],
+        'weight_kg': [65000], 'cruise_alt_ft': [35000],
+    })
+    _clean_res = DataValidator.validate_customer_dataframe(_clean_cdf)
+    assert_check(
+        "customer_df: normal veri uyarısız",
+        _clean_res.is_valid and len(_clean_res.warnings) == 0,
+        f"warnings={_clean_res.warnings}"
+    )
+
+    # ─── [53] YILLIK PROJEKSİYON TEŞHİSİ ────────────────
+    # DENETİM #53: raw=-50.000 → eski mesaj "realization_factor
+    # > 1.0 olamaz" diyordu, oysa RF=0.6 idi. Yanlış teşhis.
+    _neg_raw = BusinessValidator.validate_annual_projection(
+        -50_000, 0, 0.6, 2)
+    check_fail("annual_projection: negatif teorik → hata", _neg_raw)
+    assert_check(
+        "annual_projection: 'negatif' teşhisi (RF değil)",
+        any('negatif' in e.lower() for e in _neg_raw.errors)
+        and not any('realization_factor > 1.0' in e for e in _neg_raw.errors),
+        f"errors={_neg_raw.errors}"
+    )
+    _neg_real = BusinessValidator.validate_annual_projection(
+        300_000, -1_000, 0.6, 2)
+    check_fail("annual_projection: negatif gerçekçi → hata", _neg_real)
+    # Normal hâlâ geçmeli
+    check_pass(
+        "annual_projection: normal",
+        BusinessValidator.validate_annual_projection(300_000, 180_000, 0.6, 2)
+    )
+
     # ─── quick_check ─────────────────────────────────────
     tests += 1
     info = DataValidator.quick_check(make_traj())
@@ -231,6 +351,60 @@ def run_all_tests():
                    CL=1.5, CD=0.033, L_D=45.0,
                    altitude_ft=35000, mach=0.785
                ))
+
+    # ─── [46] FAR 25.251 BOYUT DOĞRULAMASI ───────────────
+    # DENETİM #46: Eski kod `cl_limit = cl_buffet_onset / 1.3`
+    # kullanıyordu. Bu BOYUT HATASI: 1g buffet onset CL'i 0.62
+    # olan kanat, 1.3g'de 1.3 KAT kaldırma üretir → izin verilen
+    # 1g CL = 0.62 × 1.3 = 0.806. Bölünce 0.477 çıkıyor ve
+    # B738'in NORMAL seyir CL'si (0.48–0.55) "güvensiz" oluyordu.
+    #
+    # Not: yukarıdaki "normal cruise" testi CL=0.40 kullanıyor —
+    # tam da bu hata yüzünden düşürülmüş bir değer. Aşağıdaki
+    # testler GERÇEK seyir CL'lerini kilitler.
+
+    _bm_real = PhysicsValidator.check_buffet_margin(0.52, 0.785, 'B738')
+    check_pass("buffet_margin: B738 gerçek seyir CL=0.52 (limit 0.806)", _bm_real)
+    assert_check(
+        "buffet FAR limiti = onset × 1.3",
+        abs(_bm_real.stats['cl_limit_far25'] - 0.62 * 1.3) < 0.001,
+        f"limit={_bm_real.stats['cl_limit_far25']}, beklenen={0.62*1.3:.3f}"
+    )
+
+    # Aynı CL, ama limit ONSET'i aşan bir uçuş → gerçekten hata olmalı
+    _bm_over = PhysicsValidator.check_buffet_margin(0.85, 0.785, 'B738')
+    check_fail("buffet_margin: CL=0.85 onset üstü hata", _bm_over)
+
+    # Limit ile onset arasında: hata yok, uyarı var
+    # Limit ile onset arası: HATA yok ama UYARI olmalı
+    _bm_mid = PhysicsValidator.check_buffet_margin(0.78, 0.785, 'B738')
+    assert_check(
+        f"buffet_margin: CL=0.78 hata YOK "
+        f"(marj %{_bm_mid.stats['buffet_margin_pct']})",
+        _bm_mid.is_valid
+    )
+    assert_check(
+        "buffet_margin: CL=0.78 uyarı var (1g onset üstü)",
+        len(_bm_mid.warnings) > 0
+    )
+    # Onset altı: CL=0.52 hem geçerli hem UYARISIZ olmalı
+    _bm_ok = PhysicsValidator.check_buffet_margin(0.52, 0.785, 'B738')
+    assert_check("buffet_margin: CL=0.52 uyarısız", len(_bm_ok.warnings) == 0)
+
+    # Yön kontrolü: CL arttıkça marj AZALMALI
+    _m1 = PhysicsValidator.check_buffet_margin(0.40, 0.785, 'B738').stats['buffet_margin_pct']
+    _m2 = PhysicsValidator.check_buffet_margin(0.60, 0.785, 'B738').stats['buffet_margin_pct']
+    assert_check(
+        f"buffet marjı CL ile azalıyor (%{_m1:.1f} > %{_m2:.1f})", _m1 > _m2)
+
+    # Optimizer ile tutarlılık: ikisi de CL_onset'in ALTINDA limit vermeli
+    # (optimizer 0.90×onset operasyonel; validator 1.3×onset FAR)
+    # → FAR limiti daha gevşek olmalı, yoksa optimizer gereksiz kısıtlar
+    _far_limit = _bm_real.stats['cl_limit_far25']
+    assert_check(
+        f"FAR limiti ({_far_limit:.3f}) operasyonel limitten (0.90×0.62=0.558) gevşek",
+        _far_limit > 0.62 * 0.90
+    )
 
     # ─── check_buffet_margin ─────────────────────────────
     # CL=0.35 düşük CL → buffet marjı rahat, B738 ile
@@ -328,6 +502,68 @@ def run_all_tests():
     else:
         fail("MTOW yakın", "uyarı beklendi")
 
+    # ─── [48] SIFIR YAKIT ÇÖKMEMELİ ──────────────────────
+    # DENETİM #48: fuel_kg=0 → ZeroDivisionError (CO₂ tutarlılığı)
+    _zero_fuel = BusinessValidator.validate_fuel_efficiency(
+        0, 1000, 0, 'B738')
+    check_fail("fuel_efficiency: fuel_kg=0 → hata (çökmüyor)", _zero_fuel)
+    _neg_fuel = BusinessValidator.validate_fuel_efficiency(
+        -100, 1000, 0, 'B738')
+    check_fail("fuel_efficiency: negatif yakıt → hata", _neg_fuel)
+
+    # ─── [49] TÜM UÇAK TİPLERİ TANINIYOR MU ──────────────
+    # DENETİM #49: 11 tipin 7'si tip tablosunda yoktu →
+    # DEFAULT (3.0, 50.0) aralığına düşüyordu.
+    from src.validation.business_validator import _TYPICAL_FUEL_PER_NM
+    _app_types = ['A20N', 'A21N', 'A320', 'A321', 'A350', 'A380',
+                  'B38M', 'B738', 'B77W', 'B788', 'B789']
+    _missing = [t for t in _app_types if t not in _TYPICAL_FUEL_PER_NM]
+    assert_check(
+        f"fuel/Nm tablosu 11 uçak tipini kapsıyor (eksik: {_missing})",
+        not _missing
+    )
+    # Kanonik kaynakla aynı olmalı (benchmark._SAR_RANGES türevi)
+    from src.analysis.benchmark import _FUEL_PER_NM_RANGES
+    assert_check(
+        "fuel/Nm tablosu benchmark ile aynı (tek kaynak)",
+        _TYPICAL_FUEL_PER_NM == _FUEL_PER_NM_RANGES
+    )
+    # B38M için 40 kg/nm artık "tipik dışı" uyarısı vermeli
+    _b38m_absurd = BusinessValidator.validate_fuel_efficiency(
+        40 * 1000, 1000, 40 * 1000 * 3.16, 'B38M')
+    assert_check(
+        "fuel_efficiency: B38M 40 kg/nm → tipik dışı uyarısı",
+        any('tipik' in w for w in _b38m_absurd.warnings),
+        f"warnings={_b38m_absurd.warnings}"
+    )
+
+    # ─── [51] validate_mtow İMZA TUZAĞI ──────────────────
+    # DENETİM #51: validate_mtow(oew, payload, fuel, 'B738') →
+    # extra_fuel_kg='B738' olup TypeError veriyordu.
+    _natural = BusinessValidator.validate_mtow(
+        41413, 16000, 8426, 'B738')
+    assert_check(
+        "validate_mtow: 4. argüman aircraft_type kabul ediliyor",
+        _natural.is_valid and _natural.stats['mtow_kg'] == 79016.0,
+        f"stats={_natural.stats.get('mtow_kg')}"
+    )
+    # Eski 5-argüman çağrısı hâlâ çalışmalı
+    _legacy = BusinessValidator.validate_mtow(
+        41413, 16000, 8426, 0, 'B738')
+    assert_check("validate_mtow: 5-argüman eski çağrı çalışıyor",
+                 _legacy.is_valid)
+    # Çift tip → açık TypeError
+    _double = False
+    try:
+        BusinessValidator.validate_mtow(1, 2, 3, 'B738', 'A320')
+    except TypeError:
+        _double = True
+    assert_check("validate_mtow: çift aircraft_type → TypeError", _double)
+    # Negatif girdi
+    _mtow_neg = BusinessValidator.validate_mtow(
+        41413, -100, 8426, 'B738')
+    check_fail("validate_mtow: negatif payload → hata", _mtow_neg)
+
     # ─── validate_step_climb_plan ─────────────────────────
     good_plan = [
         {'distance': 400, 'from': 'FL350', 'to': 'FL370', 'net_saving': 85},
@@ -339,6 +575,42 @@ def run_all_tests():
     # Boş plan
     check_pass("step_climb: boş plan",
                BusinessValidator.validate_step_climb_plan([], 1560))
+
+    # ─── [52] BOZUK STEP PLANI ÇÖKMEMELİ ─────────────────
+    # DENETİM #52: [{'from':'FL350'}] → KeyError: 'distance'
+    #             [{'distance':'abc'}] → TypeError (int - str)
+    # Doğrulayıcı, doğruladığı bozuk veride çökmemeli.
+    _no_dist = BusinessValidator.validate_step_climb_plan(
+        [{'from': 'FL350'}, {'from': 'FL370'}], 1560)
+    check_fail("step_climb: distance eksik → hata (çökmüyor)", _no_dist)
+    assert_check(
+        "step_climb: hangi alanın eksik olduğu söyleniyor",
+        any("'distance'" in e and 'eksik' in e for e in _no_dist.errors),
+        f"errors={_no_dist.errors[:2]}"
+    )
+
+    _bad_type = BusinessValidator.validate_step_climb_plan(
+        [{'distance': 'abc', 'from': 'FL350', 'to': 'FL370',
+          'net_saving': 85}], 1560)
+    check_fail("step_climb: distance='abc' → hata (çökmüyor)", _bad_type)
+    assert_check(
+        "step_climb: 'sayısal değil' teşhisi",
+        any('sayısal değil' in e for e in _bad_type.errors)
+    )
+
+    _all_missing = BusinessValidator.validate_step_climb_plan(
+        [{'distance': 400}], 1560)
+    check_fail("step_climb: 3 alan eksik → hata", _all_missing)
+    assert_check(
+        "step_climb: 3 ayrı alan hatası raporlanıyor",
+        len(_all_missing.errors) == 3,
+        f"{len(_all_missing.errors)} hata"
+    )
+
+    # dict olmayan adım
+    _not_dict = BusinessValidator.validate_step_climb_plan(
+        ['FL350'], 1560)
+    check_fail("step_climb: dict olmayan adım → hata", _not_dict)
 
     # Çok fazla step
     many_steps = [
@@ -424,6 +696,60 @@ def run_all_tests():
     # ═══════════════════════════════════════════════════
     # SONUÇ
     # ═══════════════════════════════════════════════════
+    def assert_check(name: str, cond: bool, detail: str = '') -> None:
+        if cond:
+            ok(name)
+        else:
+            fail(name, detail)
+
+    try:
+        from src.models.fuel_model import FuelModel as _FM
+    except Exception:
+        _FM = None
+
+    # ══ TIRMANIŞ CEZASI: GERÇEK B738 VERİSİYLE KIYAS ══════════
+    print('\n── Tırmanış cezası (gerçek B738 kıyası) ──')
+    try:
+        from src.models.fuel_model import FuelModel as _FM
+        _fm = _FM(aircraft_type='B738')
+
+        # Gerçek: B738 FL350→FL370 @60 t
+        #   tırmanış yakıtı ~260 kg, 18 nm yatay, seyir eşdeğeri ~95 kg
+        #   NET ek ceza ~165-200 kg
+        _pen = _fm.estimate_climb_fuel(35000, 37000, 60000, 0.78)
+        assert_check(f'tırmanış cezası FL350→370 @60t = {_pen:.0f} kg (150-220)',
+              150 <= _pen <= 220, f'{_pen:.0f} kg')
+
+        _pen80 = _fm.estimate_climb_fuel(35000, 37000, 76000, 0.78)
+        assert_check(f'ağır uçakta ceza daha yüksek', _pen80 > _pen)
+        assert_check('tırmanış cezası negatif değil',
+              _fm.estimate_climb_fuel(35000, 37000, 40000, 0.78) >= 0)
+        assert_check('alçalma cezası 0',
+              _fm.estimate_climb_fuel(37000, 35000, 60000, 0.78) == 0)
+    except Exception as _e:
+        assert_check('tırmanış cezası hesaplanabilir', False, repr(_e))
+
+    # ══ STEP CLIMB KÂRLILIK FİZİĞİ ═════════════════════════════
+    print('\n── Step climb kârlılık fiziği ──')
+    try:
+        from src.optimization.altitude_optimizer import AltitudeOptimizer as _AO
+        _ao = _AO(aircraft_type='B738')
+
+        _r1 = _ao._evaluate_step_climb(33000, 35000, 54000, 0.78, 1600)
+        assert_check(f'hafif+uzun → kârlı (net={_r1["net_saving_kg"]:.0f} kg)',
+              _r1['net_saving_kg'] >= 50)
+        _r2 = _ao._evaluate_step_climb(35000, 37000, 74000, 0.78, 500)
+        assert_check(f'ağır+kısa → kârsız (net={_r2["net_saving_kg"]:.0f} kg)',
+              _r2['net_saving_kg'] < 0)
+        _a = _ao._evaluate_step_climb(35000, 37000, 60000, 0.78, 600)['net_saving_kg']
+        _b = _ao._evaluate_step_climb(35000, 37000, 60000, 0.78, 1400)['net_saving_kg']
+        assert_check(f'kalan mesafe ↑ → tasarruf ↑ ({_a:.0f} → {_b:.0f})', _b > _a)
+        _c = _ao._evaluate_step_climb(35000, 37000, 52000, 0.78, 1200)['net_saving_kg']
+        _d = _ao._evaluate_step_climb(35000, 37000, 72000, 0.78, 1200)['net_saving_kg']
+        assert_check(f'ağırlık ↑ → tasarruf ↓ ({_c:.0f} → {_d:.0f})', _c > _d)
+    except Exception as _e:
+        assert_check('step climb fiziği test edilebilir', False, repr(_e))
+
     print(f"\n  {'─' * 55}")
     print(f"  Toplam test : {tests}")
     print(f"  Başarılı    : {tests - len(errors)}")

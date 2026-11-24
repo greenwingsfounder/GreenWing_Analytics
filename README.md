@@ -1,259 +1,203 @@
-
 # ✈️ GreenWing Analytics
 
-**Aviation Fuel Efficiency & Emission Intelligence Platform**
+**Havayolu yakıt verimliliği ve emisyon zekâsı platformu**
 
-Data-driven fuel optimization and CORSIA-compliant emission monitoring for airlines.
+Uçuş verisinden yakıt tüketimini fizik modeliyle hesaplar, tasarruf
+fırsatlarını dolar ve CO₂ cinsinden gösterir, CORSIA raporlamasına
+hazırlar.
 
----
-
-## 🎯 What It Does
-
-GreenWing Analytics helps airlines **save fuel, reduce CO₂ emissions, and prepare for CORSIA compliance** through advanced data analytics.
-
-### Core Capabilities
-
-| Feature | Description |
-|---------|-------------|
-| **Fuel Efficiency Analysis** | Route-by-route fuel consumption tracking and benchmarking |
-| **Altitude Optimization** | Optimal cruise altitude calculation with buffet, RVSM, and directional constraints |
-| **Step Climb Planning** | Weight-based step climb recommendations with dispatcher instructions |
-| **Cost Index Optimization** | Route-specific CI/Mach optimization balancing fuel vs. time cost |
-| **Tankering Analysis** | Fuel price differential optimization with MTOW safety checks |
-| **CORSIA Reporting** | MRV-compliant (Monitoring, Reporting, Verification) emission reports |
-| **SAF Impact Analysis** | Sustainable Aviation Fuel lifecycle emission and cost-benefit analysis |
-| **Interactive Dashboard** | Real-time fleet performance visualization |
-| **Professional Reports** | Automated HTML/PDF reports with KPIs, benchmarks, and recommendations |
-| **Sensitivity Analysis** | Input uncertainty propagation and confidence intervals |
-| **Uncertainty Tracking** | Results in “value ± error” format for transparency |
+> **Durum (2026-11-22):** Çekirdek motor **doğrulanmış** (228 denetim
+> kontrolü · 1.501 test · 0 hata). **Gerçek uçuş verisi: 0** — model
+> henüz gerçek bir yakıt faturasıyla karşılaştırılmadı.
+> Bu yüzden her ekranda "taahhüt değil, gösterge" yazar.
 
 ---
 
-## 🛠 Technology Stack
+## 🚀 Hızlı başlangıç (3 dakika)
 
-| Component | Technology |
-|-----------|-----------|
-| Core Engine | Python 3.9+ |
-| Physics Models | ISA Atmosphere, BADA-based performance, ICAO emission methodology |
-| Optimization | Altitude, step climb, cost index, tankering |
-| Visualization | Plotly, Matplotlib |
-| Dashboard | Dash + Dash Bootstrap Components |
-| Data Source | OpenSky Network (ADS-B), customer Excel/CSV |
-| Advanced Analysis | MATLAB |
-| Reporting | Jinja2-style HTML → PDF |
-
----
-
-## 📁 Project Structure
-
-```text
-GreenWing_Analytics/
-├── config/                          # Configuration
-│   ├── settings.py                  # Physical constants, system settings
-│   ├── aircraft_database.yaml       # Aircraft parameters (11 types)
-│   └── assumptions.py               # Operational assumptions (overrideable)
-│
-├── src/
-│   ├── units.py                     # Unit conversion & standardization
-│   ├── utils.py                     # Shared helpers
-│   ├── logging_config.py            # Analysis traceability
-│   │
-│   ├── validation/                  # 3-layer validation
-│   │   ├── data_validator.py
-│   │   ├── physics_validator.py
-│   │   └── business_validator.py
-│   │
-│   ├── models/                      # Physics engines
-│   │   ├── atmosphere.py
-│   │   ├── aircraft_performance.py
-│   │   ├── fuel_model.py
-│   │   └── emission_model.py
-│   │
-│   ├── data_collection/             # Data collection
-│   │   ├── opensky_collector.py
-│   │   └── airport_database.py
-│   │
-│   ├── analysis/                    # Analysis engines
-│   │   ├── phase_segmentation.py
-│   │   ├── flight_analyzer.py
-│   │   ├── fleet_analyzer.py
-│   │   ├── benchmark.py
-│   │   ├── sensitivity.py
-│   │   └── uncertainty.py
-│   │
-│   ├── optimization/                # Optimization engines
-│   │   ├── altitude_optimizer.py
-│   │   ├── cost_index_optimizer.py
-│   │   ├── tankering_optimizer.py
-│   │   └── model_calibrator.py
-│   │
-│   └── reporting/                   # Reporting
-│       └── report_generator.py
-│
-├── dashboard/
-│   └── app.py                       # Interactive web dashboard
-│
-├── matlab/
-│   ├── cruise_optimization.m
-│   └── step_climb_analysis.m
-│
-├── scripts/
-│   ├── 01_collect_data.py
-│   ├── 02_analyze_and_optimize.py
-│   └── 03_generate_outputs.py
-│
-├── tests/                           # Test suite
-├── data/                            # Local data (not tracked in git)
-├── reports/                         # Generated reports (not tracked in git)
-├── notebooks/                       # Jupyter notebooks
-└── docs/                            # Docs and exported charts
-________________________________________
-📊 Supported Aircraft
-ICAO	Name	Engine
-B738	Boeing 737-800	CFM56-7B26
-B38M	Boeing 737 MAX 8	LEAP-1B
-A320	Airbus A320-200	CFM56-5B4/3
-A20N	Airbus A320neo	LEAP-1A
-A321	Airbus A321-200	V2533-A5
-A21N	Airbus A321neo	LEAP-1A-33
-B77W	Boeing 777-300ER	GE90-115B
-B788	Boeing 787-8	GEnx-1B70
-B789	Boeing 787-9	GEnx-1B76
-A350	Airbus A350-900	Trent XWB-84
-A380	Airbus A380-800	Trent 970
-________________________________________
-🚀 Quick Start
-Installation
-Bash
-git clone https://github.com/YOUR_USERNAME/greenWing-analytics.git
-cd greenWing-analytics
-
-python -m venv greenWing_env
-greenWing_env\Scripts\activate
-
+```bash
+# 1. Kurulum
 pip install -r requirements.txt
-Environment Variables
-Bash
-copy .env.example .env
-Then edit .env if you have OpenSky credentials:
-env
-OPENSKY_USERNAME=your_username
-OPENSKY_PASSWORD=your_password
-Run Core Module Tests
-Bash
-python -m config.settings
-python -m config.assumptions
-python -m src.units
-python -m src.models.atmosphere
-python -m src.models.fuel_model
-python -m src.models.emission_model
-python -m src.analysis.phase_segmentation
-python -m src.analysis.fleet_analyzer
-python -m src.optimization.altitude_optimizer
-python -m src.reporting.report_generator
-Run Full Test Suite
-Bash
-python tests/test_atmosphere.py
-python tests/test_performance.py
-python tests/test_fuel_model.py
-python tests/test_emission.py
-python tests/test_optimization.py
-python tests/test_validation.py
-python tests/test_units.py
-python tests/test_uncertainty.py
-python tests/test_utils.py
-python tests/test_logging.py
-Run Dashboard
-Bash
-python dashboard/app.py
-Open in browser:
-text
-http://localhost:8050
-Real Data Workflow
-Bash
-python scripts/01_collect_data.py
-python scripts/02_analyze_and_optimize.py
-python scripts/03_generate_outputs.py
-________________________________________
-📋 CORSIA Compliance
-GreenWing Analytics supports the 3 components of CORSIA MRV:
-Component	Status	Description
-M — Monitoring	✅	Fuel-based monitoring (Method B — Block Fuel)
-R — Reporting	✅	ICAO Annex 16 Vol IV compatible reporting
-V — Verification	✅	Self-assessment checklist included
-SAF Support
-SAF Type	Lifecycle CO₂ Reduction
-HEFA	72%
-FT-SPK	90%
-ATJ	62%
-PTL	92%
-SIP	65%
-________________________________________
-🔬 Methodology
-Fuel Calculation
-text
-CD = CD0 + K × CL²
-FF = SFC × Drag
-SAR = TAS / FF
-Total Fuel = Numerical integration over distance
-Optimization Constraints
-•	FAR 25.251 buffet margin
-•	RVSM altitude levels
-•	Directional flight level rules
-•	Maximum operating altitude
-•	MTOW checks
-•	Fuel tank capacity checks
-•	Step climb count and spacing limits
-Emissions
-•	CO₂ = Fuel × 3.16
-•	H₂O = Fuel × 1.24
-•	NOx = BFFM2 + ICAO Engine Emission Databank
-•	Contrail = Schmidt-Appleman criterion
-________________________________________
-📈 Typical Insights
-Based on real ADS-B and model-based analysis:
-•	Altitude optimization potential: 1-3%
-•	Step climb benefit on long routes: 100-300 kg per flight
-•	Cost Index optimization: 0.5-2% total cost reduction
-•	Tankering savings on fuel price differential routes: $50-300 per flight
-•	Single-route annual saving potential: $100K-500K
-________________________________________
-🧪 Testing Philosophy
-This project includes:
-•	Module self-tests (python -m module)
-•	Standalone test scripts (python tests/...)
-•	Validation layers
-•	Data validation
-•	Physics validation
-•	Business validation
-•	Benchmark checks
-•	Sensitivity analysis
-•	Uncertainty propagation
-The goal is not just to produce numbers, but to ensure those numbers are:
-•	physically valid
-•	operationally realistic
-•	commercially explainable
-________________________________________
-🔒 Data & Privacy
-•	ADS-B data used from public OpenSky Network feeds
-•	Customer data is assumed to remain local
-•	Generated reports are local files
-•	No mandatory cloud dependency
-•	.env files and raw data are excluded from git
-________________________________________
-📧 Contact
-•	Email: greenwingsanalytics@gmail.com
-•	LinkedIn: https://linkedin.com/in/emrecorakci
-•	LinkedIn:  
-________________________________________
-📄 License
-Proprietary — All rights reserved.
-________________________________________
-🙏 Acknowledgments
-•	OpenSky Network
-•	ICAO
-•	Eurocontrol
-•	IATA
-•	EASA
-________________________________________
-Built with aerospace engineering logic and commercialization focus.
+
+# 2. Ortam değişkeni (parola)
+export GREENWING_DASHBOARD_PASSWORD='GucluBirSifre!'
+
+# 3. Siteyi başlat
+python -m uvicorn webapp.app:app --host 0.0.0.0 --port 8052
+
+# 4. Aç
+#    http://localhost:8052
+```
+
+**Tek giriş noktası var: `webapp/app.py`.** (Eski `web/` ve `dashboard/`
+`archive/` altında, kullanılmıyor.)
+
+---
+
+## 📚 Dokümantasyon — nereden başlamalı?
+
+| Soru | Dosya |
+|---|---|
+| **Bu sistem ne yapar, ne yapamaz?** | [`docs/KOD_ATLASI.md`](docs/KOD_ATLASI.md) |
+| **Hangi dosya ne işe yarar?** | [`docs/YAPI_AGACI.md`](docs/YAPI_AGACI.md) |
+| **Her sayının kaynağı ne?** | [`docs/MODEL_PROVENANCE.md`](docs/MODEL_PROVENANCE.md) |
+| **Hangi hatalar bulundu, nasıl düzeltildi?** | [`docs/FULL_TECHNICAL_AUDIT.md`](docs/FULL_TECHNICAL_AUDIT.md) |
+| **Müşteriye ne göndereceğim?** | [`deliverables/pilot_paketi/OKU.md`](deliverables/pilot_paketi/OKU.md) |
+| **Ticari olarak hazır mıyım?** | [`docs/COMMERCIAL_READINESS.md`](docs/COMMERCIAL_READINESS.md) |
+| **Kod okumadan anlamak istiyorum** | Site → `/basit` sayfası |
+
+---
+
+## 🛠 Gerçek teknoloji yığını
+
+| Bileşen | Teknoloji | Not |
+|---|---|---|
+| Çekirdek | Python 3.11 | |
+| Fizik | ISA (ICAO Doc 7488) · OpenAP polar · ICAO EDB | Her sayı kaynaklı |
+| Web | FastAPI + Uvicorn | Tek uygulama, 10 sayfa |
+| PDF | ReportLab | El kitabı + teknik rapor |
+| Veri | pandas / numpy / PyYAML | |
+| **Kullanılmayan** | ~~Dash~~ ~~Jinja şablonları~~ | `archive/` altında |
+
+---
+
+## 🎯 Ne yapıyor?
+
+| Yetenek | Açıklama |
+|---|---|
+| **Yakıt verimliliği** | Rota bazlı tüketim, benchmark karşılaştırma |
+| **İrtifa optimizasyonu** | Optimum seyir irtifası; buffet + RVSM + yön kısıtı |
+| **Step climb** | Ağırlığa göre kademeli tırmanış planı |
+| **Cost index** | CI/Mach dengesi: yakıt maliyeti vs zaman maliyeti |
+| **Tankering** | Yakıt fiyat farkı arbitrajı (MTOW güvenlik kontrolü) |
+| **CORSIA** | MRV uyumlu emisyon raporu |
+| **SAF** | Sürdürülebilir yakıt yaşam döngüsü ve maliyet |
+| **Belirsizlik** | Her sonuç "değer ± hata" biçiminde |
+| **Kalibrasyon** | Müşteri verisiyle model yeniden ayarı |
+
+---
+
+## 🗺️ Mimari (tek yönlü bağımlılık)
+
+```
+   Radar / CSV
+        │
+        ▼
+   VERİ         src/data_collection · src/ingestion · src/validation
+        │
+        ▼
+   FİZİK        src/models   (atmosphere → performance → fuel → emission)
+        │
+        ▼
+   ANALİZ       src/analysis · src/optimization
+        │
+        ▼
+   SUNUM        src/reporting · webapp
+```
+
+**Kural:** Üst katman alt katmanı import eder, tersi olmaz.
+`src/units.py` hiçbir şeyi import etmez — her şeyin tek kaynağı
+olabilmesinin nedeni budur.
+
+Tam ağaç: [`docs/YAPI_AGACI.md`](docs/YAPI_AGACI.md)
+(`python tools/build_tree.py --md` ile yenilenir)
+
+---
+
+## 🧪 Doğrulama — kendin kontrol et
+
+```bash
+# 7 katmanlı tam denetim (228 kontrol)
+# ÖNEMLİ: K7 (arayüz) için sunucu 8052'de açık olmalı —
+# kapalıysa denetim "ATLANDI" der, "temiz" demez (denetim #94).
+python -m uvicorn webapp.app:app --port 8052 &   # önce site
+python tools/full_audit.py
+
+# Belirli bir katman
+python tools/full_audit.py --layer K5     # fizik
+
+# Tüm testler (pytest: 25 test)
+python -m pytest tests/ -q
+
+# Site testleri (standalone: 51 kontrol)
+python tests/test_webapp.py
+
+# Kalibrasyon boru hattı regresyonu (7 test)
+python -m pytest tests/test_ingestion_pipeline.py -v
+
+# Denetim dürüstlüğü (8 test) — "denetlenmemiş yeşil" geri gelmesin
+python -m pytest tests/test_audit_honesty.py -v
+
+# Yapı ağacını yenile
+python tools/build_tree.py --md
+```
+
+**Beklenen:** `228/228 · 0 FAIL · 0 ATLANDI`
+
+Sunucu kapalıysa `K7 Arayüz` katmanı **2/2 → ATLANDI** olur ve toplam
+`220/220 · 8 ATLANDI` çıkar. Bu bir hata değil — arayüzün test
+edilmediğini dürüstçe söylemesidir.
+
+---
+
+## 📊 Boru hattı
+
+```bash
+python scripts/02_analyze_and_optimize.py   # ★ ana analiz
+python scripts/03_generate_outputs.py       # rapor üret
+python scripts/01_collect_data.py           # gerçek veri topla (ağ gerekli)
+```
+
+`02` çıktısı sana **dürüst** şekilde şunu söyler:
+
+```
+Veri kaynağı : {'synthetic_fallback': 14}
+⛔ GERÇEK VERİ YOK — 14 sentetik.
+   Ticari taahhüt için gerçek veri şart (0 kayıt).
+```
+
+---
+
+## ⚠️ Bilinen sınırlar (gizlemeden)
+
+| Konu | Durum | Etki |
+|---|---|---|
+| Gerçek uçuş verisi | **0** (14 sentetik) | Model doğrulanmadı |
+| Kalibrasyon kabulü | **Reddediliyor** (sentetik veri) | Doğru davranış — gerçek veri bekliyor |
+| Rüzgâr | GFS kodu hazır, GRIB2 yok | Belirsizlik ±%22,2 |
+| A20N yakıtı | ICAO EDB'de yok → tahmin | ±%20 sapma riski |
+| Geniş gövde poları | +%63 sapma | B77W/B789/A350 dikkatli |
+| Veritabanı | Dosya tabanlı | 50+ kullanıcıda DB gerekli |
+| MFA | Yok | Kurumsal satışta istenir |
+| SLA / yedekleme | Yok | Üretim için gerekli |
+
+---
+
+## 🔐 Kimlik doğrulama
+
+```bash
+# Tek kullanıcı
+export GREENWING_DASHBOARD_PASSWORD='GucluBirSifre!'
+
+# Çok kullanıcı + rol + kiracı (ticari)
+# config/secrets.yaml:
+#   users:
+#     ali:   {hash: "pbkdf2$...", role: admin,   tenant: thy}
+#     veli:  {hash: "pbkdf2$...", role: analyst, tenant: thy}
+#     denetci: {hash: "pbkdf2$...", role: viewer, tenant: thy}
+```
+
+Hash üretimi: `python -m src.security.auth --hash`
+
+Roller: `viewer` (okuma) < `analyst` (+analiz) < `admin` (tam).
+
+---
+
+## 📄 Lisans / veri kaynakları
+
+- OpenAP: MIT (Junzi Sun, TU Delft)
+- ICAO EDB: kamuya açık motor sertifikasyon verisi
+- ISA: ICAO Doc 7488/3
+- Jet A-1 özellikleri: ASTM D1655
+
+**Gerçek uçuş verisi bulunmuyor** — pilot paketi gerçek veri bekliyor.

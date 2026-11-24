@@ -68,7 +68,7 @@ aircraft_types:
     # max_payload: Yapısal payload limiti
     mtow: 79016
     oew: 41413
-    max_fuel: 20894
+    max_fuel: 20894          # üretici (Boeing/Airbus ACM)
     max_payload: 20244
 
     # ─── Kanat geometrisi ────────────────────────────────
@@ -78,8 +78,8 @@ aircraft_types:
     # wingspan: Kanat açıklığı (m)
     #   Aspect ratio hesabında: AR = b²/S
     #   İndüktif drag (K) hesabında: K = 1/(π×e×AR)
-    wing_area: 124.6
-    wingspan: 35.8
+    wing_area: 124.6          # OpenAP v3 wing.area
+    wingspan: 35.79        # 737-800 gerçek (OpenAP 34,32 = -600/-700 boyu)
 
     # ─── Performans limitleri ────────────────────────────
     # cruise_mach: Tipik cruise Mach sayısı
@@ -120,10 +120,18 @@ aircraft_types:
     # AR: Aspect Ratio (kanat en-boy oranı)
     #   AR = wingspan² / wing_area = 35.8² / 124.6 = 10.27
     #   Sabit (geometrik özellik)
-    CD0: 0.022
-    K: 0.045
-    e: 0.85
-    AR: 10.27
+    CD0: 0.0190
+    K: 0.04200
+    e: 0.7990
+    AR: 10.280           # span²/area = 35,79²/124,6 (gerçek geometri)
+    # ── İKİ FARKLI EN-BOY ORANI (denetim #85) ─────────────────
+    # AR yukarıda: yayınlanan (WINGLET DAHİL) açıklık → geometri.
+    # AMA OpenAP poları winglet'siz kanat üzerinde fit edildi:
+    #   34.32 m (112 ft 7 in, Boeing ACAP) → AR = 9.453
+    #   e = 1/(π·9.453·0.042) = 0.8017 ≈ 0.799 ✓ (%0,3)
+    # 35.79 m ile: e = 0.7372 → %7,7 sapma. Eski 9.453 "yanlış"
+    # değildi, FARKLI bir büyüklüktü.
+    AR_aerodynamic: 9.453
 
     # ─── Motor parametreleri ─────────────────────────────
     # tsfc_cruise: Cruise SFC (Thrust Specific Fuel Consumption)
@@ -142,7 +150,11 @@ aircraft_types:
     #   Thrust yeterliliği kontrolünde kullanılır
     #
     # Kaynak: CFM International, EASA Engine TCDS E.067
-    tsfc_cruise: 0.0000178
+    tsfc_cruise: 0.00001767
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — doğrudan ICAO EDB (B738)
+    fuel_coef: [1.075485, 1.877730, 1.889552]
     max_thrust_sl: 121400
 
     # ─── Buffet sınırları (opsiyonel, PhysicsValidator'da) ─
@@ -171,28 +183,44 @@ aircraft_types:
     num_engines: 2
 
     mtow: 82191
-    oew: 44280
-    max_fuel: 20894
+    oew: 45070  # Boeing dokümanı (Ağu 2017); 44280 hatalıydı
+    max_fuel: 20894          # üretici (Boeing/Airbus ACM)
     max_payload: 20886
 
-    wing_area: 127.0
-    wingspan: 35.9
+    wing_area: 124.6          # OpenAP v3 wing.area
+    wingspan: 35.79        # 737-800 gerçek (OpenAP 34,32 = -600/-700 boyu)
 
     cruise_mach: 0.79
     max_altitude: 41000
     range_nm: 3550
-    passengers_typical: 172
+    passengers_typical: 178  # 737 MAX 8 tipik 2-class
 
     # LEAP-1B: Daha yüksek BPR (9.0), daha düşük SFC
     # Yeni kanat tasarımı: daha düşük CD0
     # Split-tip winglet: daha düşük K
-    CD0: 0.020
-    K: 0.042
-    e: 0.87
-    AR: 10.15
+    CD0: 0.0200
+    K: 0.04200
+    e: 0.7970
+    AR: 10.280           # span²/area = 35,79²/124,6 (gerçek geometri)
+    # ── İKİ FARKLI EN-BOY ORANI (denetim #85) ─────────────────
+    # AR yukarıda: yayınlanan (WINGLET DAHİL) açıklık → geometri.
+    # AMA OpenAP poları winglet'siz kanat üzerinde fit edildi:
+    #   34.32 m (112 ft 7 in, Boeing ACAP) → AR = 9.453
+    #   e = 1/(π·9.453·0.042) = 0.8017 ≈ 0.799 ✓ (%0,3)
+    # 35.79 m ile: e = 0.7372 → %7,7 sapma. Eski 9.453 "yanlış"
+    # değildi, FARKLI bir büyüklüktü.
+    AR_aerodynamic: 9.453
 
     # LEAP-1B SFC: CFM56'dan %15 daha iyi
-    tsfc_cruise: 0.0000152
+    tsfc_cruise: 0.00001573
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(LEAP-1B27) = 1.014
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [0.950691, 1.976761, 1.395479]
     max_thrust_sl: 130280
 
 
@@ -212,25 +240,29 @@ aircraft_types:
 
     mtow: 78000
     oew: 42600
-    max_fuel: 18900
+    max_fuel: 18900          # üretici (Boeing/Airbus ACM)
     max_payload: 16600
 
-    wing_area: 122.6
-    wingspan: 35.8
+    wing_area: 124          # OpenAP v3 wing.area
+    wingspan: 35.8         # OpenAP v3 wing.span
 
     cruise_mach: 0.78
     max_altitude: 39800
     range_nm: 3300
-    passengers_typical: 150
+    passengers_typical: 165  # A320neo tipik 2-class; 150 A320ceo değeriydi
 
     # Sharklet'siz versiyon
     # Sharklet ile: CD0 aynı ama K=0.041 (e=0.87)
-    CD0: 0.024
-    K: 0.044
-    e: 0.84
-    AR: 10.45
+    CD0: 0.0180
+    K: 0.03900
+    e: 0.7990
+    AR: 10.336            # span²/area (OpenAP geometrisi)
 
-    tsfc_cruise: 0.0000175
+    tsfc_cruise: 0.00001655
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — doğrudan ICAO EDB (A320)
+    fuel_coef: [1.045321, 2.363372, 1.237813]
     max_thrust_sl: 120000
 
 
@@ -250,11 +282,11 @@ aircraft_types:
 
     mtow: 79000
     oew: 44300
-    max_fuel: 19100
+    max_fuel: 19100          # üretici (Boeing/Airbus ACM)
     max_payload: 15700
 
-    wing_area: 122.6
-    wingspan: 35.8
+    wing_area: 124          # OpenAP v3 wing.area
+    wingspan: 35.8         # OpenAP v3 wing.span
 
     cruise_mach: 0.78
     max_altitude: 39800
@@ -262,13 +294,21 @@ aircraft_types:
     passengers_typical: 150
 
     # Sharklet standart. Daha temiz aerodinamik.
-    CD0: 0.021
-    K: 0.041
-    e: 0.87
-    AR: 10.45
+    CD0: 0.0170
+    K: 0.03800
+    e: 0.8070
+    AR: 10.336            # span²/area (OpenAP geometrisi)
 
     # LEAP-1A: BPR 11.0, CFM56'dan %15 daha iyi SFC
-    tsfc_cruise: 0.0000148
+    tsfc_cruise: 0.00001534
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(LEAP-1A26/26E1) = 0.861
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [0.807243, 1.976761, 1.395479]
     max_thrust_sl: 121400
 
 
@@ -286,23 +326,27 @@ aircraft_types:
 
     mtow: 93500
     oew: 48500
-    max_fuel: 23860
+    max_fuel: 23860          # üretici (Boeing/Airbus ACM)
     max_payload: 21200
 
-    wing_area: 122.6
-    wingspan: 35.8
+    wing_area: 128          # OpenAP v3 wing.area
+    wingspan: 35.8         # OpenAP v3 wing.span
 
     cruise_mach: 0.78
     max_altitude: 39800
     range_nm: 3200
     passengers_typical: 185
 
-    CD0: 0.024
-    K: 0.044
-    e: 0.84
-    AR: 10.45
+    CD0: 0.0200
+    K: 0.04100
+    e: 0.7850
+    AR: 10.013            # span²/area (OpenAP geometrisi)
 
-    tsfc_cruise: 0.0000180
+    tsfc_cruise: 0.00001722
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — doğrudan ICAO EDB (A321)
+    fuel_coef: [1.398000, 2.054028, 1.000894]
     max_thrust_sl: 146800
 
 
@@ -320,23 +364,31 @@ aircraft_types:
 
     mtow: 97000
     oew: 50100
-    max_fuel: 26730
+    max_fuel: 23860          # üretici (Boeing/Airbus ACM)
     max_payload: 20100
 
-    wing_area: 122.6
-    wingspan: 35.8
+    wing_area: 124          # OpenAP v3 wing.area
+    wingspan: 35.8         # OpenAP v3 wing.span
 
     cruise_mach: 0.78
     max_altitude: 39800
     range_nm: 4000
     passengers_typical: 180
 
-    CD0: 0.021
-    K: 0.041
-    e: 0.87
-    AR: 10.45
+    CD0: 0.0170
+    K: 0.03800
+    e: 0.8070
+    AR: 10.336            # span²/area (OpenAP geometrisi)
 
-    tsfc_cruise: 0.0000150
+    tsfc_cruise: 0.00001575
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(LEAP-1A35A/33/33B2/32/30) = 1.062
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [0.995694, 1.976761, 1.395479]
     max_thrust_sl: 147300
 
 
@@ -355,11 +407,11 @@ aircraft_types:
 
     mtow: 352441
     oew: 167829
-    max_fuel: 145538
+    max_fuel: 145538          # üretici (Boeing/Airbus ACM)
     max_payload: 69853
 
-    wing_area: 427.8
-    wingspan: 64.8
+    wing_area: 436.8          # OpenAP v3 wing.area
+    wingspan: 64.8         # OpenAP v3 wing.span
 
     cruise_mach: 0.84
     max_altitude: 43100
@@ -368,14 +420,22 @@ aircraft_types:
 
     # Geniş gövde: daha düşük CD0 (göreceli)
     # Yüksek AR: daha düşük K
-    CD0: 0.020
-    K: 0.040
-    e: 0.87
-    AR: 9.82
+    CD0: 0.0240
+    K: 0.04300
+    e: 0.7650
+    AR: 9.613            # span²/area (OpenAP geometrisi)
 
     # GE90-115B: Dünyanın en güçlü jet motoru
     # BPR 9.0, çok verimli
-    tsfc_cruise: 0.0000162
+    tsfc_cruise: 0.00001721
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(GE90-115B) = 4.6
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [4.312799, 1.976761, 1.395479]
     max_thrust_sl: 513900
 
 
@@ -393,11 +453,11 @@ aircraft_types:
 
     mtow: 228000
     oew: 120000
-    max_fuel: 101323
+    max_fuel: 101323          # üretici (Boeing/Airbus ACM)
     max_payload: 44226
 
-    wing_area: 325.0
-    wingspan: 60.1
+    wing_area: 377          # OpenAP v3 wing.area
+    wingspan: 60.12         # OpenAP v3 wing.span
 
     cruise_mach: 0.85
     max_altitude: 43000
@@ -406,13 +466,21 @@ aircraft_types:
 
     # Kompozit yapı: çok düşük CD0
     # Raked wingtip: çok düşük K
-    CD0: 0.018
-    K: 0.038
-    e: 0.89
-    AR: 11.12
+    CD0: 0.0170
+    K: 0.04100
+    e: 0.8190
+    AR: 9.587            # span²/area (OpenAP geometrisi)
 
     # GEnx: Çok verimli yeni nesil motor
-    tsfc_cruise: 0.0000152
+    tsfc_cruise: 0.00001639
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(GENX-1B70) = 2.494
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [2.338287, 1.976761, 1.395479]
     max_thrust_sl: 312000
 
 
@@ -430,23 +498,31 @@ aircraft_types:
 
     mtow: 254011
     oew: 128850
-    max_fuel: 126920
+    max_fuel: 126920          # üretici (Boeing/Airbus ACM)
     max_payload: 52163
 
-    wing_area: 325.0
-    wingspan: 60.1
+    wing_area: 377          # OpenAP v3 wing.area
+    wingspan: 60.12         # OpenAP v3 wing.span
 
     cruise_mach: 0.85
     max_altitude: 43000
     range_nm: 7635
     passengers_typical: 296
 
-    CD0: 0.018
-    K: 0.037
-    e: 0.89
-    AR: 11.12
+    CD0: 0.0220
+    K: 0.04200
+    e: 0.7830
+    AR: 9.587            # span²/area (OpenAP geometrisi)
 
-    tsfc_cruise: 0.0000155
+    tsfc_cruise: 0.00001692
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(GENX-1B70) = 2.494
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [2.338287, 1.976761, 1.395479]
     max_thrust_sl: 339000
 
 
@@ -465,11 +541,11 @@ aircraft_types:
 
     mtow: 280000
     oew: 142400
-    max_fuel: 158791
+    max_fuel: 140795          # OpenAP v3 mfc
     max_payload: 53300
 
-    wing_area: 443.0
-    wingspan: 64.8
+    wing_area: 442          # OpenAP v3 wing.area
+    wingspan: 64.75         # OpenAP v3 wing.span
 
     cruise_mach: 0.85
     max_altitude: 43100
@@ -478,13 +554,21 @@ aircraft_types:
 
     # En verimli modern geniş gövde
     # Kompozit kanat ve gövde
-    CD0: 0.017
-    K: 0.035
-    e: 0.90
-    AR: 9.48
+    CD0: 0.0220
+    K: 0.04300
+    e: 0.7830
+    AR: 9.485            # span²/area (OpenAP geometrisi)
 
     # Trent XWB: Rolls-Royce'un en verimli motoru
-    tsfc_cruise: 0.0000150
+    tsfc_cruise: 0.00001561
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(TRENT XWB-84) = 2.819
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [2.642995, 1.976761, 1.395479]
     max_thrust_sl: 374000
 
 
@@ -503,11 +587,11 @@ aircraft_types:
 
     mtow: 575000
     oew: 277000
-    max_fuel: 320000
+    max_fuel: 253983          # üretici (Boeing/Airbus ACM)
     max_payload: 83000
 
-    wing_area: 845.0
-    wingspan: 79.8
+    wing_area: 845          # OpenAP v3 wing.area
+    wingspan: 79.75         # OpenAP v3 wing.span
 
     cruise_mach: 0.85
     max_altitude: 43000
@@ -516,14 +600,26 @@ aircraft_types:
 
     # Dev kanat: çok düşük CD0 (göreceli)
     # 4 motor: farklı motor konfigürasyonu
-    CD0: 0.019
-    K: 0.038
-    e: 0.88
-    AR: 7.53  # AR düşük: Geniş gövdeye göre kısa ve çok geniş kanat (A380 özel tasarımı)
+    CD0: 0.0160
+    K: 0.05000
+    e: 0.8550
+    AR: 7.527            # span²/area (OpenAP geometrisi)
 
-    # 4 × Trent 970 = çok yüksek toplam thrust
-    tsfc_cruise: 0.0000168
-    max_thrust_sl: 1248000
+    # BÜTÜNLÜK DÜZELTMESİ: Önceden 1,248,000 yazılıydı — bu A380'in
+    # DÖRT motorunun TOPLAM thrust'ıdır. Diğer tüm uçaklarda bu alan
+    # TEK MOTOR değerini taşır ve kod × num_engines yapar. Bu yüzden
+    # A380'de thrust 4× şişiyordu (T/W = 0.885, gerçek 0.225).
+    # Tek Trent 970: 311,000 N.
+    tsfc_cruise: 0.00001720
+    # ICAO EDB yakıt modeli katsayıları (OpenAP); kaynak:
+    # data/openap/fuel/fuel_models.csv. FF[kg/s] = c1−exp(−c2(r·e^(c3r)−ln c1/c2))
+    # Kaynak: ICAO EDB / OpenAP — default × ff_to(TRENT 970-84) = 2.605
+    # ⚠ TAHMİN — bu tip ICAO EDB'de (OpenAP fuel_models.csv) YOK.
+    #   Katsayı DEFAULT×ff_to türetmesidir; c2/c3 tüm tiplerde aynıdır.
+    #   Denetim #78: A20N −%17 · B77W +%63 · B789 +%26 sapma ölçüldü.
+    #   Gerçek yakıt için müşteri OFP verisi veya EDB 2.0 gerekli.
+    fuel_coef: [2.442357, 1.976761, 1.395479]
+    max_thrust_sl: 311000
 
 
 # ═══════════════════════════════════════════════════════════

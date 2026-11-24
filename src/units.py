@@ -56,55 +56,86 @@ from typing import Union
 
 # ═══════════════════════════════════════════════════════════
 # SABİT DÖNÜŞÜM KATSAYILARI
+# ───────────────────────────────────────────────────────────
+# KURAL (denetim #86): Bir dönüşüm kat sayısı iki türlü olabilir —
+#   (a) TANIM: uluslararası anlaşmayla sabitlenmiş, değişmez.
+#   (b) TÜRETİLMİŞ: bir tanımdan hesaplanır; elle yazılırsa
+#       yuvarlama hatası girer.
+# Bu bölümdeki her değer, türü ve kaynağıyla birlikte yazılmıştır.
+# Hiçbiri "internetten bakılan sayı" değildir; her biri türetilebilir.
 # ═══════════════════════════════════════════════════════════
 
-_FT_TO_M           = 0.3048
-_M_TO_FT           = 1.0 / _FT_TO_M
-
-_NM_TO_M           = 1852.0
-_M_TO_NM           = 1.0 / _NM_TO_M
-
-_NM_TO_KM          = 1.852
-_KM_TO_NM          = 1.0 / _NM_TO_KM
-
-_KM_TO_M           = 1000.0
-_M_TO_KM           = 0.001
-
-_STATUTE_MILE_TO_M = 1609.344
+# ── TANIM (exact, by definition) ─────────────────────────────
+# Uluslararası Avoirdupois yard/pound anlaşması (1959): 1 lb = 0.45359237 kg
+_KG_PER_LB        = 0.45359237
+# Uluslararası feet tanımı (1959): 1 ft = 0.3048 m (tam)
+_FT_TO_M          = 0.3048
+_M_TO_FT          = 1.0 / _FT_TO_M
+# Uluslararası deniz mili tanımı: 1 nmi = 1852 m (tam)
+_NM_TO_M          = 1852.0
+_M_TO_NM          = 1.0 / _NM_TO_M
+# Karada mil: 1 mi = 5280 ft (tam) → 5280 × 0.3048
+_STATUTE_MILE_TO_M = 5280 * _FT_TO_M
 _M_TO_STATUTE_MILE = 1.0 / _STATUTE_MILE_TO_M
+# CGPM 1901 standart yerçekimi ivmesi (tam)
+_GRAVITY          = 9.80665
+# Kelvin ↔ Celsius: 0 °C = 273.15 K (tam, tanım)
+_KELVIN_OFFSET    = 273.15
 
-_KTS_TO_MS         = 0.514444
-_MS_TO_KTS         = 1.0 / _KTS_TO_MS
-
-_KG_TO_LBS         = 2.20462
-_LBS_TO_KG         = 1.0 / _KG_TO_LBS
-
-_KELVIN_OFFSET     = 273.15
+# ── TÜRETİLMİŞ (kesilmiş değer kullanılmaz) ──────────────────
+_NM_TO_KM         = _NM_TO_M / 1000.0            # 1.852 tam
+_KM_TO_NM         = 1.0 / _NM_TO_KM
+_KM_TO_M          = 1000.0
+_M_TO_KM          = 0.001
+# 1 kn = 1 nmi/saat = 1852/3600 m/s — TÜRET
+_KTS_TO_MS        = _NM_TO_M / 3600.0            # 0.5144444... (sonsuz)
+_MS_TO_KTS        = 1.0 / _KTS_TO_MS
+# 1 kg = 1/0.45359237 lb — TÜRET
+_KG_TO_LBS        = 1.0 / _KG_PER_LB             # 2.20462262...
+_LBS_TO_KG        = _KG_PER_LB
 
 
 # ═══════════════════════════════════════════════════════════
 # ATMOSFER SABİTLERİ (ISA)
-# ═══════════════════════════════════════════════════════════
+# ───────────────────────────────────────────────────────────
+# Kaynak: ICAO Doc 7488/3 (1993), "Manual of the ICAO Standard
+# Atmosphere". Uçuş seviyelerinde dünyanın her yerinde aynı kabul
+# edilir (gerçek sapmalar ±40 K'ya kadar çıkar; model bu sapmayı
+# ±%22,2 belirsizlik olarak taşır — bkz. src/analysis/uncertainty.py).
+# ───────────────────────────────────────────────────────────
+_GAMMA        = 1.4        # hava cp/cv (iki atomlu gaz, 300 K'da)
+# Kuru hava özgül gaz sabiti: R = R* / M_hava
+#   R* = 8.314462618 J/(mol·K) (CODATA 2018, tam)
+#   M_hava = 28.9647 g/mol (US Std Atmosphere 1976)
+_R_UNIVERSAL  = 8.314462618
+_M_AIR        = 0.0289647          # kg/mol
+_R_AIR        = _R_UNIVERSAL / _M_AIR   # = 287.0475...
 
-_GAMMA        = 1.4
-_R_AIR        = 287.05
-_GRAVITY      = 9.80665
-_ISA_T0       = 288.15
-_ISA_P0       = 101325.0
-_ISA_RHO0     = 1.225
-_ISA_LAPSE    = -0.0065
-_TROPOPAUSE_M = 11000.0
+_ISA_T0       = 288.15     # 15 °C deniz seviyesi sıcaklığı
+_ISA_P0       = 101325.0   # Pa (tam: 1 atm tanımı)
+_ISA_LAPSE    = -0.0065    # K/m (troposfer sıcaklık gradyanı)
+_TROPOPAUSE_M = 11000.0    # m (ISA tropopoz)
+# ρ0 TÜRETİLMİŞ: p0/(R·T0). Elle 1.225 yazmak 10 ppm kayma verir.
+_ISA_RHO0     = _ISA_P0 / (_R_AIR * _ISA_T0)     # = 1.2250051...
 
 
 # ═══════════════════════════════════════════════════════════
 # JET-A1 YAKIT SABİTLERİ
-# ═══════════════════════════════════════════════════════════
-
-_FUEL_DENSITY_REF      = 0.804
-_FUEL_DENSITY_TEMP_REF = 15.0
-_FUEL_DENSITY_ALPHA    = 0.00072
-_FUEL_DENSITY_MIN      = 0.775
-_FUEL_DENSITY_MAX      = 0.840
+# ───────────────────────────────────────────────────────────
+# Kaynak: ASTM D1655 (Jet A/A-1 spesifikasyonu) ve
+#         IATA Guidance Material for Aviation Fuel.
+#   15 °C'de yoğunluk: 0.775–0.840 kg/L (spesifikasyon aralığı)
+#   Tipik değer      : 0.804 kg/L
+#   Hacim genleşme   : ≈ 0.00072 /K (0.72×10⁻³ — hidrokarbon tipik)
+# UYARI: Yakıt ağırlıkla (kg) taşınır; litre yalnızca tedarik/
+# fatura birimidir. Sıcaklık değişince LİTRE değişir, KG değişmez.
+# Bu yüzden model her yerde kg kullanır.
+# ───────────────────────────────────────────────────────────
+_FUEL_DENSITY_REF      = 0.804    # kg/L @ 15 °C (ASTM D1655 tipik)
+_FUEL_DENSITY_TEMP_REF = 15.0     # °C referans sıcaklık
+_FUEL_DENSITY_ALPHA    = 0.00072  # 1/K hacim genleşme katsayısı
+_FUEL_DENSITY_MIN      = 0.775    # kg/L — ASTM D1655 alt sınır
+_FUEL_DENSITY_MAX      = 0.840    # kg/L — ASTM D1655 üst sınır
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1518,8 +1549,24 @@ class Units:
             df['time_gap_flag'] = df['time_diff_s'] > 600
 
         else:
-            df['time_diff_s']  = 0.0
-            df['time_gap_flag'] = False
+            # BÜTÜNLÜK: Zaman kolonu yoksa sessizce time_diff_s=0 yazmak,
+            # tüm yakıt hesabını 0'a düşürüyordu (sessiz sıfır). Artık
+            # `timestamp` takma adı denenir; o da yoksa uyarı verilir.
+            if 'timestamp' in df.columns:
+                df['time'] = pd.to_datetime(df['timestamp'], errors='coerce')
+                df = df.sort_values('time').reset_index(drop=True)
+                df['time_diff_s'] = (
+                    df['time'].diff().dt.total_seconds().fillna(0)
+                )
+                df['time_gap_flag'] = df['time_diff_s'] > 600
+            else:
+                warnings.warn(
+                    "⚠ Zaman kolonu ('time'/'timestamp') yok: time_diff_s=0. "
+                    "Zaman tabanlı yakıt hesapları 0 üretecek.",
+                    stacklevel=2,
+                )
+                df['time_diff_s']  = 0.0
+                df['time_gap_flag'] = False
 
         # ─── 2. İRTİFA (ÇOK BOYUTLU TESPİT) ──────────────
         if 'baro_altitude_m' in df.columns and 'baro_altitude_ft' in df.columns:
@@ -1631,8 +1678,19 @@ class Units:
         # ─── 4. YATAY HIZ ─────────────────────────────────
         if 'velocity' in df.columns:
             raw_vel = pd.to_numeric(df['velocity'], errors='coerce')
-            df['velocity_ms']  = raw_vel
-            df['velocity_kts'] = raw_vel * _MS_TO_KTS
+            # ── BİRİM TESPİTİ ────────────────────────────
+            # OpenSky API'si velocity'yi m/s verir; ancak arşivlenmiş
+            # CSV'ler kt olarak kaydedilmiş olabilir. Ticari uçak cruise
+            # hızı 400-520 kt (205-270 m/s). 90. persentil > 350 ise
+            # veri KNOT'tur → m/s'ye ÇEVİR, tekrar çarpma.
+            #
+            # Bu tespit olmadan 798 kt gibi imkânsız hız çıkıyordu
+            # (1240 nm'lik uçuşta cruise süresi yanlış hesaplanıyordu).
+            _p90 = (float(raw_vel.quantile(0.90))
+                    if raw_vel.notna().any() else 0.0)
+            _is_knots = _p90 > 350.0
+            df['velocity_ms']  = raw_vel * _KTS_TO_MS if _is_knots else raw_vel
+            df['velocity_kts'] = raw_vel if _is_knots else raw_vel * _MS_TO_KTS
         elif 'ground_speed_kts' in df.columns:
             raw_vel = pd.to_numeric(df['ground_speed_kts'], errors='coerce')
             df['velocity_kts'] = raw_vel

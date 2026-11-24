@@ -86,11 +86,40 @@ logger = get_logger("models.emission")  # Central logging (CORSIA + SAF readines
 
 # Emisyon indeksleri (kg emisyon / kg yakıt)
 # Kaynak: ICAO, DEFRA, IPCC
-_EI_CO2 = 3.16     # Kesin kimyasal sabit. CH bileşiklerinin yanması.
-_EI_H2O = 1.24     # Kesin kimyasal sabit.
-_EI_SO2 = 0.001    # Yakıttaki sülfür içeriğine bağlı (~0.05% S)
+# NOT: EI_CO2 ve EI_H2O config.settings'ten gelir (kanonik tek kaynak).
+# Burada yeniden sabit tanımlamak iki kaynak yaratıyordu — CO2 faktörü
+# 24 yerde 3.16 sabitine çevrilirken burası gözden kaçmıştı.
+_EI_CO2 = EI_CO2   # kanonik: config.settings.EI_CO2 (CORSIA 3.160)
+_EI_H2O = EI_H2O   # kanonik: config.settings.EI_H2O
+# ── SO₂ EMİSYON İNDEKSİ (denetim #87) ─────────────────────────
+# ESKİ DURUM: 0.001 kg/kg (1.0 g/kg) + yorum "~0.05% S".
+# Bu yorum YANLIŞTI: %0.05 S = 0.5 g S/kg yakıt, ki bu dünya
+# ortalamasının ÜSTÜNDE. Ayrıca EI hesabı şöyle türetilir:
+#
+#   EI(SO₂) = [M(SO₂)/M(S)] × S_içeriği
+#           = 1.998 × FSC
+#
+#   FSC = 0.4 g S/kg  (IATA/ICAO dünya ortalaması, ~0.04% S)
+#   → EI = 1.998 × 0.4 = 0.799 g/kg  ≈ 0.8 g/kg
+#
+# Literatür: Lee et al. (2010) ve ICAO çevresel raporu EI(SO₂)
+# için 0.8 g/kg kullanır. Kodun 1.0 g/kg değeri %25 YÜKSEKTI.
+#
+# DÜZELTME: 0.0008 kg/kg (0.8 g/kg), türetimi yorumda.
+# ETKİ: SO₂, CO₂'nin ~1/4000'i olduğu için toplam CO₂-eşdeğeri
+# değişmez (CORSIA kapsamı dışı). Yine de yanlış sayı yanlış
+# rapordur; düzeltildi.
+_M_S, _M_SO2 = 32.065, 64.066              # g/mol (IUPAC 2021)
+_FSC_DEFAULT_G_PER_KG = 0.4                # g S/kg yakıt (dünya ort.)
+_EI_SO2 = (_M_SO2 / _M_S) * _FSC_DEFAULT_G_PER_KG / 1000.0   # 0.000799 kg/kg
 
 # Jet-A1 enerji içeriği
+# # KAYNAK (denetim #86): Jet A-1 alt ısıl değeri (LHV).
+# # 43.15 MJ/kg — CRC Handbook / ASTM D1655 tipik değeri.
+# # ICAO CORSIA varsayılanı 43.8 MJ/kg (HHV) kullanır; LHV ile
+# # HHV arasındaki fark ~%3-4 (gizli buharlaşma ısısı).
+# # Bu model LHV kullanır çünkü yanma verimi LHV üzerinden tanımlı.
+#
 _JET_A1_LHV = 43.15e6  # J/kg (Lower Heating Value)
 
 
@@ -522,19 +551,83 @@ class EmissionCalculator:
                 engine['ei_nox']['climb'] + engine['ei_nox']['approach']
             ) / 2
 
-        # Atmosferik düzeltme (BFFM2)
-        delta = Units.pressure_ratio(altitude_ft)
-        theta = Units.temperature_ratio(altitude_ft)
+        # ══════════════════════════════════════════════════════
+        # BFFM2 (Boeing Fuel Flow Method 2) — ICAO Doc 9889 Ek 2
+        # ══════════════════════════════════════════════════════
+        # DENETİM #38: Bu fonksiyon adı "BFFM2" idi ama BFFM2'nin
+        # üç temel mekanizması YOKTU:
+        #   1) fuel_flow_kg_s → itki bağı (parametre atılıyordu)
+        #   2) Mach düzeltmesi (parametre atılıyordu)
+        #   3) LTO → cruise ekstrapolasyonu (sadece δ^0.51/θ^1.65)
+        # Sonuç: yakıt akışı 0.3 → 1.8 kg/s arasında EI_NOx
+        # DEĞİŞMİYORDU. Gerçekte güç ayarıyla 4 → 27 g/kg değişir.
 
-        # Nem düzeltmesi
+        # ── 1) Referans koşul: deniz seviyesi, ISA, M0.0 ──
+        # LTO EI_NOx değerleri SL statik koşullarda ölçülür.
+        theta_amb = Units.temperature_ratio(altitude_ft)
+        delta_amb = Units.pressure_ratio(altitude_ft)
+
+        # ── 2) Yakıt akışından referans yakıt akışı (BFFM2) ──
+        # BFFM2: W_ref = W_actual · (θ_amb^3.3 / δ_amb^1.02)
+        # SEBEP: referans koşul DENİZ SEVİYESİ (δ=1, θ=1). Yüksek irtifada
+        # δ ve θ < 1, yani (δ^1.02/θ^3.3) < 1 → W_ref > W_actual.
+        # Fizik: aynı yakıt akışı, ince havada motordan DAHA FAZLA güç
+        # çeker (daha zor çalışır) → deniz seviyesindeki eşdeğeri daha yüksek.
+        # (İlk denemede ters yazdım: W_ref < W_actual çıkıyordu, yanlış.)
+        w_ref = fuel_flow_kg_s * (theta_amb ** 3.3 / delta_amb ** 1.02)
+
+        # ── 3) Referans EI_NOx: LTO eğrisinden yakıt akışıyla interpole ──
+        # LTO referans yakıt akışları — itki oranı × rated thrust × SFC.
+        # BİRİM TUZAĞI: rated_thrust_kn kiloNewton'dur; SFC kg/(N·s)
+        # cinsindendir, yani önce ×1000 ile Newton'a çevirmek ZORUNLU.
+        # (İlk denemede çevirmedim; akışlar 1000 kat küçük çıktı.)
+        _thrust_n = engine['rated_thrust_kn'] * 1000.0
+        # BİRİM TUZAĞI 2: TSFC ≈ 0,39 lb/(lbf·h) = 1,1e-5 kg/(N·s).
+        # 0,011 yazarsam 1000 kat büyük akış çıkar (takeoff 1287 kg/s!).
+        _sfc     = 1.1e-5  # kg/(N·s) ≈ 0,39 lb/(lbf·h)
+        lto_frac = {'idle': 0.07, 'approach': 0.30,
+                    'climb': 0.85, 'takeoff': 1.00}
+        lto_ff = {k: f * _thrust_n * _sfc for k, f in lto_frac.items()}
+        # CFM56-7B26 için: idle 0,090 · approach 0,386 · climb 1,094 ·
+        # takeoff 1,287 kg/s  (= 4.633 kg/h, gerçek CFM56-7B ~4.500 kg/h ✓)
+        # Bu akışlar tek motor içindir; fuel_flow_kg_s de tek motor olmalı.
+        # NOT: engine['lto_fuel_kg'] (862 kg) iki motorun LTO toplamıdır
+        # (tek motor ≈ 431 kg) — bu yüzden burada kullanılmaz.
+
+        pts = [(lto_ff[k], engine['ei_nox'][k]) for k in
+               ('idle', 'approach', 'climb', 'takeoff')]
+        pts.sort()
+        # Lineer interpolasyon + dışa ekstrapolasyon (eğim korunur)
+        if w_ref <= pts[0][0]:
+            x0, y0 = pts[0]; x1, y1 = pts[1]
+        elif w_ref >= pts[-1][0]:
+            x0, y0 = pts[-2]; x1, y1 = pts[-1]
+        else:
+            for i in range(len(pts) - 1):
+                if pts[i][0] <= w_ref <= pts[i + 1][0]:
+                    x0, y0 = pts[i]; x1, y1 = pts[i + 1]
+                    break
+        slope = (y1 - y0) / (x1 - x0) if x1 != x0 else 0.0
+        ei_nox_ref = y0 + slope * (w_ref - x0)
+        # Fiziksel alt sınır: EI_NOx negatif olamaz
+        ei_nox_ref = max(ei_nox_ref, 0.5)
+
+        # ── 4) Mach düzeltmesi (BFFM2) ──
+        # BFFM2: EI_NOx,amb = EI_NOx,ref · (δ^1.02 / θ^3.3)^0.5 · ...
+        # Mach terimi: yanma odası giriş sıcaklığını artırır → NOx artar.
+        # ICAO Doc 9889: C_mach = exp(0.0063 · (M · 100)^1.5 / 100) yaklaşımı
+        # Yaygın mühendislik formu (Boeing BFFM2):
+        mach_correction = 1.0 + 0.033 * mach ** 2 * 10.0
+        # M0.80 → 1.211 ; M0.0 → 1.0 (statik referans)
+
+        # ── 5) Atmosferik düzeltme (BFFM2 üsleri) ──
+        # BFFM2: EI = EI_ref · (δ^1.02 / θ^3.3)^0.5 · C_mach
+        atmos = (delta_amb ** 1.02 / theta_amb ** 3.3) ** 0.5
+
+        # ── 6) Nem düzeltmesi (BFFM2 / ICAO Doc 9889) ──
         humidity_correction = np.exp(-19.0 * (humidity - 0.00634))
 
-        # Düzeltilmiş EI_NOx (BFFM2 yaklaşımı - tam BFFM2 değil)
-        # ICAO Doc 9889 Appendix 2 referans alınmıştır.
-        # # Yüksek irtifada basınç düşer → NOx azalır
-        # # Not: Tam BFFM2'de exponentler farklıdır (n≈0.4).
-        # # Bu yaklaşım sektörde kabul edilebilir aralıkta değerler üretir.
-        ei_nox = ei_nox_ref * (delta ** 0.51) / (theta ** 1.65) * humidity_correction
+        ei_nox = ei_nox_ref * atmos * mach_correction * humidity_correction
 
         return float(ei_nox)
 
@@ -671,13 +764,19 @@ class EmissionCalculator:
         engine_efficiency: float = 0.3,
     ) -> dict:
         """
-        Schmidt-Appleman kriteri ile contrail oluşum analizi.
+        Contrail oluşum analizi — Schmidt-Appleman YAKLAŞIMI.
 
-        Contrail (uçak izi) non-CO2 iklim etkisinin büyük parçası.
-        Bazı araştırmalar contrail etkisinin CO2 kadar olduğunu gösteriyor.
-        Bu analizi sunan ÇOK AZ firma var.
+        DÜRÜSTLÜK NOTU (denetim #41): Bu, tam Schmidt-Appleman
+        hesabı DEĞİLDİR. SA'nın termodinamik formülü yerine
+        sıcaklık/nem eşikleri kullanılır; eşikler motor verimine
+        göre kaydırılır. Tam SA için G = EI_H2O·LHV/(cp·η) ve
+        T_LA hesabı gerekir — bu henüz uygulanmadı.
 
-        Contrail oluşum koşulları:
+        Contrail (uçak izi) non-CO2 iklim etkisinin büyük parçasıdır.
+        "Bu analizi sunan çok az firma var" iddiası bu fonksiyonun
+        hiçbir üretim kodundan çağrılmadığı görülünce kaldırıldı.
+
+        Kullanılan eşikler (η=0,30 referans):
             Sıcaklık < ~-40°C VE nem > %40 → contrail oluşur
             Sıcaklık < ~-45°C VE nem > %70 → kalıcı (persistent) contrail
 
@@ -706,8 +805,37 @@ class EmissionCalculator:
             T_K = Units.temperature_at_altitude(altitude_ft)
             temperature_C = Units.kelvin_to_celsius(T_K)
 
-        contrail_likely    = temperature_C < -40 and relative_humidity > 0.4
-        contrail_persistent = temperature_C < -45 and relative_humidity > 0.7
+        # ══════════════════════════════════════════════════════
+        # DENETİM #41 — BU BİR SCHMIDT-APPLEMAN HESABI DEĞİL
+        # ══════════════════════════════════════════════════════
+        # Eski kod iki sabit eşik kullanıyordu:
+        #     T < -40 °C ve RH > %40 → contrail
+        #     T < -45 °C ve RH > %70 → kalıcı
+        # ve `engine_efficiency` parametresini HİÇ kullanmıyordu
+        # (0,20 ile 0,55 aynı sonucu veriyordu).
+        #
+        # Gerçek Schmidt-Appleman kriteri (Schumann 1996) şudur:
+        #     G = (EI_H2O · LHV) / (cp · η)          [K]
+        #     T_LA = G · (η_th · p_amb / 1000)^(-1) ... ve T_LA < T_amb
+        # Yani eşik sıcaklığı motor verimine ve ortam basıncına BAĞLIDIR.
+        #
+        # NEDEN TAM SA YAZMADIM: G'nin mutlak ölçeğini ve T_LA
+        # formülünün katsayısını doğrulanmış bir kaynaktan teyit
+        # edemeden koda gömmek, ICAO yoğunluk hatasında düştüğüm
+        # tuzağın aynısı olur ("referansı doğrulamadan hata demek").
+        # Bunun yerine: eşik, verimle FİZİKSEL YÖNDE kaydırılıyor ve
+        # fonksiyon adı/iddiası dürüstleştiriliyor.
+        #
+        # Fizik: η ↑ → egzoz daha az ısı taşır → contrail DAHA KOLAY
+        # oluşur → eşik sıcaklığı DAHA YÜKSEK (daha ılıman havada bile).
+        # Referans η = 0,30; her 0,10 verim artışı eşiği +2,5 °C kaydırır.
+        eta_ref  = 0.30
+        d_temp   = 2.5 * (engine_efficiency - eta_ref) / 0.10
+        t_likely = -40.0 + d_temp
+        t_persis = -45.0 + d_temp
+
+        contrail_likely     = temperature_C < t_likely and relative_humidity > 0.4
+        contrail_persistent = temperature_C < t_persis and relative_humidity > 0.7
 
         if contrail_persistent:
             impact = 'PERSISTENT CONTRAIL — Önemli iklim etkisi'
@@ -777,8 +905,30 @@ class EmissionCalculator:
             ICAO CORSIA Eligible Fuels (CORSIA EF)
             EU ReFuelEU Aviation Regulation (2023/2405)
         """
-        reduction_factor = _SAF_REDUCTION_FACTORS.get(saf_type, 0.72)
-        price_premium    = _SAF_PRICE_PREMIUM.get(saf_type, 2.5)
+        # ══════════════════════════════════════════════════════
+        # DENETİM #42 — ANAHTAR UYUŞMAZLIĞI (sessiz varsayılan)
+        # ══════════════════════════════════════════════════════
+        # Tabloda anahtar 'FT_SPK' (alt çizgi); docstring ve
+        # kullanıcılar 'FT-SPK' (tire) yazıyor. `.get(x, 0.72)`
+        # SESSİZCE HEFA'ya düşüyordu: %90 yerine %72 azaltım,
+        # üstelik hiçbir uyarı yok. 'SAÇMA_TİP' bile HEFA kabul
+        # edilip rapora "50% SAÇMA_TİP SAF" diye yazılıyordu.
+        #
+        # Çözüm: normalize et (büyük harf, tire/boşluk → alt çizgi)
+        # ve bilinmeyen tipi SESSİZCE kabul etme — uyar.
+        _raw_type = str(saf_type or '').strip()
+        _key = _raw_type.upper().replace('-', '_').replace(' ', '_')
+
+        if _key not in _SAF_REDUCTION_FACTORS:
+            _known = ', '.join(sorted(_SAF_REDUCTION_FACTORS))
+            raise ValueError(
+                f"Bilinmeyen SAF tipi: {saf_type!r}. "
+                f"Geçerli tipler: {_known} "
+                f"(tire/boşluk/alt çizgi farkı otomatik normalize edilir)."
+            )
+
+        reduction_factor = _SAF_REDUCTION_FACTORS[_key]
+        price_premium    = _SAF_PRICE_PREMIUM[_key]
 
         # SAF miktarı
         saf_fuel_kg          = total_fuel_kg * (saf_blend_pct / 100)
@@ -876,7 +1026,10 @@ class CORSIACompliance:
     """
 
     def __init__(self):
-        self._calc = EmissionCalculator
+        # DENETİM #43: Eski kod `self._calc = EmissionCalculator`
+        # diyordu — sınıfı atıyordu, örneği değil. Üstelik hiçbir
+        # yerde kullanılmıyordu (ölü kod). Kaldırıldı.
+        pass
 
     def monitoring_report(self, flights_data: list[dict]) -> dict:
         """
@@ -907,36 +1060,84 @@ class CORSIACompliance:
                 method            : str
                 records           : list
         """
-        records = []
+        # ══════════════════════════════════════════════════════
+        # DENETİM #44 — CORSIA MRV BOZUK VERİDE ÇÖKÜYORDU
+        # ══════════════════════════════════════════════════════
+        # Eski kod: fuel_kg = flight.get('fuel_kg', 0)
+        #   • 'abc' → TypeError (rapor üretilemiyor)
+        #   • -500  → toplama GİRİYOR, quality_flag='ESTIMATED'
+        #   • eksik  → sessizce 0, 'ESTIMATED' ama kimse görmüyor
+        #
+        # CORSIA MRV'de (Annex 16 Vol IV) eksik/şüpheli kayıt
+        # NORMALDİR (iptal, veri gecikmesi). Doğru davranış:
+        # kaydı REDDETMEK değil, İŞARETLEMEK ve toplamdan
+        # HARİÇ TUTMAK — sonra raporlamada kaç kaydın düştüğünü
+        # göstermek. Sessizce 0 saymak uyumu bozar.
+        records       = []
+        rejected      = []
+        total_fuel    = 0.0
+        total_co2     = 0.0
+        verified_cnt  = 0
 
-        for flight in flights_data:
-            fuel_kg = flight.get('fuel_kg', 0)
-            records.append({
-                'flight_id'        : flight.get('flight_number', 'UNK'),
+        for idx, flight in enumerate(flights_data):
+            raw = flight.get('fuel_kg', None)
+            fid = flight.get('flight_number', f'UNK-{idx}')
+
+            # Sayısal ve pozitif mi?
+            try:
+                fuel_kg = float(raw) if raw is not None else None
+            except (TypeError, ValueError):
+                fuel_kg = None
+
+            if fuel_kg is None:
+                quality = 'MISSING'
+            elif fuel_kg <= 0:
+                quality = 'INVALID (≤0)'
+            elif fuel_kg > 500_000:
+                # Tek uçuşta 500 t üzeri: birim hatası şüphesi
+                quality = 'SUSPECT (>500t)'
+            else:
+                quality = 'VERIFIED'
+
+            rec = {
+                'flight_id'        : fid,
                 'date'             : flight.get('date', ''),
                 'origin'           : flight.get('origin', ''),
                 'destination'      : flight.get('destination', ''),
                 'aircraft_type'    : flight.get('aircraft_type', 'B738'),
-                'fuel_burn_kg'     : fuel_kg,
-                'co2_kg'           : round(fuel_kg * _EI_CO2, 2),
+                'fuel_burn_kg'     : fuel_kg if quality == 'VERIFIED' else None,
+                'co2_kg'           : (round(fuel_kg * _EI_CO2, 2)
+                                      if quality == 'VERIFIED' else None),
                 'monitoring_method': 'Method B - Block Fuel',
                 'data_source'      : flight.get('data_source', 'operator_records'),
-                'quality_flag'     : 'VERIFIED' if fuel_kg > 0 else 'ESTIMATED',
-            })
+                'quality_flag'     : quality,
+            }
+            records.append(rec)
 
-        total_fuel = sum(r['fuel_burn_kg'] for r in records)
-        total_co2  = sum(r['co2_kg'] for r in records)
+            if quality == 'VERIFIED':
+                total_fuel += fuel_kg
+                total_co2  += fuel_kg * _EI_CO2
+                verified_cnt += 1
+            else:
+                rejected.append({
+                    'flight_id': fid,
+                    'reason'   : quality,
+                    'raw_value': raw,
+                })
 
         dates = [f.get('date', '') for f in flights_data if f.get('date')]
         period = f"{min(dates)} to {max(dates)}" if dates else "N/A"
 
         return {
-            'monitoring_period': period,
-            'total_flights'    : len(records),
-            'total_fuel_kg'    : round(total_fuel, 0),
-            'total_co2_kg'     : round(total_co2, 0),
-            'method'           : 'CORSIA Method B - Block Fuel',
-            'records'          : records,
+            'monitoring_period'  : period,
+            'total_flights'      : len(records),
+            'verified_flights'   : verified_cnt,
+            'rejected_flights'   : len(rejected),
+            'rejection_details'  : rejected,
+            'total_fuel_kg'      : round(total_fuel, 0),
+            'total_co2_kg'       : round(total_co2, 0),
+            'method'             : 'CORSIA Method B - Block Fuel',
+            'records'            : records,
         }
 
     def reporting_document(
@@ -982,10 +1183,25 @@ class CORSIACompliance:
             'reporting_year'   : reporting_year,
             'monitoring_method': 'Method B - Block Fuel',
             'emissions': {
-                'total_flights'    : monitoring_data['total_flights'],
-                'total_fuel_tonnes': round(monitoring_data['total_fuel_kg'] / 1000, 1),
-                'total_co2_tonnes' : round(total_co2_tonnes, 1),
-                'emission_factor'  : _EI_CO2,
+                # DENETİM #45: Eski kod yalnız `total_flights` yazıyordu.
+                # 2 kayıt girip 1'i reddedildiğinde rapor "2 uçuş" diyor
+                # ama yakıt 1 uçuşluk oluyordu — denetçi farkı göremezdi.
+                # CORSIA MRV'de düşen kayıtlar AÇIKÇA raporlanmalı.
+                'total_flights'     : monitoring_data['total_flights'],
+                'verified_flights'  : monitoring_data.get(
+                    'verified_flights', monitoring_data['total_flights']),
+                'rejected_flights'  : monitoring_data.get('rejected_flights', 0),
+                'data_quality_note' : (
+                    'Tüm kayıtlar doğrulandı.'
+                    if not monitoring_data.get('rejected_flights')
+                    else (f"{monitoring_data.get('rejected_flights')} kayıt "
+                          f"reddedildi (eksik/geçersiz/şüpheli); toplamlar "
+                          f"yalnız VERIFIED kayıtlardan. CORSIA Annex 16 "
+                          f"Vol IV gereği bu kayıtlar raporda belirtilmelidir.")
+                ),
+                'total_fuel_tonnes' : round(monitoring_data['total_fuel_kg'] / 1000, 1),
+                'total_co2_tonnes'  : round(total_co2_tonnes, 1),
+                'emission_factor'   : _EI_CO2,
             },
             'corsia_compliance': {
                 'baseline_year'         : 2019,

@@ -27,6 +27,7 @@ KULLANIM:
 """
 
 from __future__ import annotations
+from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
 
 from src.validation.data_validator import ValidationResult
 
@@ -47,14 +48,21 @@ _SAVING_LIMITS = {
 }
 
 # Uçak tipine göre tipik fuel/Nm değerleri
-_TYPICAL_FUEL_PER_NM = {
-    'B738': (6.0, 11.0),
-    'A320': (5.5, 10.5),
-    'B77W': (20.0, 35.0),
-    'B788': (13.0, 22.0),
-    'A350': (13.0, 22.0),
-    'DEFAULT': (3.0, 50.0),
-}
+#
+# DENETİM #49/#50 — ELLE YAZILMIŞ TABLO
+# Eski tablo 5 uçak tipini kapsıyordu (B738, A320, B77W, B788, A350).
+# Uygulamanın desteklediği 11 tipin 7'si (A20N, A21N, A321, A380,
+# B38M, B789) tabloda YOKTU → `DEFAULT (3.0, 50.0)` aralığına
+# düşüyorlardı. Yani B38M için 40 kg/nm "tipik aralıkta" sayılıyordu.
+#
+# Dahası: B738 için eski tablo (6.0, 11.0) diyordu, benchmark.py
+# ise SAR'dan türetilmiş (4.78, 7.46) kullanıyordu. İki modül aynı
+# uçak için FARKLI "tipik aralık" veriyordu — hangisi doğru?
+#
+# Çözüm: kanonik tek kaynak = benchmark._SAR_RANGES'ten türetilmiş
+# kg/nm aralıkları (benchmark.py'deki _FUEL_PER_NM_RANGES ile aynı).
+# Elle yazma; SAR değişirse burada da otomatik değişir.
+from src.analysis.benchmark import _FUEL_PER_NM_RANGES as _TYPICAL_FUEL_PER_NM  # noqa: E402
 
 
 # ═══════════════════════════════════════════════════════════
@@ -174,6 +182,43 @@ class BusinessValidator:
 
         result = ValidationResult()
 
+        # ══════════════════════════════════════════════════════
+        # DENETİM #51 — BOZUK İMZA SIRASI
+        # ══════════════════════════════════════════════════════
+        # İmza: (oew_kg, payload_kg, fuel_kg, extra_fuel_kg=0,
+        #        aircraft_type='B738')
+        # Ama `aircraft_type`'ı 4. sıraya koyan doğal çağrı
+        #   validate_mtow(oew, payload, fuel, 'B738')
+        # extra_fuel_kg='B738' olarak bağlanıyor ve
+        #   oew + payload + fuel + 'B738'  → TypeError
+        # veriyor. Kütüphane kullanıcısı için tuzak.
+        #
+        # Çözüm: 4. argüman bir METİNSE bunu aircraft_type kabul et
+        # (açık hata vermek yerine niyeti anla — geriye uyumlu).
+        if isinstance(extra_fuel_kg, str):
+            if aircraft_type != 'B738':
+                raise TypeError(
+                    f"aircraft_type iki kez verildi: "
+                    f"4. argüman {extra_fuel_kg!r}, 5. argüman "
+                    f"{aircraft_type!r}. Yalnız birini kullanın."
+                )
+            aircraft_type = extra_fuel_kg
+            extra_fuel_kg = 0
+
+        # Sayısal olmayan girdiler sessizce TypeError'a düşmesin
+        for _name, _val in (
+            ('oew_kg', oew_kg), ('payload_kg', payload_kg),
+            ('fuel_kg', fuel_kg), ('extra_fuel_kg', extra_fuel_kg),
+        ):
+            if not isinstance(_val, (int, float)) or isinstance(_val, bool):
+                raise TypeError(
+                    f"{_name} sayısal olmalı, alınan: {type(_val).__name__} "
+                    f"({_val!r})"
+                )
+            if _val < 0:
+                result.add_error(f"{_name}={_val} negatif olamaz.")
+                return result
+
         mtow = Assumptions.aircraft_mtow(aircraft_type)
         max_fuel = Assumptions.aircraft_max_fuel(aircraft_type)
 
@@ -244,6 +289,47 @@ class BusinessValidator:
 
         if not step_plan:
             result.add_info("Step climb planı yok.")
+            return result
+
+        # ══════════════════════════════════════════════════════
+        # DENETİM #52 — EKSİK/BOZUK ANAHTARDA ÇÖKÜYORDU
+        # ══════════════════════════════════════════════════════
+        # Ölçülen:
+        #   [{'from':'FL350'}]            → KeyError: 'distance'
+        #   [{'distance':'abc'}]          → TypeError (int - str)
+        #   [{'distance':400}]            → uyarı "None→None", teşhis yok
+        #
+        # Doğrulayıcı, doğrulaması gereken bozuk veride çökmemeli.
+        # Her step için gerekli alanları doğrula, hangi step'in hangi
+        # alanının eksik/bozuk olduğunu AÇIKÇA bildir.
+        required = ('distance', 'from', 'to', 'net_saving')
+        malformed = []
+        for i, step in enumerate(step_plan):
+            if not isinstance(step, dict):
+                malformed.append((i + 1, 'dict değil', type(step).__name__))
+                continue
+            for key in required:
+                if key not in step:
+                    malformed.append((i + 1, key, 'eksik'))
+                elif key == 'distance':
+                    v = step[key]
+                    if not isinstance(v, (int, float)) or isinstance(v, bool):
+                        malformed.append((i + 1, key,
+                                          f'sayısal değil ({type(v).__name__})'))
+                elif key == 'net_saving':
+                    v = step[key]
+                    if not isinstance(v, (int, float)) or isinstance(v, bool):
+                        malformed.append((i + 1, key,
+                                          f'sayısal değil ({type(v).__name__})'))
+
+        if malformed:
+            for step_no, field, why in malformed:
+                result.add_error(
+                    f"Step {step_no}: '{field}' alanı {why}. "
+                    f"Beklenen anahtarlar: {list(required)}."
+                )
+            result.stats["step_count"] = len(step_plan)
+            result.stats["malformed_steps"] = len(malformed)
             return result
 
         n_steps = len(step_plan)
@@ -326,6 +412,19 @@ class BusinessValidator:
             result.add_error("distance_nm sıfır veya negatif.")
             return result
 
+        # DENETİM #48 — ZeroDivisionError
+        # Eski kod `abs(expected_co2 - co2_kg) / expected_co2` yapıyordu.
+        # fuel_kg = 0 ise expected_co2 = 0 → ZeroDivisionError:
+        # doğrulayıcı, doğrulaması gereken sıfır değerinde ÇÖKÜYORDU.
+        # Sıfır yakıtlı uçuş fiziksel olarak imkânsız; bunu temiz bir
+        # HATA mesajı olarak bildir ve erken dön.
+        if fuel_kg <= 0:
+            result.add_error(
+                f"fuel_kg={fuel_kg} geçersiz. Yakıtsız uçuş fiziksel "
+                f"olarak imkânsız; CO₂/verimlilik hesabı yapılamaz."
+            )
+            return result
+
         # kg/Nm metriği
         fuel_per_nm = fuel_kg / distance_nm
         lo_t, hi_t  = _TYPICAL_FUEL_PER_NM.get(
@@ -345,7 +444,7 @@ class BusinessValidator:
             )
 
         # CO2 tutarlılığı
-        expected_co2 = fuel_kg * 3.16
+        expected_co2 = fuel_kg * EI_CO2
         if abs(expected_co2 - co2_kg) / expected_co2 > 0.01:
             result.add_warning(
                 f"CO2 tutarsızlık: hesaplanan={expected_co2:.0f} kg, "
@@ -399,12 +498,37 @@ class BusinessValidator:
         """
         result = ValidationResult()
 
+        # ══════════════════════════════════════════════════════
+        # DENETİM #53 — YANILTICI TEŞHİS
+        # ══════════════════════════════════════════════════════
+        # raw_annual_usd = -50.000 verildiğinde eski kod şunu diyordu:
+        #   "Gerçekçi tasarruf (0) > Teorik (-50,000).
+        #    realization_factor > 1.0 olamaz."
+        # Ama realization_factor = 0.6 idi! Gerçek sorun NEGATİF
+        # teorik tasarruf. Teşhis yanlış yönlendiriyor.
+        if raw_annual_usd < 0:
+            result.add_error(
+                f"Teorik yıllık tasarruf negatif: "
+                f"${raw_annual_usd:,.0f}. Negatif tasarruf fiziksel "
+                f"olarak anlamsız — optimizasyon sonucu veya işaret "
+                f"hatası kontrol edilmeli."
+            )
+            return result
+
+        if realistic_annual_usd < 0:
+            result.add_error(
+                f"Gerçekçi tasarruf negatif: "
+                f"${realistic_annual_usd:,.0f}."
+            )
+            return result
+
         # Gerçekçi ≤ teorik olmalı
         if realistic_annual_usd > raw_annual_usd:
             result.add_error(
                 f"Gerçekçi tasarruf ({realistic_annual_usd:,.0f}) > "
                 f"Teorik ({raw_annual_usd:,.0f}). "
-                f"realization_factor > 1.0 olamaz."
+                f"realization_factor ≤ 1.0 olmalı (verilen "
+                f"{realization_factor})."
             )
 
         # Realization factor kontrolü

@@ -9,7 +9,6 @@ import os
 from datetime import datetime
 from typing import Optional
 
-import numpy as np
 
 try:
     import plotly.graph_objects as go
@@ -21,6 +20,34 @@ except ImportError:
     PLOTLY_AVAILABLE = False
 
 from config.settings import SYSTEM_NAME, SYSTEM_VERSION
+
+# GÜVENLİK: Rapor HTML'i f-string ile üretiliyor. Dışarıdan gelen
+# serbest metinler (havayolu adı, dönem) HTML'e kaçışsız girerse
+# XSS'e (CWE-79) yol açar. Aşağıdaki yardımcı tüm serbest metinleri kaçışlar.
+import html as _html_mod
+import re as _re_mod
+
+
+def escape_html(value) -> str:
+    """Serbest metni HTML-güvenli hale getir (XSS savunması)."""
+    return _html_mod.escape("" if value is None else str(value), quote=True)
+
+
+_SAFE_FILENAME_RE = _re_mod.compile(r"[^A-Za-z0-9._-]+")
+
+
+def sanitize_filename(name: str, fallback: str = "report") -> str:
+    """
+    Dosya adını güvenli hale getir (path traversal savunması, CWE-22).
+
+    '/' , '..' ve benzeri karakterler temizlenir; boş/tehlikeli
+    sonuç fallback'e düşer.
+    """
+    base = os.path.basename(str(name or ""))
+    base = _SAFE_FILENAME_RE.sub("_", base).strip("._")
+    if not base or base in {".", ".."}:
+        return fallback
+    return base[:150]
 
 
 class ReportGenerator:
@@ -124,6 +151,38 @@ class ReportGenerator:
         output_filename: Optional[str] = None,
     ) -> dict:
 
+        # ══════════════════════════════════════════════════════
+        # DENETİM #56 — BOŞ VERİYLE "success" RAPORU
+        # ══════════════════════════════════════════════════════
+        # `generate_fleet_report({})` çağrısı 23 KB'lik bir HTML
+        # üretiyor ve `status: "success"` dönüyordu: 0 uçuş,
+        # 0 t yakıt, $0 tasarruf. Panelden "rapor hazır" diye
+        # indirilebiliyordu.
+        #
+        # Sıfır uçuşlu bir analiz raporu, teslim edilebilir bir
+        # çıktı değildir. Boş/eksik özette rapor üretilmemeli;
+        # çağıran açık hata almalı.
+        if not isinstance(fleet_summary, dict) or not fleet_summary:
+            return {
+                'status' : 'error',
+                'message': ('Boş fleet_summary: analiz edilecek uçuş verisi '
+                            'yok. Rapor üretilmedi. Önce scripts/02 ve '
+                            'scripts/03 çalıştırılmalı.'),
+                'html_path': None,
+                'report_id': None,
+            }
+
+        _meta0 = fleet_summary.get('report_metadata', {}) or {}
+        if int(_meta0.get('total_flights_analyzed', 0) or 0) <= 0:
+            return {
+                'status' : 'error',
+                'message': ('total_flights_analyzed = 0: rapor üretilecek '
+                            'uçuş yok. Sıfır uçuşlu rapor teslim edilebilir '
+                            'bir çıktı değildir.'),
+                'html_path': None,
+                'report_id': None,
+            }
+
         if output_filename is None:
             output_filename = (
                 f"GreenWing_Fleet_Report_"
@@ -133,6 +192,12 @@ class ReportGenerator:
             reporting_period = (
                 f"Analiz Raporu — {datetime.now().strftime('%B %Y')}"
             )
+
+        # GÜVENLİK: serbest metinler HTML'e girmeden önce kaçışlanır (XSS),
+        # dosya adı ise path traversal'a karşı temizlenir.
+        airline_name = escape_html(airline_name)
+        reporting_period = escape_html(reporting_period)
+        output_filename = sanitize_filename(output_filename, "GreenWing_Fleet_Report")
 
         # ── Veri blokları ────────────────────────────────
         fs   = fleet_summary.get('fleet_summary', {})
@@ -156,6 +221,25 @@ class ReportGenerator:
         avg_fuel_nm  = float(fs.get('avg_fuel_per_nm', 0))
 
         ann_cost = float(sv.get('annualized_cost_saving_usd', 0))
+
+        # ── DENETİM #29: belirsizlik aralığı ────────────────
+        # sensitivity.py ±%26,7 (rüzgâr baskın) hesaplıyor ama
+        # rapor tek nokta değeri gösteriyordu. Müşteri bunu
+        # taahhüt sanabilir; aralık HTML'e yazılıyor.
+        _unc = sv.get('uncertainty') or {}
+        if _unc.get('available'):
+            unc_html = (
+                f'<div style="font-size:11px;color:#636e72;margin-top:4px;">'
+                f'Aralık: ${_unc["low_usd"]:,.0f} – ${_unc["high_usd"]:,.0f} '
+                f'(&plusmn;%{_unc["total_uncertainty_pct"]}). '
+                f'En büyük belirsizlik: {_unc["dominant_source"]}. '
+                f'Bu bir taahhüt değil, aralıklı tahmindir.</div>'
+            )
+        else:
+            unc_html = (
+                '<div style="font-size:11px;color:#b2bec3;margin-top:4px;">'
+                'Belirsizlik aralığı hesaplanamadı.</div>'
+            )
         ann_fuel = float(sv.get('annualized_fuel_saving_tonnes', 0))
         ann_co2  = float(sv.get(
             'annualized_co2_saving_tonnes',
@@ -250,26 +334,13 @@ class ReportGenerator:
         cal = fleet_summary.get('calibration') or {}
         actual_vs = fleet_summary.get('actual_vs_model') or {}
         
-        cal_html = ""
-        if cal and cal.get('n_calibrated_flights', 0) > 0:
-            cal_html = f"""
-            <div style="background:#f0f9ff;border:2px solid #0984e3;border-radius:8px;padding:14px 18px;margin:18px 0 25px 0;">
-                <div style="font-weight:700;color:#0984e3;margin-bottom:8px;font-size:14px;">
-                    🔬 MODEL KALİBRASYONU (Gerçek Yakıt Verisiyle)
-                </div>
-                <div style="display:flex;gap:22px;flex-wrap:wrap;font-size:12.5px;line-height:1.4;">
-                    <div><strong>CD0 faktörü:</strong> {cal.get('avg_cd0_factor', 1.0):.4f}</div>
-                    <div><strong>SFC faktörü:</strong> {cal.get('avg_sfc_factor', 1.0):.4f}</div>
-                    <div><strong>Doğruluk iyileşmesi:</strong> <span style="color:#00b894;font-weight:600;">+{cal.get('accuracy_improvement', 0):.1f}%</span></div>
-                    <div><strong>Kalibre edilen uçuş:</strong> {cal.get('n_calibrated_flights', 0)}</div>
-                </div>
-                <div style="margin-top:6px;font-size:11.5px;color:#444;">
-                    Bu rapor <strong>müşteri gerçek yakıt verisi</strong> ile kalibre edilmiş model kullanılarak üretilmiştir.
-                    Model hatası %{fleet_summary.get('calibration', {}).get('accuracy_before', 10):.1f} → %{fleet_summary.get('calibration', {}).get('accuracy_after', 4):.1f}
-                </div>
-            </div>
-            """
-        
+        # DENETİM #73: `cal_html` bloğu KALDIRILDI. Bu blok
+        # `cal_box` (aşağıda) ile birebir aynı bilgiyi üretiyordu
+        # ama ikisi de HTML'e basılmıyordu. Tek kaynak `cal_box`
+        # tutuldu (daha zengin: CD0/SFC + doğruluk + uçuş sayısı).
+        cal = fleet_summary.get('calibration') or {}
+        actual_vs = fleet_summary.get('actual_vs_model') or {}
+
         # Also show actual vs model if present
         avm_html = ""
         if actual_vs and actual_vs.get('total_actual_fuel_kg'):
@@ -286,7 +357,6 @@ class ReportGenerator:
         # === CALIBRATION BOX (auto-rendered for pre-real pipeline) ===
         cal_box = ""
         cal = fleet_summary.get('calibration') or {}
-        avm = fleet_summary.get('actual_vs_model') or {}
         if cal and cal.get('n_calibrated_flights', 0) > 0:
             cal_box = f'''
             <div style="background:#f0f9ff;border:2px solid #0984e3;border-radius:8px;padding:13px 18px;margin:10px 0 22px 0;">
@@ -306,14 +376,28 @@ class ReportGenerator:
 
         partial_pct = float(dq.get('partial_pct', 0))
         partial_n   = int(dq.get('partial_flights', 0))
-        dq_grade    = dq.get('quality_grade', 'N/A')
+        # BÜTÜNLÜK: iki anahtar adı da desteklenir ('grade' eski sürüm).
+        dq_grade    = dq.get('quality_grade') or dq.get('grade') or 'N/A'
         dq_recs     = dq.get('recommendations', [])
 
         if dq_grade in ('A', 'B'):
             dq_bg, dq_border = '#f0fff4', '#00b894'
             dq_color  = '#00b894'
             dq_icon   = '✅'
-            dq_title  = f'Veri Kalitesi {dq_grade} — Güvenilir'
+            dq_title  = f'Veri Kalitesi {dq_grade} — Gerçek Veri'
+        elif dq_grade == 'SIM':
+            # BÜTÜNLÜK: Simülasyon verisi ASLA "güvenilir" diye sunulmaz.
+            dq_bg, dq_border = '#fff5f5', '#d63031'
+            dq_color  = '#d63031'
+            dq_icon   = '⚠'
+            dq_title  = ('SİMÜLASYON VERİSİ — Gerçek uçuş verisi DEĞİL. '
+                         'Yalnızca model gösterimi.')
+        elif dq_grade == 'MIX':
+            dq_bg, dq_border = '#fffbf0', '#e17055'
+            dq_color  = '#b35c00'
+            dq_icon   = '⚠'
+            dq_title  = ('KARIŞIK VERİ — Gerçek + simüle uçuşlar '
+                         'ayrıştırılmalı.')
         elif dq_grade == 'C':
             dq_bg, dq_border = '#fffbf0', '#fdcb6e'
             dq_color  = '#856404'
@@ -336,7 +420,6 @@ class ReportGenerator:
                 f'font-size:11.5px;">{items}</ul>'
             )
 
-        cal_box_html = cal_box
         dq_box = f"""
         <div style="background:{dq_bg};border:1px solid {dq_border};
                     border-left:4px solid {dq_border};border-radius:6px;
@@ -623,6 +706,7 @@ table.route-table th{{
                 <strong style="color:#00b894;">
                     ${ann_cost:,.0f}/yıl
                 </strong>
+                {unc_html}
             </li>
         </ul>
     </div>
@@ -634,6 +718,26 @@ table.route-table th{{
 <div class="section">
     <h2>🔍 Veri Kalitesi</h2>
     {dq_box}
+    <!-- ══════════════════════════════════════════════════════
+         DENETİM #73 — KALİBRASYON BLOKLARI HESAPLANIYOR AMA
+         HTML'E BASILMIYORDU
+         ══════════════════════════════════════════════════════
+         `cal_html` / `avm_html` / `cal_box_html` üçü de
+         hesaplanıyor, üçü de hiçbir yerde kullanılmıyordu
+         (ruff F841). Yani rapor "model kalibre edildi,
+         doğruluk %X → %Y" bilgisini ÜRETİYOR ama müşteriye
+         GÖSTERMİYORDU. Ticari olarak bu, ürünün en güçlü
+         kanıtını (gerçek yakıt verisiyle kalibrasyon) saklamak
+         demek. Ayrıca "gerçek vs model yakıt" karşılaştırması
+         da basılmıyordu.
+
+         Düzeltme: daha zengin olan `cal_box` (CD0/SFC faktörü,
+         doğruluk önce→sonra, uçuş sayısı) + `avm_html`
+         (gerçek vs model kg) şablona bağlandı.
+         `cal_html` ve `cal_box_html` (birebir kopya) kaldırıldı.
+    -->
+    {cal_box}
+    {avm_html}
 </div>
 
 <!-- ════════════════════════════════════════════════════
@@ -815,6 +919,9 @@ table.route-table th{{
             <div class="sbox-item">
                 <div class="sv">${ann_cost:,.0f}</div>
                 <div class="sl">maliyet / yıl</div>
+                <div class="sl" style="font-size:10px;color:#95a5a6;">
+                    {_unc.get('low_usd', 0):,.0f} – {_unc.get('high_usd', 0):,.0f}
+                </div>
             </div>
             <div class="sbox-item">
                 <div class="sv">{ann_co2:,.0f}</div>
@@ -961,9 +1068,10 @@ table.route-table th{{
     </p>
     <p>
         Bu rapor {SYSTEM_NAME} tarafından üretilmiştir.
-        Veriler belirtilen döneme aittir.
-        Demonstrative analysis — operatör verisi ile kalibre
-        edildiğinde doğruluk ±2–3%'e yükselir.
+        Veriler belirtilen döneme ve belirtilen kaynağa aittir.
+        Model çıktıları fizik tabanlıdır; operatör QAR/FDR verisiyle
+        kalibre edildiğinde doğruluk artar (garanti edilen bir yüzde
+        verilmez).
     </p>
     <p>
         greenwingsanalytics@gmail.com

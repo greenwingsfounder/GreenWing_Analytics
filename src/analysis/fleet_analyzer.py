@@ -167,6 +167,12 @@ _PARTIAL_FLIGHT_THRESHOLD_KG_PER_NM: dict[str, float] = {
 _UNKNOWN_DESTINATION_MARKERS = {'UNK', 'UNKN', '', 'N/A', 'NONE', None}
 
 # Ortalama yakıt fiyatı (annualized fuel ton hesabı için)
+# # 0.85 USD/kg ≈ 2.7 USD/US galon (Jet A-1, 2023-2025 bandı).
+# # Kaynak: IATA Fuel Price Monitor (aylık yayımlanır).
+# # NOT: fiyat TARİHE ve BÖLGEYE göre %50 değişir; bu yalnızca
+# # filtresiz çalıştırmada kullanılan varsayılandır → raporlarda
+# # "varsayılan fiyat" etiketiyle görünür.
+#
 _DEFAULT_FUEL_PRICE_USD_PER_KG = 0.85
 
 
@@ -240,6 +246,61 @@ def _detect_partial_flight(
 # ANA SINIF
 # ═══════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════
+# BELİRSİZLİK ARALIĞI (denetim #29)
+# ═══════════════════════════════════════════════════════════
+
+def _uncertainty_block(annualized_cost_usd: float) -> dict:
+    """
+    Yıllık tasarruf projeksiyonunun belirsizlik aralığını üret.
+
+    sensitivity.py'nin hesapladığı toplam belirsizliği (RSS) kullanır.
+    Hesaplanamazsa `available: False` döner — sessizce sıfır
+    belirsizlik iddia etmek yanıltıcı olur.
+
+    Args:
+        annualized_cost_usd: Tek nokta yıllık tasarruf ($)
+
+    Returns:
+        dict: {available, total_uncertainty_pct, low_usd, high_usd,
+               dominant_source, dominant_effect_pct, note}
+    """
+    try:
+        from src.analysis.sensitivity import SensitivityAnalyzer
+        rep = SensitivityAnalyzer().full_sensitivity_report({
+            'weight_kg'   : 65000,
+            'distance_nm' : 1240,
+            'altitude_ft' : 37000,
+            'mach'        : 0.78,
+            'saving_kg'   : 155,
+        })
+        pct = float(rep['total_uncertainty_pct'])
+    except Exception as exc:  # noqa: BLE001
+        return {
+            'available'            : False,
+            'message'              : f'Belirsizlik hesaplanamadı: {exc}',
+            'total_uncertainty_pct': None,
+        }
+
+    low  = annualized_cost_usd * (1 - pct / 100.0)
+    high = annualized_cost_usd * (1 + pct / 100.0)
+    return {
+        'available'            : True,
+        'total_uncertainty_pct': round(pct, 1),
+        'low_usd'              : round(low),
+        'high_usd'             : round(high),
+        'dominant_source'      : rep['dominant_source'],
+        'dominant_effect_pct'  : round(float(rep['dominant_effect_pct']), 1),
+        'note'                 : (
+            f'Yıllık tasarruf ${annualized_cost_usd:,.0f} ± %{pct:.1f} '
+            f'(RSS). En büyük belirsizlik kaynağı: '
+            f'{rep["dominant_source"]} '
+            f'(±%{rep["dominant_effect_pct"]:.1f}). '
+            f'Bu bir taahhüt değil, aralıklı bir tahmindir.'
+        ),
+    }
+
+
 class FleetAnalyzer:
     """
     Filo bazlı analiz ve raporlama.
@@ -262,6 +323,27 @@ class FleetAnalyzer:
     # BÖLÜM 1: UÇUŞ EKLEME
     # ──────────────────────────────────────────────────────
 
+    @staticmethod
+    def _block_hours(distance_nm: float) -> float:
+        """
+        Blok-saat (kapı-kapı) — RÜZGAR DAHİL.
+
+        cruise TAS = 460 kt; along-track rüzgar WindModel'den (FL350,
+        doğu rotası). yer hızı = TAS + W_along.
+        blok saat = mesafe / yer hızı + 0.68 h sabit pay (taksi/tırmanma/
+        alçalma — EUROCONTROL tipik).
+
+        Doğu rotasında jet stream tailwind (×0.82), batı rotasında
+        headwind (×1.27). Bu, uzun rota projeksiyonlarında ±%20 fark
+        yaratır ve YOK SAYILAMAZ.
+        """
+        from src.models.wind_model import along_track_wind
+        w = along_track_wind(35_000, 90.0)
+        ground_speed = 460.0 + w.along_track_kt
+        if ground_speed < 150.0:
+            ground_speed = 460.0
+        return float(distance_nm) / ground_speed + 0.68
+
     def add_flight_result(self, analysis_result: dict) -> None:
         """
         SingleFlightAnalyzer.analyze_trajectory() çıktısını ekle.
@@ -279,6 +361,12 @@ class FleetAnalyzer:
 
         result = dict(analysis_result)
         result['_data_quality'] = quality
+        # BÜTÜNLÜK: provenance, tek bir kanonik alanda taşınır.
+        if not result.get('collection_method'):
+            result['collection_method'] = (
+                result.get('flight_info', {}).get('collection_method')
+                or data_src or 'unknown'
+            )
 
         self.flight_results.append(result)
 
@@ -313,6 +401,11 @@ class FleetAnalyzer:
         is_partial_flight: Optional[bool] = None,
         data_source: str = 'manual_entry',
         coverage_note: str = '',
+        # BÜTÜNLÜK: provenance (verinin gerçek mi simüle mi olduğu).
+        # Önceden bu alan yoktu → kalite notu hep 'A' çıkıyordu.
+        collection_method: str = 'unknown',
+        # BÜTÜNLÜK: uçuş düzeyindeki fırsat maliyetleri bu fiyattan hesaplanır.
+        fuel_price_usd_kg: float = _DEFAULT_FUEL_PRICE_USD_PER_KG,
     ) -> None:
         """
         Manuel uçuş verisi ekle (trajectory olmadan).
@@ -344,6 +437,7 @@ class FleetAnalyzer:
 
         if coverage_note:
             quality['coverage_note'] = coverage_note
+        quality['collection_method'] = collection_method
 
         # Emisyon hesabı
         emissions = self._emission_calc.calculate_flight_emissions(
@@ -434,7 +528,7 @@ class FleetAnalyzer:
                 'fuel_saving_potential_pct'  : round(
                     fuel_saving_kg / fuel_kg * 100, 2
                 ) if fuel_kg > 0 else 0,
-                'co2_saving_potential_kg'    : round(fuel_saving_kg * 3.16),
+                'co2_saving_potential_kg'    : round(fuel_saving_kg * EI_CO2),
                 'cost_saving_usd'            : cost_saving_usd,
                 'optimum_conditions': {
                     'altitude_ft'  : cruise_altitude_ft,
@@ -454,15 +548,16 @@ class FleetAnalyzer:
                     optimum_fl           = optimum_fl,
                     sar_loss_pct         = sar_loss_pct,
                     step_plan            = step_plan,
+                    fuel_price_usd_kg    = fuel_price_usd_kg,
                 ),
                 'total_per_flight': {
                     'fuel_saving_kg' : round(fuel_saving_kg),
-                    'co2_saving_kg'  : round(fuel_saving_kg * 3.16),
+                    'co2_saving_kg'  : round(fuel_saving_kg * EI_CO2),
                     'cost_saving_usd': round(cost_saving_usd, 2),
                 },
                 'annual_projection': {
                     'fuel_saving_tonnes'  : round(fuel_saving_kg * 345 / 1000, 2),
-                    'co2_saving_tonnes'   : round(fuel_saving_kg * 3.16 * 345 / 1000, 2),
+                    'co2_saving_tonnes'   : round(fuel_saving_kg * EI_CO2 * 345 / 1000, 2),
                     'cost_saving_usd'     : round(annual_saving_usd),
                     'realistic_annual_usd': round(annual_saving_usd),
                 },
@@ -492,6 +587,7 @@ class FleetAnalyzer:
         optimum_fl: str,
         sar_loss_pct: float,
         step_plan: Optional[list],
+        fuel_price_usd_kg: float = _DEFAULT_FUEL_PRICE_USD_PER_KG,
     ) -> list[dict]:
         """
         Tasarruf fırsatları listesini oluştur.
@@ -509,8 +605,8 @@ class FleetAnalyzer:
                     f"SAR kaybı: %{sar_loss_pct:.1f}."
                 ),
                 'estimated_fuel_saving_kg' : round(altitude_saving_kg),
-                'estimated_co2_saving_kg'  : round(altitude_saving_kg * 3.16),
-                'estimated_cost_saving_usd': round(altitude_saving_kg * 0.85, 2),
+                'estimated_co2_saving_kg'  : round(altitude_saving_kg * EI_CO2),
+                'estimated_cost_saving_usd': round(altitude_saving_kg * fuel_price_usd_kg, 2),
                 'implementation'           : 'Dispatcher briefing ile uygulanabilir',
                 'difficulty'               : 'LOW',
             })
@@ -526,8 +622,8 @@ class FleetAnalyzer:
                     f"{n_steps} step climb önerilir."
                 ),
                 'estimated_fuel_saving_kg' : round(step_climb_saving_kg),
-                'estimated_co2_saving_kg'  : round(step_climb_saving_kg * 3.16),
-                'estimated_cost_saving_usd': round(step_climb_saving_kg * 0.85, 2),
+                'estimated_co2_saving_kg'  : round(step_climb_saving_kg * EI_CO2),
+                'estimated_cost_saving_usd': round(step_climb_saving_kg * fuel_price_usd_kg, 2),
                 'implementation'           : 'ATC koordinasyonu gerektirir',
                 'difficulty'               : 'MEDIUM',
             })
@@ -624,7 +720,38 @@ class FleetAnalyzer:
 
         partial_pct = partial_count / n * 100
 
-        if partial_pct < 10:
+        # BÜTÜNLÜK (P0): PROVENANCE GATE.
+        # Kalite notu YALNIZCA 'partial mı?' sorusuna bakıyordu → tümü
+        # simülasyon olan veri de 'A' alıyordu. Artık verinin KAYNAĞI
+        # notu belirler.
+        _methods = []
+        for result in self.flight_results:
+            m = (result.get('_collection_method')
+                 or result.get('collection_method')
+                 or (result.get('_data_quality') or {}).get('collection_method')
+                 or 'unknown')
+            _methods.append(str(m).lower())
+
+        _REAL_SET = {'opensky', 'adsb', 'customer_qar', 'customer_fuel', 'qar', 'fdr'}
+        n_real = sum(1 for m in _methods if m in _REAL_SET)
+        n_sim  = sum(1 for m in _methods if 'simulation' in m or 'synthetic' in m)
+
+        if n_sim == n:
+            provenance = 'SIMULATED'
+        elif n_real == n:
+            provenance = 'REAL'
+        elif n_real + n_sim == n:
+            provenance = 'MIXED'
+        else:
+            provenance = 'UNKNOWN'
+
+        if provenance == 'SIMULATED':
+            grade = 'SIM'
+        elif provenance == 'UNKNOWN':
+            grade = '?'
+        elif provenance == 'MIXED':
+            grade = 'MIX'
+        elif partial_pct < 10:
             grade = 'A'
         elif partial_pct < 30:
             grade = 'B'
@@ -633,7 +760,7 @@ class FleetAnalyzer:
         else:
             grade = 'D'
 
-        benchmark_eligible = (n - partial_count) >= 3
+        benchmark_eligible = (n - partial_count) >= 3 and provenance == 'REAL'
 
         recommendations = []
         if partial_pct > 30:
@@ -646,7 +773,18 @@ class FleetAnalyzer:
                 f"{unk_dest_count} uçuşta varış bilinmiyor. "
                 f"Rota analizi bu uçuşlar için 'UNK' gösterecek."
             )
-        if partial_pct <= 10:
+        if provenance == 'SIMULATED':
+            recommendations.insert(0,
+                "Bu veri seti SİMÜLASYONDUR (demo_simulation). "
+                "Müşteri raporu olarak SUNULMAMALIDIR; yalnızca model "
+                "gösterimi amaçlıdır. Benchmark karşılaştırması geçersizdir."
+            )
+        elif provenance == 'MIXED':
+            recommendations.insert(0,
+                "KARIŞIK veri kaynağı: gerçek ve simüle uçuşlar "
+                "ayrıştırılmadan birleşik istatistik sunulmamalıdır."
+            )
+        elif provenance == 'REAL' and partial_pct <= 10:
             recommendations.append(
                 "Veri kalitesi yüksek. Benchmark ve rota analizi güvenilir."
             )
@@ -658,6 +796,9 @@ class FleetAnalyzer:
             'partial_pct'       : round(partial_pct, 1),
             'unk_destinations'  : unk_dest_count,
             'quality_grade'     : grade,
+            'provenance'        : provenance,
+            'n_real'            : n_real,
+            'n_simulated'       : n_sim,
             'benchmark_eligible': benchmark_eligible,
             'details'           : details,
             'recommendations'   : recommendations,
@@ -706,25 +847,63 @@ class FleetAnalyzer:
 
         bm_fuel_list     = []
         bm_distance_list = []
+        skipped          = []
 
         for result in self.flight_results:
             is_partial = result.get(
                 '_data_quality', {}
             ).get('is_partial', False)
 
-            fuel     = float(result['fuel_analysis']['estimated_total_fuel_kg'])
-            distance = float(result['basic_metrics']['great_circle_distance_nm'])
-            co2      = float(result['emissions']['emissions']['CO2_kg'])
-            ac_type  = result['flight_info']['aircraft_type']
+            # DENETİM #57 — DOĞRUDAN İNDEKSLEME
+            # Eski kod result['emissions']['emissions']['CO2_kg'] ve
+            # result['savings_opportunities'] alanlarını DOĞRUDAN
+            # indeksliyordu. analyze_trajectory() bu alanları üretse de
+            # dışarıdan gelen / kısmi kayıtlar (örn. yalnız
+            # flight_info+basic_metrics+fuel_analysis) KeyError ile
+            # TÜM filo özetini çökertiyordu. Tek bozuk kayıt yüzünden
+            # 14 uçuşluk rapor üretilemez hale geliyordu.
+            #
+            # .get() zincirine geçildi; eksik kayıt atlanıyor ve
+            # sayısı raporlanıyor (sessizce yutulmuyor).
+            try:
+                fuel = float(
+                    result.get('fuel_analysis', {})
+                          .get('estimated_total_fuel_kg', 0) or 0)
+                distance = float(
+                    result.get('basic_metrics', {})
+                          .get('great_circle_distance_nm', 0) or 0)
+                _em = result.get('emissions') or {}
+                co2 = float((_em.get('emissions') or {}).get('CO2_kg', 0) or 0)
+                # emissions YOKSA sessizce tahmin etme: bu, hangi kaydın
+                # eksik olduğunu gizler. Yalnızca logla ve atla.
+                # (İlk denemede `co2 = fuel * EI_CO2` ile türetmiştim;
+                #  bozuk kayıt "atlanan: 0" olarak rapora girdi —
+                #  yani hata daha da görünmez hale geldi.)
+                if co2 <= 0:
+                    skipped.append(
+                        f"{result.get('flight_info', {}).get('callsign', '?')}: "
+                        f"emissions.CO2_kg eksik/sıfır "
+                        f"(tahmin edilmedi)")
+                    continue
+                ac_type = (result.get('flight_info') or {}).get(
+                    'aircraft_type', 'B738')
+            except (TypeError, ValueError, AttributeError) as exc:
+                skipped.append(f"{result.get('flight_info', {}).get('callsign', '?')}: {exc}")
+                continue
+
+            if fuel <= 0 or distance <= 0:
+                skipped.append(
+                    f"{result.get('flight_info', {}).get('callsign', '?')}: "
+                    f"fuel={fuel} distance={distance}")
+                continue
 
             total_fuel     += fuel
             total_distance += distance
             total_co2      += co2
 
-            savings_tf  = result['savings_opportunities']['total_per_flight']
-            savings_ann = result['savings_opportunities'].get(
-                'annual_projection', {}
-            )
+            _sv = result.get('savings_opportunities') or {}
+            savings_tf  = _sv.get('total_per_flight') or {}
+            savings_ann = _sv.get('annual_projection') or {}
 
             flight_fuel_save = float(savings_tf.get('fuel_saving_kg', 0))
             flight_cost_save = float(savings_tf.get('cost_saving_usd', 0))
@@ -740,8 +919,9 @@ class FleetAnalyzer:
             total_annual_usd   += flight_annual
 
             # Rota
-            origin    = result['basic_metrics'].get('origin_icao', 'UNK')
-            dest      = result['basic_metrics'].get('destination_icao', 'UNK')
+            _bm_ = result.get('basic_metrics') or {}
+            origin    = _bm_.get('origin_icao', 'UNK')
+            dest      = _bm_.get('destination_icao', 'UNK')
             route_key = f"{origin}-{dest}"
 
             rd = route_data[route_key]
@@ -751,7 +931,8 @@ class FleetAnalyzer:
             rd['total_co2']         += co2
             rd['fuel_list'].append(fuel)
             rd['efficiency_list'].append(
-                result['route_analysis'].get('route_efficiency_pct', 95)
+                (result.get('route_analysis') or {}).get(
+                    'route_efficiency_pct', 95)
             )
             rd['total_saving_fuel'] += flight_fuel_save
             rd['total_saving_cost'] += flight_cost_save
@@ -921,7 +1102,7 @@ class FleetAnalyzer:
         annualized_fuel_tonnes = (
             annualized_cost / avg_fuel_price_usd_per_kg / 1000
         ) if avg_fuel_price_usd_per_kg > 0 else 0
-        annualized_co2_tonnes  = annualized_fuel_tonnes * 3.16
+        annualized_co2_tonnes  = annualized_fuel_tonnes * EI_CO2
 
         avg_fuel_per_nm = (
             total_fuel / total_distance
@@ -937,6 +1118,9 @@ class FleetAnalyzer:
                 'reporting_standard'     : (
                     'GreenWing Analytics Fleet Report v1.0'
                 ),
+                # DENETİM #57: bozuk kayıtlar sessizce yutulmasın
+                'skipped_records'        : len(skipped),
+                'skipped_details'        : skipped[:10],
                 'benchmark_basis': (
                     f"{bm_n_valid} tam uçuş"
                     if exclude_partial_from_benchmark
@@ -990,7 +1174,7 @@ class FleetAnalyzer:
                 'total_fuel_saving_kg'          : round(total_savings_fuel),
                 'total_cost_saving_usd'         : round(total_savings_cost),
                 'total_co2_saving_kg'           : round(
-                    total_savings_fuel * 3.16
+                    total_savings_fuel * EI_CO2
                 ),
                 'annualized_cost_saving_usd'    : round(annualized_cost),
                 'annualized_fuel_saving_tonnes' : round(
@@ -1005,6 +1189,17 @@ class FleetAnalyzer:
                     f'Ortalama yakıt fiyatı: '
                     f'${avg_fuel_price_usd_per_kg:.2f}/kg.'
                 ),
+                # ══════════════════════════════════════════════════════
+                # DENETİM #29 — BELİRSİZLİK ARALIĞI RAPORA GİRMİYORDU
+                # ══════════════════════════════════════════════════════
+                # sensitivity.py ±%26,7 toplam belirsizlik hesaplıyor
+                # (rüzgâr ±%20,5 baskın) ama bu hiçbir çıktıya
+                # yazılmıyordu. Panel/rapor "$1.425.376" diyordu —
+                # tek nokta değeri, belirsizlik yok.
+                #
+                # Ticari olarak bu ciddi: müşteri "±%27" bilgisini
+                # görmeden rakamı taahhüt sanabilir.
+                'uncertainty': _uncertainty_block(annualized_cost),
             },
             'data_quality': {
                 'quality_grade'      : quality_report['quality_grade'],
@@ -1271,13 +1466,50 @@ def validate_fleet_analyzer() -> bool:
     else:
         fail("Yakıt tasarrufu", f"{sv['total_fuel_saving_kg']} ≠ {expected_fuel_save}")
 
-    # yıllık maliyet
-    expected_annual = sum(f[9] for f in demo_flights)
+    # ══════════════════════════════════════════════════════════
+    # DENETİM #65 — BU TEST HİÇ ÇALIŞMIYORDU VE BAYATTI
+    # ══════════════════════════════════════════════════════════
+    # Eski beklenti `sum(f[9] for f in demo_flights)` = 1.644.522
+    # idi. Kod ise rota bazında ORTALAMA alıyor (mükerrer uçuşları
+    # iki kez saymamak için: rota frekansı `realistic_annual_usd`
+    # içinde zaten hesaba katılmış). Doğru çıktı 1.191.284.
+    #
+    #   Σ rota ortalaması = 1.191.284  ← kod (DOĞRU)
+    #   Σ ham toplam      = 1.644.522  ← eski test (YANLIŞ)
+    #
+    # Fark: LTFM-EGLL 2, LTFM-EDDF 2, LTFM-LTAC 2 kez geçiyor;
+    # her rotanın ortalaması alınır, ham toplam değil.
+    #
+    # İki hata bir aradaydı:
+    #   (a) test beklentisi bayattı → her çalıştırmada FAIL
+    #   (b) `tests/` altında dosya yoktu → test hiç çalışmıyordu
+    #       ve bayatlık fark edilmemişti
+    #
+    # Bu blok artık tests/test_fleet_analyzer.py'den çağrılıyor.
+    from collections import defaultdict as _dd
+    _route_annual: dict[str, list[float]] = _dd(list)
+    for _f in demo_flights:
+        _route_annual[f"{_f[0]}-{_f[1]}"].append(_f[9])
+    expected_annual = sum(
+        sum(v) / len(v) for v in _route_annual.values()
+    )
     tests += 1
     if abs(sv['annualized_cost_saving_usd'] - expected_annual) < 10:
-        ok(f"Yıllık tasarruf: ${sv['annualized_cost_saving_usd']:,} ✓")
+        ok(f"Yıllık tasarruf (rota ort.): "
+           f"${sv['annualized_cost_saving_usd']:,} ✓")
     else:
-        fail("Yıllık tasarruf", f"${sv['annualized_cost_saving_usd']:,} ≠ ${expected_annual:,}")
+        fail("Yıllık tasarruf",
+             f"${sv['annualized_cost_saving_usd']:,} ≠ "
+             f"${expected_annual:,.0f} (rota ort.)")
+
+    # Mükerrer sayım koruması: ham toplam KULLANILMAMALI
+    _raw_total = sum(f[9] for f in demo_flights)
+    tests += 1
+    if abs(sv['annualized_cost_saving_usd'] - _raw_total) > 10:
+        ok(f"Mükerrer uçuş iki kez sayılmıyor "
+           f"(${_raw_total:,.0f} ham → ${expected_annual:,.0f} rota ort.)")
+    else:
+        fail("Mükerrer sayım", "ham toplam kullanılmış — rota frekansı iki kez")
 
     # annualized_fuel_saving_tonnes tutarlı mı?
     tests += 1
@@ -1292,7 +1524,7 @@ def validate_fleet_analyzer() -> bool:
 
     # CO2 tutarlı mı?
     tests += 1
-    expected_co2_tonnes = sv['annualized_fuel_saving_tonnes'] * 3.16
+    expected_co2_tonnes = sv['annualized_fuel_saving_tonnes'] * EI_CO2
     if abs(sv['annualized_co2_saving_tonnes'] - expected_co2_tonnes) < 2:
         ok(f"Yıllık CO2 azaltma: {sv['annualized_co2_saving_tonnes']} ton ✓")
     else:

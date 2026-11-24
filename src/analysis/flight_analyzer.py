@@ -50,6 +50,7 @@ Kaynak:
 """
 
 from __future__ import annotations
+from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
 
 import numpy as np
 import pandas as pd
@@ -407,9 +408,15 @@ class SingleFlightAnalyzer:
             'phase_breakdown'        : phase_fuel_pct,
             'initial_weight_kg'      : round(weight_kg),
             'final_weight_kg'        : round(current_weight),
+            # BÜTÜNLÜK: doğruluk yüzdesi GARANTİ EDİLMEZ. Önceki metin
+            # ("±5-10%" ve "±2-3% hedeflenir") doğrulanmamış bir iddiaydı.
+            # Doğruluk, veriye ve kalibrasyona bağlıdır; burada sayı verilmez.
             'accuracy_note': (
-                'Tahmin modeli — QAR/FDR verisi ile ±5-10% doğruluk. '
-                'Gerçek operasyonel veri ile kalibre edildiğinde ±2-3% hedeflenir.'
+                'Fizik tabanlı tahmin (ICAO ISA + uçak tipi parametreleri). '
+                'Doğruluk; trajectory verisinin çözünürlüğüne, ağırlık '
+                'tahminine ve varsa QAR/FDR kalibrasyonuna bağlıdır. '
+                'Sayısal bir doğruluk yüzdesi garanti edilmez; gerçek '
+                'operasyonel veriyle karşılaştırma önerilir.'
             ),
         }
 
@@ -549,18 +556,31 @@ class SingleFlightAnalyzer:
         holdings     = FlightPhaseSegmenter.detect_holdings_detailed(df)
         holding_time = FlightPhaseSegmenter.holding_duration_minutes(df)
 
-        # Holding yakıt tahmini
+        # Holding yakıt tahmini — BÜTÜNLÜK: 2-kutu sabit yerine uçağın
+        # kendi modelinden (HOLDING faz oranı × cruise akışı).
         holding_fuel = 0.0
         if holding_time > 0:
-            max_thrust = self.fuel_model.params.get('max_thrust_sl', 120000)
-            if max_thrust > 300000:
-                holding_ff = 5000  # Geniş gövde kg/hr
-            else:
-                holding_ff = 2200  # Dar gövde kg/hr
-            holding_fuel = holding_ff * (holding_time / 60)
+            _hw = self.fuel_model.params.get('oew', 42000) + 0.55 * (
+                self.fuel_model.params.get('mtow', 79000)
+                - self.fuel_model.params.get('oew', 42000))
+            holding_fuel = self.fuel_model.estimate_phase_fuel(
+                phase='HOLDING',
+                duration_s=holding_time * 60,
+                weight_kg=_hw,
+                altitude_ft=10000,
+                mach=0.45,
+            )
 
-        # Fazla mesafe yakıt maliyeti
-        extra_fuel = extra_dist * 8 if extra_dist > 5 else 0
+        # Fazla mesafe yakıt maliyeti — BÜTÜNLÜK: sabit 8 kg/nm yerine
+        # uçağın kendi SAR'ından marjinal yakıt.
+        extra_fuel = 0.0
+        if extra_dist > 5:
+            _ew = self.fuel_model.params.get('oew', 42000) + 0.70 * (
+                self.fuel_model.params.get('mtow', 79000)
+                - self.fuel_model.params.get('oew', 42000))
+            _sar = self.fuel_model.specific_air_range(
+                _ew, 35000, self.fuel_model.params.get('cruise_mach', 0.78))
+            extra_fuel = extra_dist / _sar if _sar > 0 else 0.0
 
         # Değerlendirme
         if efficiency >= 98:
@@ -613,30 +633,35 @@ class SingleFlightAnalyzer:
             mach=mach,
         )
 
-        # Cruise tipik olarak toplam yakıtın %75'i
-        distance = basic_metrics['great_circle_distance_nm']
+        # BÜTÜNLÜK DÜZELTMESİ: Önceden cruise_fraction hesaplanıyor ama
+        # KULLANILMIYORDU (ölü kod) ve toplam yakıt sabit /0.75 ile tahmin
+        # ediliyordu. Artık mesafeye göre hesaplanan oran kullanılıyor.
         if distance < 500:
-            cruise_fraction = 0.65      # Kısa mesafe (IST-ANK gibi)
+            cruise_fraction = 0.65      # Kısa mesafe
         elif distance < 1000:
             cruise_fraction = 0.70      # Orta-kısa mesafe
         elif distance < 2000:
-            cruise_fraction = 0.75      # Orta mesafe (IST-LON gibi)
+            cruise_fraction = 0.75      # Orta mesafe
         else:
-            cruise_fraction = 0.77      # Uzun mesafef
-        
-        estimated_total_optimum = optimum_result['total_fuel_kg'] / 0.75
+            cruise_fraction = 0.77      # Uzun mesafe
+
+        # optimum_result sadece cruise segmentini kapsar; toplam yakıta çevir.
+        estimated_total_optimum = optimum_result['total_fuel_kg'] / cruise_fraction
 
         actual_fuel    = fuel_analysis['estimated_total_fuel_kg']
         fuel_diff      = actual_fuel - estimated_total_optimum
         fuel_saving_pct = (fuel_diff / actual_fuel * 100) if actual_fuel > 0 else 0
+
+        from config.assumptions import Assumptions
+        _price = Assumptions.fuel_price('DEFAULT')
 
         return {
             'actual_estimated_fuel_kg'  : round(actual_fuel),
             'optimum_estimated_fuel_kg' : round(estimated_total_optimum),
             'fuel_difference_kg'        : round(max(0, fuel_diff)),
             'fuel_saving_potential_pct'  : round(max(0, fuel_saving_pct), 1),
-            'co2_saving_potential_kg'    : round(max(0, fuel_diff) * 3.16),
-            'cost_saving_usd'           : round(max(0, fuel_diff) * 0.85, 2),
+            'co2_saving_potential_kg'    : round(max(0, fuel_diff) * EI_CO2),
+            'cost_saving_usd'           : round(max(0, fuel_diff) * _price, 2),
             'optimum_conditions': {
                 'altitude_ft': opt_alt,
                 'mach'       : mach,
@@ -667,12 +692,29 @@ class SingleFlightAnalyzer:
         savings = []
         total_fuel = fuel_analysis['estimated_total_fuel_kg']
 
+        # BÜTÜNLÜK: Yakıt fiyatı tek kaynaktan (Assumptions), sabit koda gömülü DEĞİL.
+        from config.assumptions import Assumptions
+        fuel_price_usd_kg = Assumptions.fuel_price('DEFAULT')
+
+        # BÜTÜNLÜK: Fiziksel tasarruflar YALNIZCA cruise segmentine uygulanır.
+        # (İrtifa/step climb cruise'da etkilidir; taxi/tırmanma/inişte değil.)
+        phase_bd = fuel_analysis.get('phase_breakdown', {})
+        cruise_phases = [PHASE_CRUISE, PHASE_STEP_CLIMB]
+        cruise_fuel = sum(
+            v.get('fuel_kg', 0) for k, v in phase_bd.items()
+            if k in cruise_phases and isinstance(v, dict)
+        )
+        if cruise_fuel <= 0:
+            # Faz dökümü yoksa muhafazakâr: cruise payını %70 varsay
+            cruise_fuel = total_fuel * 0.70
+
         # ─── 1. İrtifa optimizasyonu ──────────────────────
+        # SAR iyileşmesi cruise yakıtının AYNI yüzdesi kadar tasarruf sağlar.
         sar_loss = altitude_analysis.get('sar_loss_pct', 0)
 
         if sar_loss > 0.5:
             alt_dev       = altitude_analysis.get('altitude_deviation_ft', 0)
-            fuel_save_alt = total_fuel * sar_loss / 100
+            fuel_save_alt = cruise_fuel * sar_loss / 100
 
             savings.append({
                 'category'    : 'ALTITUDE_OPTIMIZATION',
@@ -685,15 +727,26 @@ class SingleFlightAnalyzer:
                     f"irtifasında SAR %{sar_loss:.1f} daha iyi."
                 ),
                 'estimated_fuel_saving_kg' : round(fuel_save_alt),
-                'estimated_co2_saving_kg'  : round(fuel_save_alt * 3.16),
-                'estimated_cost_saving_usd': round(fuel_save_alt * 0.85, 2),
+                'estimated_co2_saving_kg'  : round(fuel_save_alt * EI_CO2),
+                'estimated_cost_saving_usd': round(fuel_save_alt * fuel_price_usd_kg, 2),
                 'implementation'           : 'Dispatcher briefing ile uygulanabilir',
                 'difficulty'               : 'LOW',
             })
 
         # ─── 2. Step climb ────────────────────────────────
+        # BÜTÜNLÜK: Sabit %1.5 yerine GERÇEK SAR farkı (cruise yakıtı üzerinden).
+        # Step climb'ın faydası, uçuş ortasında optimum irtifaya geçiştir.
         if altitude_analysis.get('step_climb_recommended', False):
-            fuel_save_step = total_fuel * 0.015
+            sar_actual  = altitude_analysis.get('sar_at_actual_alt', 0)
+            sar_optimum = altitude_analysis.get('sar_at_optimum_alt', 0)
+            if sar_actual > 0 and sar_optimum > 0:
+                # Mevcut SAR ile optimum SAR arasındaki göreli fark
+                step_gain_pct = max(0.0, (sar_optimum - sar_actual) / sar_optimum * 100)
+            else:
+                step_gain_pct = 0.0
+            # İrtifa farkıyla sınırla (fiziksel üst sınır değil, muhafazakâr tavan)
+            step_gain_pct = min(step_gain_pct, 3.0)
+            fuel_save_step = cruise_fuel * step_gain_pct / 100
 
             savings.append({
                 'category'    : 'STEP_CLIMB',
@@ -705,8 +758,8 @@ class SingleFlightAnalyzer:
                     "200-300 Nm aralıklarla 2000 ft step climb önerilir."
                 ),
                 'estimated_fuel_saving_kg' : round(fuel_save_step),
-                'estimated_co2_saving_kg'  : round(fuel_save_step * 3.16),
-                'estimated_cost_saving_usd': round(fuel_save_step * 0.85, 2),
+                'estimated_co2_saving_kg'  : round(fuel_save_step * EI_CO2),
+                'estimated_cost_saving_usd': round(fuel_save_step * fuel_price_usd_kg, 2),
                 'implementation'           : 'ATC koordinasyonu gerektirir',
                 'difficulty'               : 'MEDIUM',
             })
@@ -727,8 +780,8 @@ class SingleFlightAnalyzer:
                     f"Direct routing talep edilmesi önerilir."
                 ),
                 'estimated_fuel_saving_kg' : round(fuel_save_route),
-                'estimated_co2_saving_kg'  : round(fuel_save_route * 3.16),
-                'estimated_cost_saving_usd': round(fuel_save_route * 0.85, 2),
+                'estimated_co2_saving_kg'  : round(fuel_save_route * EI_CO2),
+                'estimated_cost_saving_usd': round(fuel_save_route * fuel_price_usd_kg, 2),
                 'implementation'           : 'ATC ile direkt rota talebi',
                 'difficulty'               : 'LOW',
             })
@@ -746,8 +799,8 @@ class SingleFlightAnalyzer:
                     f"holding tespit edildi. Slot yönetimi ile azaltılabilir."
                 ),
                 'estimated_fuel_saving_kg' : round(holding_fuel),
-                'estimated_co2_saving_kg'  : round(holding_fuel * 3.16),
-                'estimated_cost_saving_usd': round(holding_fuel * 0.85, 2),
+                'estimated_co2_saving_kg'  : round(holding_fuel * EI_CO2),
+                'estimated_cost_saving_usd': round(holding_fuel * fuel_price_usd_kg, 2),
                 'implementation'           : 'Operasyonel planlama iyileştirmesi',
                 'difficulty'               : 'MEDIUM',
             })
@@ -768,8 +821,8 @@ class SingleFlightAnalyzer:
                               if s['category'] == 'HOLDING_AVOIDANCE'), 0)
 
         total_fuel_saving = fuel_optimization + route_saving + holding_saving
-        total_co2_saving  = total_fuel_saving * 3.16
-        total_cost_saving = total_fuel_saving * 0.85
+        total_co2_saving  = total_fuel_saving * EI_CO2
+        total_cost_saving = total_fuel_saving * fuel_price_usd_kg
 
         # Yıllık projeksiyon
         from config.assumptions import Assumptions
@@ -1052,9 +1105,9 @@ def validate_flight_analyzer() -> bool:
         fail("CO2", "sıfır")
 
     tests += 1
-    expected_co2 = fa['estimated_total_fuel_kg'] * 3.16
+    expected_co2 = fa['estimated_total_fuel_kg'] * EI_CO2
     if abs(em['emissions']['CO2_kg'] - expected_co2) < 100:
-        ok(f"CO2 = fuel × 3.16 tutarlı")
+        ok(f"CO2 = fuel × EI_CO2 tutarlı")
     else:
         fail("CO2 tutarlılık", f"{em['emissions']['CO2_kg']} ≠ {expected_co2:.0f}")
 

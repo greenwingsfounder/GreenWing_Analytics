@@ -174,46 +174,76 @@ class BenchmarkReport:
 # Kaynak: IATA, ICAO, Eurocontrol, sektör deneyimi
 # Güncelleme: Yıllık (IATA raporu yayınlandığında)
 
+# KAYNAK VE YÖNTEM
+# ─────────────────
+# Aralıklar, ICAO EDB/OpenAP yakıt modelinin (±%15 belirsizlik) fiziksel
+# çıktısıdır. Her tip için:
+#
+#   SAR = TAS / FF ,  TAS = M·a(h),  FF = ICAO EDB eğrisi(r=D/T_SL)
+#
+# Referans noktası: FL350, W = OEW + 0.75·(MTOW − OEW).
+#
+# Bağımsız çapraz kontrol (B738): 460 kt / 2 640 kg/h = 0.174 Nm/kg.
+# Gerçek dünya: B737-800 cruise FF 2 300–2 800 kg/h (yaygın operatör
+# değerleri), yani 0.164–0.200 Nm/kg → model aralığı içinde ✓
+#
+# Menzil kontrolü (B738): 2 935 nm ferry / 20 894 kg yakıt = 0.140 Nm/kg
+# (tüm yakıt doluyken ortalama); cruise SAR bunun üzerindedir — tutarlı.
+#
+# ⚠ ESKİ DEĞERLER HATALIYDI: 0.065–0.130 aralığı, gerçek değerin
+# yaklaşık YARISIydı (10 kat değil, ama %50 düşük). Bu, benchmark'ın
+# kendi modeliyle çelişmesine yol açıyordu (her uçuş FAIL).
+# Hata kaynağı: değerler "tahmini" yazılmış, model çıktısıyla
+# karşılaştırılmamış.
 _SAR_RANGES: dict[str, tuple[float, float]] = {
-    'B738': (0.065, 0.130),
-    'B38M': (0.070, 0.140),
-    'A320': (0.070, 0.135),
-    'A20N': (0.075, 0.145),
-    'A321': (0.055, 0.110),
-    'A21N': (0.060, 0.120),
-    'B77W': (0.025, 0.055),
-    'B788': (0.035, 0.070),
-    'B789': (0.035, 0.070),
-    'A350': (0.037, 0.075),
-    'A380': (0.020, 0.045),
-    'DEFAULT': (0.030, 0.200),
+    'B738': (0.134, 0.209),   # 0.1713 ±%22
+    'B38M': (0.156, 0.244),   # 0.1997
+    'A320': (0.131, 0.205),   # 0.1679
+    'A20N': (0.201, 0.314),   # 0.2573
+    'A321': (0.110, 0.172),   # 0.1408
+    'A21N': (0.166, 0.260),   # 0.2128
+    'B77W': (0.030, 0.047),   # 0.0385
+    'B788': (0.059, 0.093),   # 0.0760
+    'B789': (0.051, 0.079),   # 0.0650
+    'A350': (0.044, 0.068),   # 0.0559
+    'A380': (0.023, 0.036),   # 0.0292
+    'DEFAULT': (0.020, 0.320),
 }
 
 _FUEL_FLOW_RANGES: dict[str, tuple[float, float]] = {
-    'B738': (2000, 3200),
-    'B38M': (1800, 2800),
-    'A320': (2000, 3000),
-    'A20N': (1700, 2600),
-    'A321': (2200, 3500),
-    'A21N': (2000, 3200),
-    'B77W': (7000, 12000),
-    'B788': (5000, 8500),
-    'B789': (5500, 9000),
-    'A350': (5500, 9000),
-    'A380': (10000, 18000),
-    'DEFAULT': (1500, 15000),
+    'B738': (2061, 3223),     # 2642 ±%22
+    'B38M': (1779, 2783),     # 2281
+    'A320': (2089, 3267),     # 2678
+    'A20N': (1363, 2132),     # 1748
+    'A321': (2490, 3895),     # 3192
+    'A21N': (1647, 2577),     # 2112
+    'B77W': (9798, 15325),    # 12561
+    'B788': (5031, 7869),     # 6450
+    'B789': (5883, 9202),     # 7542
+    'A350': (6841, 10701),    # 8771
+    'A380': (13106, 20500),   # 16803
+    'DEFAULT': (1000, 20000),
 }
 
+# ═══════════════════════════════════════════════════════════════
+# FUEL PER NM — FİZİKSEL TÜRETME (2026-11-22 denetimi)
+# ═══════════════════════════════════════════════════════════════
+# ÖNCEKİ DURUM: aşağıdaki aralıklar ELLE yazılmıştı ve kaynağı yoktu.
+# Ayrıca çok gevşekti: B738 için (6.0, 12.0) — 12 kg/nm, B738'in
+# MTOW'daki tüketiminin (~7.5 kg/nm) çok üzerinde, yani hiçbir
+# gerçek uçuş FAIL edemezdi. Alt sınır 6.0 ise gerçek 6.2'yi
+# sınıra dayıyordu.
+#
+# DOĞRU YAKLAŞIM: kg/nm = 1 / SAR. Aynı fiziksel büyüklüğün tersi.
+# Böylece TEK kaynak (OpenAP SAR aralıkları) iki kontrolü de besler
+# ve iki tablo birbiriyle çelişemez.
+#
+# kg/nm alt = 1/SAR_üst,  kg/nm üst = 1/SAR_alt
+# B738: 1/0.209 = 4.78  →  1/0.134 = 7.46   (gerçek 6.2 ✅ içinde)
+# ═══════════════════════════════════════════════════════════════
 _FUEL_PER_NM_RANGES: dict[str, tuple[float, float]] = {
-    'B738': (6.0, 12.0),
-    'B38M': (5.0, 10.0),
-    'A320': (5.5, 11.0),
-    'A20N': (5.0, 10.0),
-    'B77W': (20.0, 38.0),
-    'B788': (13.0, 24.0),
-    'B789': (14.0, 25.0),
-    'A350': (13.0, 24.0),
-    'DEFAULT': (3.0, 50.0),
+    t: (round(1.0 / hi, 2), round(1.0 / lo, 2))
+    for t, (lo, hi) in _SAR_RANGES.items()
 }
 
 _CO2_PER_PAX_KM_RANGE = (30, 250)  # g CO2/pax/km

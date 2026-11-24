@@ -41,6 +41,20 @@ from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import re
+
+# GÜVENLİK: API'den gelen callsign doğrudan dosya adına giriyor.
+# Yol enjeksiyonunu (../) ve geçersiz karakterleri engelleyen katı desen.
+_CALLSIGN_RE = re.compile(r"^[A-Z0-9]{3,8}$")
+
+
+def sanitize_callsign(callsign: str) -> str:
+    """API/CLI kaynaklı callsign'ı dosya adı için güvenli hale getir."""
+    cleaned = (callsign or "").strip().upper()
+    if not _CALLSIGN_RE.match(cleaned):
+        return "UNKNOWN"
+    return cleaned
+
 # Hafızadaki uçuş veri tabanı
 # { CALLSIGN: { "points": [...], "last_seen": timestamp, "type": B738, "reg": TC-XXX } }
 ACTIVE_TRACKER: dict[str, dict] = {}
@@ -79,12 +93,12 @@ def fetch_live_fleet(airlines: list[str]) -> list[dict]:
     for name, lat, lon, r in points:
         url = f"https://api.adsb.lol/v2/point/{lat}/{lon}/{r}"
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=10, verify=True, allow_redirects=False)
             if response.status_code == 200:
                 data = response.json()
                 ac_list = data.get("ac", [])
                 for ac in ac_list:
-                    callsign = ac.get("flight", "").strip().upper()
+                    callsign = sanitize_callsign(ac.get("flight", ""))
                     if callsign.startswith(prefixes):
                         hex_code = ac.get("hex")
                         if hex_code and hex_code not in unique_aircraft:
@@ -119,7 +133,7 @@ def track_fleet(airlines: list[str], min_pts: int, timeout_mins: int, interval_s
             aircrafts = fetch_live_fleet(airlines)
             
             for ac in aircrafts:
-                callsign = ac.get("flight", "").strip().upper()
+                callsign = sanitize_callsign(ac.get("flight", ""))
                 if not callsign or len(callsign) < 3:
                     continue
                     

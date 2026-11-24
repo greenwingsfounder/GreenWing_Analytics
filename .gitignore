@@ -1,0 +1,108 @@
+# ═══════════════════════════════════════════════════════════
+# GreenWing Analytics — .gitignore
+# ═══════════════════════════════════════════════════════════
+# KURAL: Bu dosyaya GÜVENLİK istisnaları eklerken çok dikkatli ol.
+# Hiçbir gizli anahtar, kimlik bilgisi veya müşteri verisi
+# depoya commit EDİLMEZ.
+
+# ─── GİZLİ ANAHTARLAR / KİMLİK BİLGİLERİ (ASLA COMMIT ETME) ──
+.env
+.env.*
+!.env.example
+credentials.json
+credentials*.json
+*client_secret*
+*service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets.yaml
+secrets.yml
+.npmrc
+.netrc
+.git-credentials
+
+# ─── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ─── Sanal ortamlar ─────────────────────────────────────────
+greenWing_env/
+venv/
+.venv/
+env/
+ENV/
+
+# ─── Test / araç çıktıları ──────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.bandit
+bandit-report.*
+
+# ─── Jupyter ────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ─── OS / editör ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.idea/
+.vscode/
+*.log
+
+# ─── Çalışma zamanı verisi / üretilen raporlar ───────────────
+# Müşteri yakıt verisi ve üretilen raporlar depoya girmez.
+data/raw/
+data/processed/
+data/calibrations/
+data/customer_fuel/
+data/mocks/
+data/archive/opensky_real/
+# ── ÜRETİLEN ÇIKTILAR (her çalıştırmada yeniden üretilir) ──
+# Tarihli raporlar: depoya girmez, aksi hâlde her çalıştırmada
+# yeni bir dosya birikir ve depo şişer.
+reports/case_studies/
+reports/optimizations/*.html
+reports/optimizations/*.csv
+# 04_generate_professional_demo.py çıktısı — DEMO verisi (235 sentetik
+# uçuş). Üretilebilir; depoda durmamalı. batch_results.json ise
+# KALICI (webapp + kalibrasyon zinciri onu okur).
+reports/optimizations/demo_batch_results.json
+*.xlsx
+*.pdf
+# Teslimat: teknik doğrulama raporu sürüm kontrolünde tutulur
+# Ama iki PDF depoda kalır: müşteriye hazır teslim.
+!reports/GreenWing_Teknik_Rapor.pdf
+!reports/GreenWing_Proje_El_Kitabi.pdf
+
+# HTML raporlar da üretilir (yeniden üretilebilir)
+reports/GreenWing_CaseStudy_*.html
+reports/GreenWing_Fleet_Report_*.html

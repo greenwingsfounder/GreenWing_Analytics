@@ -1,0 +1,106 @@
+version: '2026-11-22'
+method: OpenAP (TU Delft) drag polar — ADS-B verisinden türetilmiş
+primary_source:
+  name: OpenAP v3
+  authors: Junzi Sun, Jacco Hoekstra (TU Delft)
+  url: https://github.com/junzis/openap
+  data: openap/data/dragpolar/<type>.yml
+  structure: CD = CD0 + k·CL²  (BADA 3 ile aynı yapı)
+  derivation: ADS-B uçuş verisinden MCMC ile tahmin
+  license: Açık kaynak (MIT) — kullanım kısıtı yok
+secondary_source:
+  name: Sun et al., Aircraft Drag Polar Estimation (SESAR JU)
+  note: OpenAP ile aynı yazarlar; çapraz doğrulama için
+per_type:
+  B738:
+    openap_type: B738
+    CD0: 0.019
+    K: 0.042
+    # e, AERODİNAMİK AR ile tutarlıdır (winglet'siz 34.32 m → AR 9.453):
+    #   e = 1/(π·9.453·0.042) = 0.8017 ≈ 0.799 (denetim #85)
+    AR_aerodynamic: 9.453
+    e: 0.799
+    reference_kg_per_nm: 6.05
+    reference_ff_kg_hr: 2752
+    source: OpenAP dragpolar yml
+  B38M:
+    openap_type: B38M
+    CD0: 0.02
+    K: 0.042
+    AR_aerodynamic: 9.453       # denetim #85
+    e: 0.797
+    reference_kg_per_nm: 5.22
+    reference_ff_kg_hr: 2376
+    source: OpenAP dragpolar yml
+  A320:
+    openap_type: A320
+    CD0: 0.018
+    K: 0.039
+    e: 0.799
+    reference_kg_per_nm: 6.06
+    reference_ff_kg_hr: 2723
+    source: OpenAP dragpolar yml
+  A20N:
+    openap_type: A20N
+    CD0: 0.017
+    K: 0.038
+    e: 0.807
+    reference_kg_per_nm: 3.64
+    reference_ff_kg_hr: 1637
+    source: OpenAP dragpolar yml
+  A321:
+    openap_type: A321
+    CD0: 0.02
+    K: 0.041
+    e: 0.785
+    reference_kg_per_nm: 7.77
+    reference_ff_kg_hr: 3493
+    source: OpenAP dragpolar yml
+  A21N:
+    openap_type: A21N
+    CD0: 0.017
+    K: 0.038
+    e: 0.807
+    reference_kg_per_nm: 4.53
+    reference_ff_kg_hr: 2035
+    source: OpenAP dragpolar yml
+  B77W:
+    openap_type: B77W
+    CD0: 0.024
+    K: 0.043
+    e: 0.765
+    reference_kg_per_nm: 25.23
+    reference_ff_kg_hr: 12217
+    source: OpenAP dragpolar yml
+  B788:
+    openap_type: B788
+    CD0: 0.017
+    K: 0.041
+    e: 0.819
+    reference_kg_per_nm: 11.21
+    reference_ff_kg_hr: 5493
+    source: OpenAP dragpolar yml
+  B789:
+    openap_type: B789
+    CD0: 0.022
+    K: 0.042
+    e: 0.783
+    reference_kg_per_nm: 15.31
+    reference_ff_kg_hr: 7501
+    source: OpenAP dragpolar yml
+  A350:
+    openap_type: A359
+    CD0: 0.022
+    K: 0.043
+    e: 0.783
+    reference_kg_per_nm: 17.06
+    reference_ff_kg_hr: 8361
+    source: OpenAP dragpolar yml
+  A380:
+    openap_type: A388
+    CD0: 0.016
+    K: 0.05
+    e: 0.855
+    reference_kg_per_nm: 30.67
+    reference_ff_kg_hr: 15024
+    source: OpenAP dragpolar yml

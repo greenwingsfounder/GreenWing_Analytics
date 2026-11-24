@@ -52,17 +52,17 @@ PRE-REAL-DATA DEMO ONLY. Not for operational or regulatory use without real QAR/
 """
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
 
 # === PORTABLE ROOT (fixes all Path + import errors) ===
 # Run from anywhere: VS Code, terminal, scripts dir, project root.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.ingestion import CalibrationPipeline
 from config.ingestion_config import DEFAULT_INGESTION_CONFIG
-from src.logging_config import setup_logging, get_logger
+from src.ingestion import CalibrationPipeline
+from src.logging_config import get_logger, setup_logging
 
 # Central logging setup (pre-real best practice)
 setup_logging(level="INFO")
@@ -77,7 +77,7 @@ def run_pre_real_demo(tenant_id: str = "sunexpress_demo", n_flights: int = 30):
     print(f" Requested flights : {n_flights}")
     print(f" Pipeline version  : {DEFAULT_INGESTION_CONFIG.PIPELINE_VERSION}")
     print(f" Min flights gate  : {DEFAULT_INGESTION_CONFIG.MIN_FLIGHTS_FOR_CALIBRATION}")
-    print(f" Date (UTC)        : {datetime.now(timezone.utc).isoformat()}")
+    print(f" Date (UTC)        : {datetime.now(UTC).isoformat()}")
     print("=" * 82)
     print("⚠️  PRE-REAL-DATA DEMO ONLY — NOT FOR OPERATIONAL / REGULATORY / CORSIA USE")
     print("=" * 82)
@@ -93,7 +93,18 @@ def run_pre_real_demo(tenant_id: str = "sunexpress_demo", n_flights: int = 30):
     if result.get("status") != "SUCCESS":
         print("\n❌ PIPELINE REJECTED (strict enterprise gates)")
         print(f"   Message: {result.get('message')}")
-        print("   Action: use more flights (>=15) or real data with better quality.")
+        # DENETİM #92: mesaj her durumda ">=15 uçuş" diyordu — oysa
+        # reddin nedeni farklı olabilir (eşleşme az / kalite düşük).
+        _m = str(result.get('message', ''))
+        if 'Quality gate' in _m:
+            print("   Action: model sapması eşiğin üstünde. BU İYİ BİR ŞEY —")
+            print("           sistem kötü kalibrasyonu KABUL ETMİYOR.")
+            print("           Gerçek veriyle tekrar denenmeli; sentetik veri")
+            print("           kalibrasyon için temsili değildir.")
+        elif 'matched' in _m:
+            print("   Action: daha fazla uçuş veya daha iyi veri kalitesi.")
+        else:
+            print("   Action: log'a bakın (yukarıda ayrıntı var).")
         return result
 
     print("\n[1] CUSTOMER FUEL INGESTION + FLIGHT MATCHER")
@@ -126,7 +137,7 @@ def run_pre_real_demo(tenant_id: str = "sunexpress_demo", n_flights: int = 30):
         print(f"    split_info      : {split}")
 
     saved = pipe.save_calibration()
-    print(f"\n[3] SAVED CALIBRATION ARTIFACT (full provenance)")
+    print("\n[3] SAVED CALIBRATION ARTIFACT (full provenance)")
     print(f"    File                 : {saved}")
     print(f"    config_snapshot_hash : {result.get('config_snapshot_hash')}")
     print(f"    pipeline_version     : {result['pipeline_version']}")

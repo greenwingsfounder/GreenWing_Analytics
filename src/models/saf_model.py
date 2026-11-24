@@ -36,6 +36,7 @@ import os
 import yaml
 from typing import Dict, Any, Optional
 from src.logging_config import get_logger
+from config.settings import EI_CO2
 
 logger = get_logger("models.saf")  # Central logging (SAF + CORSIA preparation)
 
@@ -217,7 +218,7 @@ class SAFModel:
         # Yaşam döngüsü CO2 azaltımı (tonnes)
         # 1 kg Jet A-1 yandığında 3.16 kg CO2 üretir. Ofset azaltımı yaşam döngüsündeki CO2 tasarrufu kadardır.
         co2_saved_tonnes = (
-            (flight_fuel_consumption_kg * 3.16 / 1000.0)
+            (flight_fuel_consumption_kg * EI_CO2 / 1000.0)
             * (self.get_lifecycle_co2_reduction_pct() / 100.0)
         )
 

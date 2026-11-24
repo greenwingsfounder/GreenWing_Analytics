@@ -1,0 +1,60 @@
+source: Yayımlanmış faz yakıtlarından geri çözüm (B738/B77W/A380)
+method: r = solve(FF_EDB(r) == FF_faz_yayımlanmış)
+note: 'Değerler segment-ortalama thrust oranlarıdır. Belirsizlik: ±1σ (uçak ailesi
+  yayılımı).'
+uncertainty: phase fuel ±25 % (1σ); toplam görev yakıtında etki ±2 %
+phases:
+  GROUND:
+    median: 0.042506124955751706
+    mean: 0.04031089297762533
+    stdev: 0.010378889998669991
+    per_aircraft:
+      B738: 0.0494
+      B77W: 0.029
+      A380: 0.0425
+    physical_range: 0.029–0.049
+  TAKEOFF:
+    median: 0.2950012351600326
+    mean: 0.3294452383128141
+    stdev: 0.09524831685431545
+    per_aircraft:
+      B738: 0.295
+      B77W: 0.2562
+      A380: 0.4371
+    physical_range: 0.256–0.437
+  CLIMB:
+    median: 0.21384257764766912
+    mean: 0.22701030942383268
+    stdev: 0.053210168527479194
+    per_aircraft:
+      B738: 0.2138
+      B77W: 0.1816
+      A380: 0.2856
+    physical_range: 0.182–0.286
+  DESCENT:
+    median: 0.05887265862910332
+    mean: 0.057109186123518306
+    stdev: 0.011428711967375042
+    per_aircraft:
+      B738: 0.0589
+      B77W: 0.0449
+      A380: 0.0676
+    physical_range: 0.045–0.068
+  APPROACH:
+    median: 0.10470902351798708
+    mean: 0.10427730842255395
+    stdev: 0.0214463528490056
+    per_aircraft:
+      B738: 0.1047
+      B77W: 0.0826
+      A380: 0.1255
+    physical_range: 0.083–0.126
+  HOLDING:
+    median: 0.14319638710645877
+    mean: 0.14036935138917014
+    stdev: 0.028338892927581797
+    per_aircraft:
+      B738: 0.1432
+      B77W: 0.1107
+      A380: 0.1672
+    physical_range: 0.111–0.167

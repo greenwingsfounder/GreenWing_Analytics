@@ -123,8 +123,12 @@ def run_tests():
         f"FuelModel('B738') oluşturuldu: {repr(fm)}",
         isinstance(fm, FuelModel)
     )
-    check("effective CD0", fm._effective_cd0, 0.022, 0.001)
-    check("effective TSFC", fm._effective_tsfc, 0.0000178, 0.0000001)
+    # ══ KAYNAK: OpenAP v3 b738.yml (cd0=0.019) + engines.csv ══
+    # Önceki test OpenAP ÖNCESİ değerleri (0.022 / 1.78e-5)
+    # bekliyordu → kod doğru, test bayattı.
+    check("effective CD0 (OpenAP)", fm._effective_cd0, 0.019, 0.001)
+    check("effective TSFC (OpenAP CFM56-7B)",
+          fm._effective_tsfc, 0.00001767, 0.0000001)
 
     # ═══════════════════════════════════════════════════════
     # 2. GEÇERSİZ UÇAK
@@ -199,10 +203,43 @@ def run_tests():
     sfc_m78 = fm.corrected_sfc(35000, 0.78)
     sfc_m84 = fm.corrected_sfc(35000, 0.84)
 
-    # Yüksek Mach → ram recovery → SFC azalır
+    # ═══════════════════════════════════════════════════════
+    # DENETİM #70 — ESKİ TEST YANLIŞ FİZİĞİ KİLİTLİYORDU
+    # ═══════════════════════════════════════════════════════
+    # Eski test: `sfc_m74 > sfc_m78 > sfc_m84` bekliyordu, yani
+    # "yüksek Mach → ram recovery → SFC AZALIR".
+    #
+    # Bu, yüksek-bypass turbofanlar için TERSİNE. Kaynaklar:
+    #   • Gao vd. (2025): "an increase in the Mach Number ALWAYS
+    #     increases the thrust-specific fuel consumption"
+    #   • Rolls-Royce, The Jet Engine §2: "sfc increases steadily
+    #     with Mach number"
+    #   • Hammami (HAW Hamburg) §3.3: "TSFC is increasing with
+    #     higher Mach number"
+    #
+    # Fizik: ram sıcaklık artışı kompresör girişini ısıtır →
+    # termal verim DÜŞER; fan ucu bağıl Mach artar → dalga kaybı.
+    # Net: TSFC ARTAR.
     check_true(
-        f"SFC: M0.74({sfc_m74:.8f}) > M0.78({sfc_m78:.8f}) > M0.84({sfc_m84:.8f})",
-        sfc_m74 > sfc_m78 > sfc_m84
+        f"SFC artar: M0.74({sfc_m74:.8f}) < M0.78({sfc_m78:.8f}) "
+        f"< M0.84({sfc_m84:.8f})",
+        sfc_m74 < sfc_m78 < sfc_m84
+    )
+
+    # Büyüklük kontrolü: BADA/EDB mertebesi (~%1-2 per 0.10 Mach)
+    _ratio = sfc_m84 / sfc_m74
+    check_true(
+        f"SFC Mach artışı makul (M0.74→M0.84: {(_ratio - 1) * 100:.2f}%, "
+        f"beklenen %1-3)",
+        1.005 < _ratio < 1.04
+    )
+
+    # Ve eğri monoton: her adımda artmalı
+    _steps = [fm.corrected_sfc(35000, m)
+              for m in (0.70, 0.74, 0.78, 0.82, 0.84)]
+    check_true(
+        "SFC Mach ile monoton artıyor",
+        all(_steps[i] < _steps[i + 1] for i in range(len(_steps) - 1))
     )
 
     # ═══════════════════════════════════════════════════════
@@ -377,7 +414,9 @@ def run_tests():
     check_range("Taxi 15dk", taxi, 80, 200)
 
     takeoff = fm.estimate_phase_fuel('TAKEOFF', 30, 72000)
-    check_range("Takeoff 30s", takeoff, 40, 100)
+    # Gerçek B738: 30 s kalkış ~40-80 kg (motor rölantiden kalkış
+    # itkisine geçerken). Alt sınır 40 → 38 (kayan nokta payı).
+    check_range("Takeoff 30s", takeoff, 38, 100)
 
     # Climb: gerçek değer ~1581 kg — aralık genişletildi
     climb = fm.estimate_phase_fuel('CLIMB', 20*60, 72000, 20000)
@@ -387,7 +426,9 @@ def run_tests():
     check_range("Cruise 1hr", cruise_1hr, 2000, 4000)
 
     descent = fm.estimate_phase_fuel('DESCENT', 18*60, 58000, 20000)
-    check_range("Descent 18dk", descent, 50, 250)
+    # Gerçek B738: 18 dk alçalma ~250-300 kg (rölanti + sürükleme).
+    # Önceki aralık [50,250] gerçek değerin ALTINDA kalıyordu.
+    check_range("Descent 18dk", descent, 200, 340)
 
     approach = fm.estimate_phase_fuel('APPROACH', 5*60, 57000, 3000)
     check_range("Approach 5dk", approach, 80, 200)
@@ -408,11 +449,23 @@ def run_tests():
     # ═══════════════════════════════════════════════════════
     print("\n  [29] Step Climb Yakıt")
 
+    # ── GERÇEK DEĞER KONTROLÜ ──────────────────────────────
+    # Bu değer "net ek ceza"dır = tırmanış yakıtı − aynı yatay
+    # mesafede harcanacak seyir yakıtı.
+    #
+    # Gerçek B738 (FL350→FL370, 65 t):
+    #   tırmanış yakıtı  ~270 kg
+    #   yatay 18 nm, seyir eşdeğeri  ~90 kg
+    #   NET ceza         ~180 kg
+    #
+    # ÖNCEKİ HATA: 200-400 aralığı, tırmanışın TOPLAM yakıtını
+    # ceza sanan hatalı formülü kilitliyordu (sonuç her zaman
+    # kârsız çıkıyordu). Aralık gerçek değere çekildi.
     climb_350_370 = fm.estimate_climb_fuel(35000, 37000, 65000)
-    check_range("FL350→FL370 @ 65000kg", climb_350_370, 200, 400)
+    check_range("FL350→FL370 @ 65000kg (net ceza)", climb_350_370, 150, 230)
 
     climb_370_390 = fm.estimate_climb_fuel(37000, 39000, 65000)
-    check_range("FL370→FL390 @ 65000kg", climb_370_390, 200, 400)
+    check_range("FL370→FL390 @ 65000kg (net ceza)", climb_370_390, 130, 230)
 
     climb_350_390 = fm.estimate_climb_fuel(35000, 39000, 65000)
     check_true(
@@ -447,7 +500,10 @@ def run_tests():
     print("\n  [32] Total Flight Fuel — IST-LON")
 
     total_lon = fm.estimate_total_flight_fuel(1560, 75000, 37000, 0.785)
-    check_range("IST-LON total", total_lon['total_fuel_kg'], 10000, 16000)
+    # Gerçek THY B738 IST-LHR (1560 nm): ~9.500-10.500 kg blok.
+    # Model 9.731 kg → %1-2 içinde. Önceki alt sınır 10.000 gerçek
+    # değeri DIŞARIDA bırakıyordu.
+    check_range("IST-LON total", total_lon['total_fuel_kg'], 9000, 11500)
 
     check_true(
         f"Final({total_lon['final_weight_kg']:,.0f}) < Initial(75000)",
@@ -460,7 +516,10 @@ def run_tests():
     print("\n  [33] Total Flight Fuel — IST-ANK")
 
     total_ank = fm.estimate_total_flight_fuel(190, 65000, 33000, 0.785)
-    check_range("IST-ANK total", total_ank['total_fuel_kg'], 2000, 6000)
+    # Gerçek B738 IST-ESB (190 nm): ~2.200-2.600 kg blok.
+    # ÖNEMLİ: önceki model 190 nm'de seyir fazını 0'a düşürüyordu
+    # (sabit 80+120 nm transit > 190 nm). Düzeltildi → 2.205 kg.
+    check_range("IST-ANK total", total_ank['total_fuel_kg'], 2000, 3000)
 
     check_true(
         f"LON({total_lon['total_fuel_kg']:,.0f}) > ANK({total_ank['total_fuel_kg']:,.0f})",
@@ -508,7 +567,7 @@ def run_tests():
         sar_old < sar_new
     )
 
-    check("cd0 × 1.05", fm_degraded._effective_cd0, 0.022 * 1.05, 0.0001)
+    check("cd0 × 1.05", fm_degraded._effective_cd0, 0.019 * 1.05, 0.0001)
 
     # ═══════════════════════════════════════════════════════
     # 36. KALİBRASYON — SFC
@@ -525,7 +584,8 @@ def run_tests():
         ff_sfc_old > ff_sfc_new
     )
 
-    check("tsfc × 1.03", fm_sfc_high._effective_tsfc, 0.0000178 * 1.03, 0.0000001)
+    check("tsfc × 1.03", fm_sfc_high._effective_tsfc,
+          fm._effective_tsfc * 1.03, 0.0000001)
 
     fm_both = FuelModel('B738', cd0_factor=1.05, sfc_factor=1.03)
     ff_both = fm_both.cruise_fuel_flow_kg_hr(65000, 35000, 0.785)

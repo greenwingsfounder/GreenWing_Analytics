@@ -765,6 +765,109 @@ def run_tests():
     # ═══════════════════════════════════════════════════════
     # SONUÇ
     # ═══════════════════════════════════════════════════════
+
+    # ═══════════════════════════════════════════════════════════
+    # 34. COST INDEX — BOYUT DOĞRULUĞU (gerçek havayolu aralığı)
+    # ═══════════════════════════════════════════════════════════
+    print("\n  [34] Cost Index — boyut doğruluğu")
+    try:
+        # NOT: import BURADA YAPILMAZ. Yapılırsa Python bu adı tüm
+        # fonksiyon boyunca YEREL sayar ve satır 339'daki kullanım
+        # UnboundLocalError verir. Global import (satır 77) yeterli.
+        _ci = CostIndexOptimizer('B738')
+        _r = _ci.optimize_cost_index(
+            distance_nm=1240, altitude_ft=35000, weight_kg=65000,
+            fuel_price_usd_per_kg=0.85, time_cost_usd_per_hr=2000,
+        )
+        _ci_v = _r.get('optimum', {}).get('cost_index', -1)
+        # Gerçek: $0.85/kg = 38.6 cent/lb → CI = 2000/38.6 = 52
+        check_range('B738 CI (0.85 $/kg, 2000 $/hr)', _ci_v, 45, 60)
+        check_true(f'CI havayolu aralığında (0-999): {_ci_v}', 0 <= _ci_v <= 999)
+
+        # Yakıt pahalı → CI düşmeli
+        _r2 = _ci.optimize_cost_index(
+            distance_nm=1240, altitude_ft=35000, weight_kg=65000,
+            fuel_price_usd_per_kg=1.6, time_cost_usd_per_hr=2000,
+        )
+        check_true('yakıt pahalı → CI düşük',
+                   _r2['optimum']['cost_index'] < _ci_v)
+
+        # Zaman pahalı → CI artmalı
+        _r3 = _ci.optimize_cost_index(
+            distance_nm=1240, altitude_ft=35000, weight_kg=65000,
+            fuel_price_usd_per_kg=0.85, time_cost_usd_per_hr=4000,
+        )
+        check_true('zaman pahalı → CI yüksek',
+                   _r3['optimum']['cost_index'] > _ci_v)
+
+        # Boyut kanıtı: cent/lb dönüşümü raporlanıyor mu?
+        _basis = _r.get('optimum', {}).get('ci_basis', {})
+        if _basis:
+            check_range('cent/lb çevrimi (0.85 $/kg)',
+                        _basis.get('fuel_cost_cent_per_lb', 0), 37, 40)
+    except Exception as _e:
+        check('CI boyut testi çalıştırılabilir', False, repr(_e))
+
+
+    # ═══════════════════════════════════════════════════════════
+    # 35. KALİBRASYON — SINIR DAVRANIŞI (bounds gerçekten uygulanıyor mu?)
+    # ═══════════════════════════════════════════════════════════
+    print("\n  [35] Kalibrasyon — sınır davranışı")
+    try:
+        from src.optimization.model_calibrator import ModelCalibrator as _MC
+        from src.models.fuel_model import FuelModel as _FM2
+
+        _fm2 = _FM2('B738')
+
+        def _mk(mult):
+            out = []
+            for d, alt in ((800, 35000), (1200, 37000), (1000, 36000)):
+                base = _fm2.estimate_total_flight_fuel(
+                    d, 68000, alt, 0.78)['total_fuel_kg']
+                out.append({'distance_nm': d, 'actual_fuel_kg': base * mult,
+                            'cruise_altitude_ft': alt,
+                            'takeoff_weight_kg': 68000})
+            return out
+
+        # (a) Makul sapma (%8) → kutu içinde, at_bound False
+        _r = _MC('B738').calibrate(_mk(1.08))
+        _cf = _r['calibration_factors']
+        check_true(f"kalibrasyon SUCCESS: {_r['status']}", _r['status'] == 'SUCCESS')
+        check_true(f"%8 sapma → faktör kutu içinde "
+                   f"(cd0={_cf['cd0_factor']})", not _cf['at_bound']['cd0'])
+        # NOT: birleşik faktör (%8 sapma için ~1.18) doğrusal değildir.
+        # CD0 ve SFC'nin yakıt akışına etkisi farklı yollardan geçer;
+        # optimizasyon bunu telafi eder. ASIL ölçüt kalibrasyon
+        # SONRASI hatanın düşmesidir — aşağıda doğrulanıyor.
+        from src.models.fuel_model import FuelModel as _FM3
+        _fm3 = _FM3('B738', cd0_factor=_cf['cd0_factor'],
+                    sfc_factor=_cf['sfc_factor'])
+        _errs = []
+        for _d, _a in ((800, 35000), (1200, 37000)):
+            _true = _fm2.estimate_total_flight_fuel(
+                _d, 68000, _a, 0.78)['total_fuel_kg'] * 1.08
+            _pred = _fm3.estimate_total_flight_fuel(
+                _d, 68000, _a, 0.78)['total_fuel_kg']
+            _errs.append(abs(_pred - _true) / _true * 100)
+        check_true(f'kalibrasyon sonrası hata < %1 ({max(_errs):.2f}%)',
+                   max(_errs) < 1.0)
+
+        # (b) Aşırı sapma (%60) → kutu dışı, at_bound True olmalı
+        _cf2 = _MC('B738').calibrate(_mk(1.60))['calibration_factors']
+        check_true(f"%60 sapma → cd0 sınırda ({_cf2['cd0_factor']})",
+                   _cf2['at_bound']['cd0'])
+        check_true(f"%60 sapma → sfc sınırda ({_cf2['sfc_factor']})",
+                   _cf2['at_bound']['sfc'])
+        check_range('cd0 kutu içinde kalıyor', _cf2['cd0_factor'], 0.85, 1.25)
+        check_range('sfc kutu içinde kalıyor', _cf2['sfc_factor'], 0.90, 1.15)
+
+        # (c) 3 uçuştan az → açık hata (sessiz kalibrasyon YOK)
+        _r3 = _MC('B738').calibrate(_mk(1.10)[:2])
+        check_true(f"2 uçuş → ERROR (sessiz geçmez): {_r3['status']}",
+                   _r3['status'] == 'ERROR')
+    except Exception as _e:
+        check('kalibrasyon sınır testi', False, repr(_e))
+
     print(f"\n  {'─' * 50}")
     print(f"  Toplam test : {tests}")
     print(f"  Başarılı    : {tests - len(errors)}")

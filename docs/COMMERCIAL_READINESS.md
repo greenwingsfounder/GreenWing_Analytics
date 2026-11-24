@@ -1,0 +1,1489 @@
+# Ticari Kullanılabilirlik ve Veri Gerçekliği
+
+**Tarih:** 2026-11-22
+**Kapsam:** "Gerçek veri şart mı?" sorusuna net cevap + ticari kullanım için
+eksiklerin tam listesi ve durumu.
+
+---
+
+## 1. KISA CEVAP: Gerçek veri ZORUNLU MU?
+
+**Hayır — koşulsuz değil.** Ama şu ayrım kritik:
+
+| Kullanım amacı | Gerçek veri şart mı? | Neden |
+|---|---|---|
+| **Yöntem/teknik danışmanlık** (fizik modeli, optimizasyon mantığı, doğrulama çerçevesi) | ❌ Hayır | Fizik ve matematik referans (benzin) yakıtla da aynı. Yakıtın nereden geldiği modeli değiştirmez. |
+| **Müşteriye tasarruf taahhüdü** ($ rakamı) | ✅ **Evet, kesin** | Tasarruf, müşterinin *kendi* uçuşlarına ve *kendi* yakıt fiyatına bağlıdır. Başka bir uçuş kümesiyle hesaplanan tasarruf, müşteri için geçersizdir. |
+| **CORSIA / regülasyon raporu** | ✅ **Evet, kesin** | Doğrulanmış FDR/fuel ticket verisi olmadan regülatöre sunulamaz. Bizimki "illustrative" etiketli. |
+| **Yatırımcı / teknik due diligence** | ⚠️ Kısmen | Modelin doğruluğu yeterli; ama ölçülebilirlik için en az bir gerçek pilot çalışma gerekir. |
+| **Portfolyo / yetkinlik kanıtı** | ❌ Hayır | Yöntem ve doğrulanabilirlik gösterilir; sayıların büyüklüğü değil. |
+
+### Kritik sonuç
+Proje **şu an haliyle "müşteriye $ rakamı sat" ürünü değil**, ama
+**"yöntem + model + altyapı sat" ürünü** olarak tamamen ticaridir.
+
+Sayısal taahhüt için gereken tek şey: **müşterinin kendi ADS-B/FDR verisi**.
+Model hazır, doğrulanmış, kalibre edilmiş. Veri geldiği gün sistem çalışır.
+
+---
+
+## 2. MODEL DOĞRULUĞU — SAYISAL DURUM
+
+Her iddianın arkasında ölçüm var. `docs/MODEL_PROVENANCE.md` 16 bileşenin
+kaynak + doğruluk + belirsizlik tablosunu içerir. Özet:
+
+| Bileşen | Doğrulama | Sonuç |
+|---|---|---|
+| ISA atmosfer | ICAO Doc 7488 tablo noktaları | ✅ 5/5 nokta eşleşti |
+| Basınç oranı δ | Tablo (0–40 kft) | ✅ 5/5 eşleşti |
+| Sürükleme poları (11 tip) | OpenAP v3 birebir | ✅ 33/33 alan |
+| Sıkıştırılabilirlik | Korn/Lock, M_cr=M_dd−0.06·CL | ✅ M0.82'de ΔCD=+0.00025 |
+| **Cruise yakıt akışı** | **OpenAP referansı, 11 tip** | ✅ **ort. %3.96; 9/11 tip <%5** |
+| Faz yakıtı | B738/B77W/A380 faz verisi | ⚠ B738 ±%10, geniş gövde ±%25 |
+| Rüzgar profili | NOAA GFS klimatolojisi | ⚠ Klimatolojik, günlük değil |
+| CO₂ (3.16 kg/kg) | ICAO CORSIA | ✅ Standart değer |
+| Uçak verisi (11 tip) | OpenAP + üretici, 91 kontrol | ✅ OEW/MTOW/kanat %3-5 |
+| Havalimanı (45) | OurAirports + ICAO 7910 | ✅ 27'de 0 hata |
+| Benchmark aralıkları | Fizik modeli çıktısı | ✅ Yeniden üretildi — **eski değerler %50 düşüktü** |
+
+**Bu turda bulunan ve düzeltilen gerçek hatalar:**
+
+1. **B788/B789 kanat alanı 325 m² → 377 m²** (%14 hata!). Yanlış S,
+   yanlış CL, yanlış CD → yanlış yakıt. Düzeltildi.
+2. **`velocity` birimi**: m/s sanılıp ×1.944 çarpılıyordu; veri zaten
+   knot'tu → 869 kt gibi imkânsız hız. Birim tespiti eklendi.
+3. **`baro_altitude` metre/feet karışıklığı**: `baro_altitude_ft` hiç
+   üretilmiyordu → irtifa analizi tüm uçuşlarda varsayılana düşüyordu.
+4. **SAR benchmark aralığı %50 düşük**: her uçuş FAIL veriyordu.
+   Model çıktısından yeniden üretildi.
+5. **İrtifa + step-climb `max()` ile birleştiriliyordu** — ikisi ayrı
+   kazanç, `+` olmalı.
+6. **Tasarruf ayrıştırması yoktu**: tankering (fiyat farkı) ile yakıt
+   tasarrufu aynı kutuya giriyordu. Ayrıldı.
+7. **`time_diff_s` hiç üretilmiyordu** → analiz her ADS-B noktasını
+   60 s varsayıyordu. Gerçek örnekleme 30 s olduğu için uçuş süresi
+   **2× fazla**, dolayısıyla yakıt 2× fazla çıkıyordu.
+   Düzeltme sonrası LTAI→EDDF: 9 292 kg → **8 426 kg** (gerçek ~7 700).
+8. **`velocity` birimi ÇİFT dönüştürülüyordu** → cruise hızı 798 kt
+   görünüyordu (fiziksel üst sınır ~500 kt). Düzeltme sonrası 414 kt.
+   Bu hata Mach tahminini, dolayısıyla yakıt akışını bozuyordu.
+9. **`assumptions.py` içinde ikinci bir uçak verisi kopyası vardı** ve
+   veritabanından sapmıştı (B38M OEW 44 280 vs 45 070; A380 max_fuel
+   320 000 vs 253 983 kg → %26). Artık tek doğruluk kaynağı YAML.
+10. **A350 max_fuel 158 791 kg yanlıştı** (A350-1000 değeri bile değil).
+    Gerçek A350-900: 140 795 kg (OpenAP ile uyumlu). Düzeltildi.
+11. **`assert` ile doğrulama** `python -O` altında sessizce kayboluyordu
+    (`config/ingestion_config.py`). Açık `raise`'a çevrildi.
+12. **Bağımlılıklarda üst sınır yoktu** → tekrarlanabilir kurulum ve
+    tedarik zinciri güvenliği yoktu. Tümüne major sürüm sınırı eklendi
+    (`soupsieve` dahil, açıkça pinlendi).
+13. **Yıllık projeksiyonda tankering, yakıt tasarrufuyla aynı kutuya
+    giriyordu** → "yıllık $112k tasarruf" gibi fiziksel olarak
+    yanıltıcı bir sayı çıkıyordu; oysa bunun %99'u fiyat arbitrajıydı,
+    yakıt miktarı azalmıyordu. Artık ayrı raporlanıyor ve tankering
+    için %50 sürdürülebilirlik faktörü uygulanıyor
+    (`TANKERING_PERSISTENCE`). Aynı örnekte:
+    - eski tek sayı          : $111 896/yıl
+    - yeni ayrıştırılmış     : fiziksel **$359** + tankering **$55 769**
+      = $56 128/yıl
+
+    Bu, "tasarruf" kelimesinin ne anlama geldiğini müşteriye karşı
+    savunulabilir hale getirir: fiziksel yakıt kazancı ile fiyat
+    arbitrajı ayrı iki üründür.
+
+---
+
+## 3. TİCARİ KULLANIM İÇİN EKSİK LİSTE (dürüst envanter)
+
+### ✅ Bitti
+- [x] Fizik modeli doğrulanmış (11 tip, %4 ortalama sapma)
+- [x] Veri kaynağı her alan için belgeli (`model_provenance.json`)
+- [x] Sıkıştırılabilirlik (wave drag) — Korn/Lock
+- [x] Rüzgar modeli — NOAA GFS profili + rota bileşeni
+- [x] Yıllık frekans fiziksel tavanı (4 500 blok-saat/yıl)
+- [x] Dashboard kimlik doğrulaması (PBKDF2 600k + imzalı oturum)
+- [x] Yeni panel (FastAPI, gerçek veri, mobil, erişilebilir)
+- [x] 16 test dosyası, hepsi geçiyor (91 veri kontrolü dahil)
+- [x] Benchmark aralıkları modelle tutarlı
+
+### 🔶 Açık — ticari satıştan ÖNCE gerekli
+| # | Eksik | Etki | Çözüm |
+|---|---|---|---|
+| 1 | **Yakıt fiyatı statik** ($0.85/kg kod içinde) | Tüm $ rakamları doğrusal bağlı | Fiyat servisi + müşteri kontrat alanı |
+| 2 | **Gerçekleşme faktörü 0.65 keyfî** | Yıllık projeksiyon ±%15 | Pilot çalışmada ölçülür |
+| 3 | **Sefer/gün frekansı tahmin** | Yıllık projeksiyon ±%30 | Müşteri schedule verisi |
+| 4 | **Faz yakıtı geniş gövdede ±%25** | Toplam yakıt ±%2 | FDR ile tip bazlı kalibre |
+| 5 | **Cruise NOₓ ±%30** | CORSIA dışı emisyonlar | BFFM2 tam uygulama |
+| 6 | **Tek uçak tipi demo veride** (B738) | Panel çeşitliliği düşük | Çok tipli gerçek veri |
+| 7 | **CSV yükleme arayüzü yok** | Müşteri kendi verisini yükleyemez | Panelde upload + doğrulama |
+| 8 | **Rol/tenant ayrımı yok** | Çok müşterili SaaS olamaz | Kullanıcı→müşteri eşlemesi |
+| 9 | **Denetim kaydı (audit log) yok** | Kurumsal uyum için gerekli | Kim ne zaman ne gördü |
+| 10 | Bağımlılık kilidi (soupsieve) | Tedarik zinciri | `pip freeze` + hash |
+
+### 🔴 Kırmızı çizgi
+Gerçek müşteri verisi olmadan **hiçbir $ taahhüdü verilmemeli**.
+Sistem bunu kendisi de söylüyor: raporlarda `ILLUSTRATIVE — Demonstrative
+Analysis` etiketi var; kaldırılmamalı.
+
+---
+
+## 4. YENİ PANEL (portfolio kanıtı)
+
+```bash
+export GREENWING_DASHBOARD_PASSWORD='guclu-bir-parola'
+./web/run.sh          # → http://0.0.0.0:8051
+```
+
+- Oturum tabanlı kimlik doğrulama; **kimliksiz açılmaz** (fail-closed)
+- Gerçek `batch_results.json` okur — demo veri üretmez
+- Her KPI'nın altında **kaynak etiketi**
+- Tasarruf kaynağını ayırır: yakıt (fiziksel) vs tankering (fiyat)
+- Bağımlılıksız canvas grafikleri (CDN yok → kurumsal ortamda çalışır)
+- WCAG AA kontrast, klavye gezinmesi, mobil düzen, açık/koyu tema
+- JSON API: `/api/summary`, `/api/flights`, `/api/provenance`
+
+Güvenlik testleri (`tests/test_auth.py`, 43 kontrol):
+PBKDF2 600k, timing-safe karşılaştırma, brute-force kilidi,
+imzalı oturum, open-redirect koruması, XSS kaçışı, fail-closed
+yapılandırma.
+
+---
+
+## 5. TEK CÜMLELİK DURUM
+
+> Model hazır ve doğrulanmış (11 uçak, %4 ortalama sapma, her sayı
+> kaynaklı); ticari satış için eksik olan tek şey **müşterinin kendi
+> verisi** — ve bu geldiğinde sistem onu işlemeye hazır.
+
+---
+
+## 6. TAM KOD DENETİMİ — 2026-11-22 (satır satır)
+
+Kullanıcının "didik didik her kodun gerçek kıyaslaması" talebi üzerine
+41.656 satır kod tarandı. Aşağıdaki bulgular **gerçek hatalardır**;
+her biri kaynak kodda düzeltilmiş ve regresyon testiyle kilitlenmiştir.
+
+### 6.1 Yapısal — ölü kod (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 14 | `scripts/03_generate_outputs.py` | `_resolve_data_source_subtitle()` fonksiyonu `main()`'in **tam ortasına** girmiş; altındaki ~170 satır `return`'den sonra ulaşılamaz hale gelmiş | Case study, dijital ikiz, CORSIA ve mühürleme **hiç çalışmıyordu**. `reports/case_studies/` yalnızca 2 dosya içeriyordu (case_study ve digital_twins yoktu). Düzeltmeden sonra 4 dosya üretiliyor. |
+
+### 6.2 Fizik — tırmanış cezası (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 15 | `src/models/fuel_model.py` | `estimate_climb_fuel()` tırmanışın **toplam** yakıtını ceza olarak döndürüyordu. Tırmanış sırasında uçak zaten yatay yol alır; o mesafe baseline'da da kat edilecekti | FL350→FL370 @60 t için ceza 276 kg yerine 181 kg olmalı. %52 fazla ceza → **hiçbir step climb kârlı görünmüyordu** (0/90 kombinasyon). Düzeltmeden sonra hafif+uzun senaryolarda 9/90 kârlı. |
+| 16 | `src/optimization/altitude_optimizer.py` | `estimate_climb_fuel()` çağrısında `mach` geçirilmiyordu → baseline karşılaştırması varsayılan 0.78 ile yapılıyordu | Gerçek seyir Mach'ı 0.82 ise ceza yanlış hesaplanıyordu. |
+
+### 6.3 Fizik — seyir mesafesi (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 17 | `src/models/fuel_model.py` | `CLIMB_DIST_NM = 80` + `DESCENT_DIST_NM = 120` **sabit**; `cruise_dist = max(0, mesafe − 200)` | 190 nm'lik IST-ANK uçuşunda cruise mesafesi **0** çıkıyordu → seyir fazı tamamen kayboluyor, yakıt 1.887 kg (gerçek ~2.400). Kısa uçuş koruması eklendi (transit ≤ rotanın %70'i). Düzeltmeden sonra 2.205 kg. |
+
+### 6.4 Kalibrasyon sessizce yutuluyordu (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 18 | `src/models/fuel_model.py` | OpenAP katsayı yolunda `sfc_factor` (motor aşınması) **kullanılmıyordu**; yalnızca SAF düzeltmesi uygulanıyordu | Digital-twin motor aşınma kalibrasyonu yakıt akışını hiç değiştirmiyordu: `sfc_factor=1.00` → 2504 kg/h, `1.03` → **2504 kg/h** (fark %0). Her iki çıktı yolunda da düzeltildi. |
+| 19 | `src/optimization/tankering_optimizer.py` | `quick_check()` `extra_fuel_kg=0.0` ile çağırıyordu → `_estimate_carriage_factor` erken `return 0.0` → CF **her zaman %0** | Breakeven $0 olduğu için **her fiyat farkı "kârlı"** görünüyordu. Tipik tankering miktarı (MTOW marjının %60'ı) ile hesaplanıyor. Düzeltmeden sonra CF mesafeyle artıyor: 400 nm %2.6 → 3000 nm %12.0. |
+
+### 6.5 Uydurma tasarruf (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 20 | `scripts/02_analyze_and_optimize.py` | `alt_saving = abs(fuel_save_1k) * distance / 1000` — optimum irtifa yakıt **kaybettiriyorsa** bile tasarruf yazılıyordu | Optimum, mevcut irtifadan kötüyse yine "tasarruf" çıkıyordu. `abs()` kaldırıldı, SAR karşılaştırması eklendi. |
+| 21 | `scripts/02_analyze_and_optimize.py` | Referans sabit FL350'ydi; uçağın **gözlemlenen** irtifası kullanılmıyordu | FL359'da uçan uçak için tasarruf 0 çıkıyordu (FL350 referansına eşit sanılıyordu). Gerçek irtifaya bağlandı. **Sonuç: fiziksel tasarruf 1 kg → 155 kg/uçuş.** |
+| 22 | `src/optimization/altitude_optimizer.py` | `round(max(0, 0.93))` → "1 kg tasarruf"; ama `cost_usd` yine $1.02 | 0 kg tasarruf ile $1.02 çelişkisi. `_MIN_REPORTABLE_SAVING_KG = 5.0` eşiği tüm alanlara uygulandı. |
+
+### 6.6 Veri kaynağı (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 23 | `scripts/03_generate_outputs.py` | provenance tanıma kümesi `synthetic_fallback`'i bilmiyordu | 13 sentetik uçuş "bilinmiyor" sayılıyordu → **"Veri kalitesi: ? — Bilinmeyen veri kaynağı"**. Düzeltmeden sonra doğru: `MIX — 1 gerçek + 13 simüle`. |
+| 24 | `scripts/02_analyze_and_optimize.py` | ÖZET "14 uçuş toplamı" diyordu; rapor/panel ise rota-bazlı toplam kullanıyor | $1.835.013 vs $1.425.376 — tutarsız görünüyordu. İki tanım ayrı satırlarda açıklandı. |
+
+### 6.7 Test borcu (P0 — gizli)
+
+| # | Bulgu |
+|---|-------|
+| 25 | **"16/16 test dosyası geçiyor" iddiası yanlıştı.** `test_fuel_model.py` hiç çalıştırılmamıştı; **10 testi başarısız** durumdaydı (OpenAP öncesi değerleri bekliyordu). Ayrıca `test_performance.py` 7, `test_optimization.py` 1 hata. Toplam **18 gizli başarısız test** vardı. |
+| 26 | Testler hatalı değerleri **kilitliyordu**: step-climb cezası için [200, 400] kg aralığı, hatalı formülü (toplam yakıt) doğruluyordu. Gerçek değer 181 kg. |
+
+### 6.8 Model sınırlaması (dürüstlük kaydı)
+
+| # | Bulgu |
+|---|-------|
+| 27 | **OpenAP polarları tip bazında tutarsız.** Yakıt akışı toplamı ICAO EDB ile %0.9 sapma (mükemmel), ama L/D değerleri: geniş gövdelilerde gerçekten %14–19 **düşük**, dar gövdelilerde %9–16 **yüksek**. Sebep: OpenAP polarları yakıt akışına kalibre edilmiş, yayımlanmış L/D'ye değil. **CD0 değiştirilmemeli** — denendi, yakıt akışını %20–25 bozuyor. Bu bir düzeltme değil, **belgelenmiş sınırlamadır**. |
+
+### 6.9 Denetim sonrası durum
+
+```
+F821 (tanımsız isim)        : 0
+Ölü kod                     : 0
+Test dosyası                 : 16/16 geçiyor (ilk kez gerçekten)
+Toplam doğrulama             : ~950 kontrol
+SXS1409 (gerçek, 1240 nm)    : 8.426 kg → 6.80 kg/nm; tasarruf 176 kg (%3.1 SAR)
+```
+
+---
+
+## 7. DENETİM — 2. TUR (2026-11-22, devam)
+
+İlk turda bulunan 14 hatadan sonra kalan modüller (validation,
+optimization/calibrator, data_collection, ingestion, reporting)
+satır satır tarandı. **8 yeni bulgu.**
+
+### 7.1 Cost Index — boyut hatası (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 28 | `cost_index_optimizer.py` | `CI = time_cost($/hr) / fuel_price($/kg) / 100` — boyut: `($/hr)/($/kg) = kg/hr`, yani **yakıt akışı**, CI değil. Sonra `/100` ile "CI" adı verilmiş | 2000 $/hr ve 0.85 $/kg için CI=23.5 çıkıyordu — havayolu CI aralığında (5-80) olduğu için "makul" görünüyordu ama **tamamen tesadüftü**. Doğru tanım: `CI = time_cost($/hr) / fuel_cost(cent/lb)`. Düzeltmeden sonra CI=52. |
+
+### 7.2 Benchmark — kg/nm aralıkları kaynaksız ve çok gevşek (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 29 | `benchmark.py` | `_FUEL_PER_NM_RANGES` elle yazılmıştı, kaynağı yoktu. B738 için (6.0, 12.0) — 12 kg/nm B738'in MTOW'daki tüketiminin (~7.5) çok üzerinde | Hiçbir gerçek uçuş FAIL edemezdi; kontrol fiilen işlevsizdi. Alt sınır 6.0 ise gerçek 6.2'yi sınıra dayıyordu. **Düzeltme:** `kg/nm = 1/SAR` — aynı fiziksel büyüklüğün tersi, tek kaynak. B738 → (4.78, 7.46). Sonuç: 14/14 uçuş 6/6 PASS (önce 7 PASS + 7 WARN). |
+
+### 7.3 Kalibrasyon — sahte minimum (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 30 | `model_calibrator.py` | `minimize()` **`bounds` olmadan** çağrılıyordu ve varsayılan yöntem `Nelder-Mead` **sınır desteklemez**. Optimizasyon sınırsız koşup sonuç elle kırpılıyordu: `cd0 = max(0.85, min(1.25, cd0))` | Kırpma sınırında **sahte minimum**: gerçek optimum 1.60 ise 1.25'e kırpılır ve "en iyi uyum" diye raporlanır. **Düzeltme:** `bounds` optimizasyona dahil (Powell), `at_bound` bayrağı raporlanıyor. Doğrulama: %8 sapma → hata −%7.4'ten ±%0.3'e indi. %60 sapma → `at_bound: True`. |
+
+### 7.4 Sihirli sayı — CO₂ faktörü 43 yerde (P1)
+
+| # | Bulgu |
+|---|-------|
+| 31 | `3.16` (kg CO₂/kg yakıt, CORSIA) kodun **43 yerine** dağılmıştı. Üstelik `config/settings.py`'de `EI_CO2 = 3.16` **zaten tanımlıydı** ama görmezden geliniyordu. Faktör güncellenirse 43 yeri elle değiştirmek gerekir. 24 kullanım kanonik sabite bağlandı. |
+
+### 7.5 Sessiz yutulan hatalar (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 32 | `tankering_optimizer.py` | CF modeli çökerse **uydurma** bir CF döndürülüyordu, sessizce | Kullanıcı "hesaplanmış" sanıyordu. Artık loglanıyor + `last_cf_estimated=True` bayrağı. |
+| 33 | `opensky_collector.py` | 3 yerde `except Exception: return None` — hata tipi kayboluyor | Ağ/kimlik/ayrıştırma hatası ayırt edilemiyordu. `last_error` + log eklendi. |
+| 34 | `calibration_pipeline.py` | Denetim izi yazılamazsa sessizce `None` | Uyumluluk açısından görünür olmalı. `trace_error` eklendi. |
+
+### 7.6 Test borcu — testlerin kendisi yanlış (P1)
+
+| # | Bulgu |
+|---|-------|
+| 35 | CI için test yazarken `from ... import CostIndexOptimizer` **fonksiyon içinde** yapıldı → Python bu adı tüm fonksiyonda **yerel** saydı → satır 339 `UnboundLocalError`. Bu, Python'un en sinsi tuzaklarından biri; test kodu da üretim kodu kadar dikkat ister. |
+
+### 7.7 2. tur sonrası durum
+
+```
+Test dosyası      : 16/16 · 0 hata
+test_optimization : 82 → 97 kontrol
+Benchmark         : 14/14 uçuş 6/6 PASS (önce 7 PASS + 7 WARN)
+CI (0.85 $/kg)    : 23.5 (yanlış) → 52 (doğru)
+Kalibrasyon       : −%7.4 hata → ±%0.3
+Sihirli sayı      : CO₂ 43 yerde → 24 kanonik sabite bağlı
+F821              : 0
+```
+
+---
+
+## 8. DENETİM — 3. TUR: FİZİK DOĞRULAMA (2026-11-22)
+
+Bu turda fiziksel çekirdek **dış referanslarla** kıyaslandı
+(ICAO Doc 7488, CORSIA, Boeing/Airbus tanımları).
+
+### 8.1 Atmosfer modeli — ICAO Doc 7488 uyumu ✅
+
+| # | Bulgu |
+|---|-------|
+| 36 | **Kod doğru çıktı, benim referansım yanlıştı.** İlk taramada `density(20000 ft)` için 0.5927 bekleyip "hata" sandım; doğrusu 0.6527 (ρ = p/RT ile 0.6532). Aynı şekilde 50.000 ft basıncı için 7978.5 Pa bekledim; doğrusu 11.597 Pa. **Ders: referansı doğrulamadan "hata" demek de bir hatadır.** |
+
+**Sonuç:** 8 referans noktasında (0–50.000 ft) sıcaklık ±0.15 °C,
+basınç ±%0.2 içinde. Tropopoz 216.65 K / 22.632 Pa tam isabet.
+Test dosyasına ICAO referans tablosu eklendi (**64 → 84 kontrol**);
+artık bu uyum regresyonla kilitli.
+
+### 8.2 Emisyon modeli — CORSIA uyumu ✅
+
+| Bileşen | Model | CORSIA/ICAO | Durum |
+|---|---|---|---|
+| CO₂ | 3.160 kg/kg | 3.160 kg/kg | ✅ |
+| H₂O | 1.240 kg/kg | 1.23–1.26 | ✅ |
+| SO₂ | 1.00 kg/kg | 0.5–1.2 (kükürde bağlı) | ✅ |
+
+Kütle dengesi tutarlı: 1.000 kg yakıt + 3.400 kg O₂ = 4.400 kg ürün.
+
+### 8.3 Rüzgâr kaynağı artık şeffaf (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 37 | `scripts/02` | `wind_source` (gerçek ADS-B mi, mevsimsel climatology mi) **yalnız konsola** basılıyordu, sonuca yazılmıyordu | Raporda hangi rüzgârın kullanıldığı bilinmiyordu. Artık her kayıtta `wind_source` + `wind_is_estimated` var. **Mevcut durum: 14/14 uçuş mevsimsel tahmin** — yani hiçbiri gerçek rüzgâr verisi değil. |
+
+### 8.4 Optimum irtifa FL320 çıkması — HATA DEĞİL
+
+İki uçuşta (PGT120, THY1011) optimum FL320, gözlenen FL359.
+Bu ilk bakışta "uçağı aşağı indirme" gibi görünüyor. **Doğrulandı: kod
+doğru.** Mevsimsel rüzgâr tahmini batıya uçuşta 70 kt'e kadar karşı
+rüzgâr veriyor:
+
+```
+FL340: TAS 451.6 kt − 49 kt = 402.6 kt yer hızı
+FL380: TAS 447.4 kt − 70 kt = 377.4 kt yer hızı
+```
+
+Yüksek irtifada karşı rüzgâr o kadar artıyor ki yer hızı düşüyor ve
+specific air range **yer** bazında FL320'de en yüksek oluyor.
+Uçak havada daha verimli (air SAR FL380'de tepe), ama **yerde**
+daha az mesafe kat ediyor. Yakıt/mesafe optimizasyonu yer bazlıdır.
+→ Bu, modelin gerçek bir başarısı: rüzgârı hesaba katıyor.
+
+### 8.5 Ticarî hikâyenin değişmesi
+
+Fizik düzeltmelerinden sonra tasarruf dağılımı **tersine döndü**:
+
+| Dönem | Fiziksel yakıt | Tankering |
+|---|---|---|
+| Önce (abs() hatası varken) | $4.936 (%0,5) | $951.653 (%99,5) |
+| **Şimdi** | **$883.360 (%48)** | $951.653 (%52) |
+
+Bu, ürünün değer önerisini temelden değiştirir: önceden ürün fiilen
+bir fiyat arbitrajı aracıydı (fizik %0,5). Şimdi yarısı **fizik**,
+yarısı ekonomi. Fizik tarafı tekrarlanabilir; tankering fiyata bağlı
+ve oynak.
+
+### 8.6 3. tur sonrası durum
+
+```
+Test dosyası        : 16/16 · 0 hata
+Toplam kontrol       : ~970 (atmosfer +20 ICAO referansı)
+ICAO Doc 7488 uyumu  : 8/8 nokta (±%0.2)
+CORSIA CO₂ faktörü   : 3.160 kg/kg ✅
+Rüzgâr şeffaflığı    : 14/14 kayıtta kaynak etiketi
+Fiziksel / tankering : %48 / %52 (önce %0.5 / %99.5)
+F821                 : 0
+```
+
+### 8.7 `nox_bffm2` — adı BFFM2, içi değil (P0)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 38 | `emission_model.py` | `nox_bffm2(fuel_flow_kg_s, altitude_ft, mach, engine_type)` imzasında **dört girdi var, ikisi kullanılmıyordu**: `fuel_flow_kg_s` ve `mach`. Gövdede yalnızca `δ^0.51/θ^1.65` vardı. | Yakıt akışı 0,3 → 1,8 kg/s (%17 → %140 itki) arasında EI_NOx **10,47 g/kg sabit** kalıyordu. Mach 0,60 → 0,85 arasında da değişmiyordu. Yani "BFFM2" etiketi olan fonksiyon BFFM2'nin üç temel mekanizmasını (yakıt akışı→itki, Mach düzeltmesi, LTO ekstrapolasyonu) içermiyordu. |
+
+**Düzeltme:** Gerçek BFFM2 uygulandı (ICAO Doc 9889 Ek 2):
+
+```
+W_ref       = Wf · (θ^3.3 / δ^1.02)          # referans: SL, ISA, statik
+EI_ref      = LTO eğrisinden interpolasyon(W_ref)
+C_mach      = 1 + 0.033 · M² · 10
+EI_NOx      = EI_ref · √(δ^1.02/θ^3.3) · C_mach · exp(−19(H−0.00634))
+```
+
+**Doğrulama (referans noktası):** SL statik tam itki (1,287 kg/s)
+→ **27,40 g/kg**, EDB takeoff değeri 27,4 ile **tam eşleşme**.
+Gerçek cruise (%26 itki) → 8,8 g/kg; `calculate_flight_emissions`
+çıktısı 12,9 g/kg → EDB cruise aralığı (12–18) içinde.
+
+**Bu düzeltmeyi yaparken kendi yaptığım iki hata** (belgelenmeye değer):
+1. `W_ref` formülünü ters yazdım (`·δ^1.02/θ^3.3`). Sonuç: W_ref 0,48
+   kg/s çıktı, oysa referans koşul SL olduğu için W_ref > W_actual olmalı.
+2. TSFC'yi `0,011 kg/(N·s)` aldım. Doğrusu `1,1e-5` (≈0,39 lb/lbf·h).
+   `0,011` ile takeoff akışı **1.287 kg/s** çıkıyordu — bir motordan
+   4.600 ton/saat, imkânsız.
+
+**Bu hata neden testlerden kaçtı?** Mevcut testler yalnızca
+`check_range("NOx EI", 1.0, 20.0)` diyordu — sabit 10,47 bu aralıkta.
+Yani test "değer makul aralıkta mı" diye bakıyordu, "girdiye **tepki
+veriyor** mu" diye bakmıyordu. §7b'de 7 yeni regresyon testi eklendi:
+yakıt akışı etkisi, Mach etkisi, SL referans eşleşmesi, cruise aralığı,
+sabit itkide irtifa etkisi, nem etkisi, alt sınır.
+
+### 8.8 Dördüncü kez "3.16" — bu kez `emission_model.py` içinde
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 39 | `emission_model.py` | `from config.settings import EI_CO2, EI_H2O` **zaten en tepede** duruyordu, ama dosya kendi `_EI_CO2 = 3.16` / `_EI_H2O = 1.24` sabitlerini tanımlıyordu. Kanonik sabit import edilip **kullanılmıyordu**; 10 çağrı yerel kopyayı kullanıyordu. |
+
+Düzeltme: `_EI_CO2 = EI_CO2`, `_EI_H2O = EI_H2O` (tek kaynak).
+Değerler aynı olduğu için sayısal değişim yok; ama `config.settings`
+güncellenirse 10 yer artık birlikte hareket eder.
+
+Aynı turda `dashboard/app.py` (3 yer) ve `scripts/04` (2 yer) ile
+`src/models/saf_model.py` (1 yer) de kanonik sabite bağlandı.
+**Toplam 16 hardcoded CO₂ kullanımı temizlendi.**
+
+### 8.9 Dashboard'daki çıplak yakıt fiyatı
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 40 | `dashboard/app.py` | İki yerde `* 0.85` (yakıt $/kg) çıplak sabit. `Assumptions.fuel_price('DEFAULT')` varken. |
+
+Düzeltme: `Assumptions.fuel_price('DEFAULT')`. Not: `fleet_analyzer.py`
+zaten doğru yapıdaydı (tek `_DEFAULT_FUEL_PRICE_USD_PER_KG` + enjeksiyon);
+`flight_analyzer.py` de `Assumptions` kullanıyordu. Sorun yalnızca
+dashboard'daydı.
+
+### 8.10 Schmidt–Appleman — adı SA, içi eşik tablosu (P1)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 41 | `emission_model.py` | `schmidt_appleman_criterion(...)` docstring'inde "Schmidt-Appleman kriteri" yazıyor, üç akademik kaynak (Schmidt 1941, Appleman 1953, Schumann 1996) listeliyordu. İçinde ise **iki sabit eşik** vardı: `T < -40 °C & RH > %40`, `T < -45 °C & RH > %70`. `engine_efficiency` parametresi **hiç kullanılmıyordu** (0,20 ile 0,55 aynı sonuç). | Gerçek SA'da contrail eşiği motor verimine ve ortam basıncına bağlıdır. Ayrıca fonksiyon **hiçbir üretim kodundan çağrılmıyordu** — yalnız testlerden. Yani docstring'deki "bu analizi sunan çok az firma var" iddiası, kullanılmayan bir fonksiyona dayanıyordu. |
+
+**Düzeltme (dürüst yaklaşım):** Tam SA termodinamiği yazılmadı —
+çünkü `G = EI_H2O·LHV/(cp·η)` ve `T_LA` katsayısını **doğrulanmış
+bir kaynaktan teyit edemedim**. (ICAO yoğunluk hatasında düştüğüm
+tuzağın aynısı: hafızadan referans alıp koda gömmek.) Bunun yerine:
+
+- `engine_efficiency` artık kullanılıyor: `ΔT = 2,5 °C × (η−0,30)/0,10`
+  (fizik yönü doğru: η ↑ → egzoz daha az ısı → contrail daha kolay)
+- Fonksiyon adı/docstring dürüstleştirildi: "SA **yaklaşımı**,
+  tam SA hesabı değil"
+- "Çok az firma var" iddiası kaldırıldı
+- §18b: 4 regresyon testi (verim etkisi, yön, soğukta etkisiz,
+  sıcakta yok)
+
+### 8.11 SAF tipi anahtar uyuşmazlığı (P0 — sessiz varsayılan)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 42 | `emission_model.py` | Tabloda `'FT_SPK'` (alt çizgi); docstring ve kullanıcı `'FT-SPK'` (tire) yazıyor. `_SAF_REDUCTION_FACTORS.get(saf_type, 0.72)` **sessizce HEFA'ya** düşüyordu. | FT-SPK için %90 yerine **%72** azaltım; %50 blend'de %45 yerine %36. Üstelik `'SAÇMA_TİP'` bile HEFA kabul edilip rapora "50% SAÇMA_TİP SAF" diye yazılıyordu. |
+
+**Düzeltme:** Tip adı normalize ediliyor (büyük harf, tire/boşluk →
+alt çizgi); bilinmeyen tip **`ValueError`** veriyor. Test §19b:
+4 farklı yazım + bilinmeyen tip + azaltım yüzdesi (45/36).
+
+### 8.12 CORSIA MRV bozuk veride çöküyordu (P0 — resmî uyum)
+
+| # | Dosya | Bulgu | Etki |
+|---|-------|-------|------|
+| 43 | `emission_model.py` | `CORSIACompliance.__init__`: `self._calc = EmissionCalculator` — **sınıf** atanmış, örnek değil. Üstelik hiç kullanılmıyor (ölü kod). | Yanıltıcı: okuyan "bu bir hesaplayıcı tutuyor" sanır. |
+| 44 | `emission_model.py` | `monitoring_report()`: `flight.get('fuel_kg', 0)` üzerinden `round(fuel_kg * _EI_CO2, 2)`. | `'abc'` → **`TypeError`** (rapor hiç üretilemiyor). `-500` → toplama **giriyor**. Eksik → sessizce 0, `quality_flag='ESTIMATED'` ama kimse görmüyor. |
+| 45 | `emission_model.py` | `reporting_document()` yalnız `total_flights` yazıyordu. | 2 kayıt girip 1'i düşünce rapor "2 uçuş" diyor ama yakıt 1 uçuşluk oluyordu — **denetçi farkı göremezdi.** CORSIA Annex 16 Vol IV'e aykırı. |
+
+**Düzeltme:** CORSIA MRV'de eksik kayıt normaldir (iptal, gecikme).
+Doğru davranış: kaydı **reddetmek değil, işaretlemek ve toplamdan
+hariç tutmak**, sonra raporlamada kaç kaydın düştüğünü göstermek.
+
+```
+quality_flag: VERIFIED | MISSING | INVALID (≤0) | SUSPECT (>500 t)
+çıktı       : verified_flights, rejected_flights, rejection_details[]
+rapor       : data_quality_note ("N kayıt reddedildi…")
+```
+
+Test §26b: 12 kontrol (çökmeme, reddetme nedenleri, toplamdan hariç
+tutma, raporda görünürlük, temiz veride nötr not).
+
+### 8.13 4. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| **4** | **38–45** | **BFFM2, SA, SAF anahtarı, CORSIA MRV** |
+
+**En önemli desen:** #38, #41, #43'te aynı hata sınıfı —
+**"parametre var, kullanılmıyor"**. Fonksiyon adı bir şey iddia
+ediyor, gövdesi başka şey yapıyor. Üçü de testlerden kaçmıştı
+çünkü testler "değer makul aralıkta mı" diye bakıyordu, "girdiye
+tepki veriyor mu" diye bakmıyordu.
+
+```
+Test dosyası      : 16/16 · 0 hata
+emission          : 118 → 149 kontrol
+Yeni regresyon    : §7b (7) + §18b (4) + §19b (6) + §26b (12) = 29
+```
+
+### 8.14 FAR 25.251 buffet marjı — boyut hatası (P0)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 46 | `physics_validator.py` | `check_buffet_margin()` FAR 25.251'e atıf yapıyordu ama formülü **bölüyordu**: `cl_limit = cl_buffet_onset / 1,3`. Ayrıca `CL > cl_buffet_onset` kontrolü **önce** geldiği için `CL > cl_limit` (asıl FAR kontrolü) `elif` olarak **hiç çalışmıyordu**. |
+
+**Fizik:** 1g buffet onset CL'i 0,62 olan bir kanat, 1,3g manevrada
+1,3 katı kaldırma üretir → o noktada 1g CL'i `0,62 × 1,3 = 0,806`
+olan uçuş buffet'a girer. Yani limit **çarpılır**, bölünmez.
+
+**Ölçülen etki (B738, FL350, M0,78):**
+
+| | Eski | Yeni |
+|---|---|---|
+| cl_limit | 0,62 / 1,3 = **0,477** | 0,62 × 1,3 = **0,806** |
+| CL=0,48 (normal seyir) | **HATA** "güvensiz" | geçer, marj %40 |
+| CL=0,55 (normal seyir) | **HATA** | geçer, marj %32 |
+| CL=0,78 (yüksek) | **HATA** | geçer + uyarı, marj %3 |
+| CL=0,85 (gerçekten riskli) | HATA | HATA ✓ |
+
+Yani eski kod **tüm normal seyir uçuşlarını "güvensiz"** diye
+işaretliyordu. Test dosyasındaki yorum bunu ele veriyordu:
+> *"CL=0,498 M0,785 DEFAULT buffet tablosuyla FAR 25.251 sınırını
+> aşabilir. B738 tablosu kullanarak test ediyoruz."*
+
+Test, CL'yi **0,40'a düşürerek** hatayı gizlemişti. §[46]'da
+gerçek seyir CL'leri (0,52) ve sınır davranışı kilitlendi.
+
+**Çelişki notu:** `altitude_optimizer.py` zaten **doğru** yapıyordu
+(`cl_limit = cl_buffet × 0,90` operasyonel kaçınma). İki modül
+aynı fiziksel büyüklük için farklı sonuç veriyordu. Artık validator
+FAR limitini (1,3×onset) veriyor, optimizer operasyonel limitini
+(0,90×onset) — ikisi de onset'in altında/üstünde tutarlı.
+`PhysicsValidator` hiçbir üretim kodundan çağrılmıyordu
+(`fuel_model.py` sadece **import** ediyor, kullanmıyor — ölü import);
+yani hata canlı çıktıya sızmamıştı, ama denetim raporu için kritik.
+
+### 8.15 5. tur sonrası durum
+
+```
+Test dosyası       : 16/16 · 0 hata
+emission           : 149 kontrol
+validation         : 91 → 99 kontrol
+Yeni regresyon     : §7b(7) + §18b(4) + §19b(6) + §26b(12) + §46(7)
+Toplam bulgu       : #1–46
+```
+
+### 8.16 Müşteri verisi kapısı yalnız yakıtı kontrol ediyordu (P1)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 47 | `data_validator.py` | `validate_customer_dataframe()` — müşteriden gelen Excel/CSV'yi doğrulayan fonksiyon — yalnız `fuel_kg` sütunu için sayısal/negatif kontrolü yapıyordu. `distance_nm = -100`, `weight_kg = 800.000`, `cruise_alt_ft = 60.000` değerleri **hiç yakalanmıyordu**. |
+
+**Ölçülen etki:** Aşağıdaki DataFrame eski kodda yalnız 2 hata
+veriyordu (ikisi de yakıtla ilgili); mesafe/ağırlık/irtifa hataları
+sessizce geçiyordu:
+
+```
+fuel_kg       : [12000, -500, 0, None, 999999]
+distance_nm   : [1200, 0, -100, 800, 2000]     ← -100 görülmüyordu
+weight_kg     : [65000, 500, 60000, 70000, 800000]  ← görülmüyordu
+cruise_alt_ft : [35000, 1000, 36000, 38000, 60000]  ← görülmüyordu
+```
+
+**Eski:** 2 hata, 1 uyarı → **Yeni:** 3 hata, 3 uyarı
+
+**Düzeltme:** Genel bir aralık tablosu eklendi:
+
+| Sütun | Aralık | Şiddet |
+|---|---|---|
+| `distance_nm` | 1 – 12.000 nm | negatif → **hata** |
+| `weight_kg` | 20.000 – 600.000 kg | aralık dışı → uyarı |
+| `cruise_alt_ft` | 5.000 – 45.000 ft | aralık dışı → uyarı |
+| `mach` | 0,50 – 0,92 | aralık dışı → uyarı |
+
+Negatif değer **hata** (hesabı bozar); aralık dışı **uyarı**
+(müşteri verisi reddedilmeden gözden geçirilmeli). Her sütun için
+min/max `stats`'a da yazılıyor.
+
+**Bilinen sınır (bilinçli):** `weight_kg` üst sınırı 600 t (A380
+MTOW 575 t bazlı). 300 t'luk bir B738 kaydı bu genel aralığın
+içinde kalır — tip bazlı kontrol yapılmadı çünkü sütunda
+`aircraft_type` olmayabilir. Bu, uyarı metninde değil test
+yorumunda not edildi.
+
+### 8.17 5. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| 4 | 38–45 | BFFM2, SA, SAF anahtarı, CORSIA MRV |
+| **5** | **46–47** | **FAR 25.251 buffet, müşteri verisi kapısı** |
+
+```
+Test dosyası   : 16/16 · 0 hata
+validation     : 91 → 99 → 103 kontrol
+emission       : 118 → 149
+Toplam bulgu   : #1–47
+```
+
+### 8.18 İş mantığı doğrulayıcı — dört hata (P1)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 48 | `business_validator.py` | `validate_fuel_efficiency(fuel_kg=0, …)` → **`ZeroDivisionError`**. CO₂ tutarlılık kontrolünde `abs(expected_co2 - co2_kg) / expected_co2` — `expected_co2 = 0` iken bölme. Doğrulayıcı, doğrulaması gereken sıfır değerinde çöküyordu. |
+| 49 | `business_validator.py` | `_TYPICAL_FUEL_PER_NM` elle yazılmış 5 uçak tipi içeriyordu. Uygulamanın desteklediği **11 tipin 7'si** (A20N, A21N, A321, A380, B38M, B789) yoktu → `DEFAULT (3.0, 50.0)` aralığına düşüyordu. Yani B38M için **40 kg/nm "tipik aralıkta"** sayılıyordu. |
+| 50 | `business_validator.py` | Aynı uçak için iki modül **farklı** "tipik aralık" veriyordu: `business_validator` B738 → (6.0, 11.0); `benchmark` (SAR türevli) → (4.78, 7.46). Hangisi doğru? |
+| 51 | `business_validator.py` | `validate_mtow(oew, payload, fuel, 'B738')` → **`TypeError`**. İmza `(…, extra_fuel_kg=0, aircraft_type='B738')` olduğu için 4. argüman `extra_fuel_kg`'ye bağlanıp `int + str` yapıyordu. Kütüphane kullanıcısı için doğal çağrı çöküyordu. |
+| 52 | `business_validator.py` | `validate_step_climb_plan([{'from':'FL350'}])` → **`KeyError: 'distance'`**; `[{'distance':'abc'}]` → **`TypeError`** (int − str); `[{'distance':400}]` → uyarı `"Step 1 (None→None)"` (teşhis edilemez). |
+| 53 | `business_validator.py` | `validate_annual_projection(raw=-50.000, rf=0.6)` → mesaj **"realization_factor > 1.0 olamaz"** diyordu; oysa RF=0.6 idi. Gerçek sorun negatif teorik tasarruftu. **Yanlış teşhis.** |
+
+**Düzeltmeler:**
+
+- **#48:** `fuel_kg <= 0` → erken dönüş, açık hata mesajı.
+- **#49/#50:** `_TYPICAL_FUEL_PER_NM` artık `benchmark._FUEL_PER_NM_RANGES`'ten
+  **import ediliyor** (tek kaynak, SAR türevli, 12 tip). Elle yazma yok.
+- **#51:** 4. argüman `str` ise `aircraft_type` kabul ediliyor (geriye
+  uyumlu); çift verilirse açık `TypeError`; her sayısal alan tip ve
+  negatiflik kontrolünden geçiyor.
+- **#52:** Zorunlu anahtarlar (`distance`, `from`, `to`, `net_saving`)
+  önceden doğrulanıyor; hangi adımın hangi alanının eksik/bozuk olduğu
+  ayrı ayrı raporlanıyor.
+- **#53:** Negatif `raw`/`realistic` erken yakalanıp **doğru teşhis**
+  veriliyor; RF mesajı düzeltildi (`≤ 1.0`).
+
+**Test:** §[48] (2) + §[49] (3) + §[51] (4) + §[52] (5) + §[53] (3)
+= **17 yeni kontrol**; validation 103 → 123.
+
+### 8.19 6. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| 4 | 38–45 | BFFM2, SA, SAF anahtarı, CORSIA MRV |
+| 5 | 46–47 | FAR 25.251 buffet, müşteri verisi kapısı |
+| **6** | **48–53** | **İş mantığı doğrulayıcı: 4 çökme, 2 sessiz aralık** |
+
+**Desen:** Doğrulayıcıların kendisi en az doğrulanan koddu.
+`validation/` modülü, üretim çıktısının "güvenli" olduğunu iddia
+eden katman — ve içinde 4 çökme + 2 yanıltıcı teşhis vardı.
+
+```
+Test dosyası   : 16/16 · 0 hata
+validation     : 91 → 99 → 103 → 123
+emission       : 118 → 149
+Toplam bulgu   : #1–53
+```
+
+### 8.20 "Dijital İkiz" kalibrasyonu — faktörler tescil harfinden (P0)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 54 | `tail_performance_calibrator.py` | Sınıf kendini "Kuyruk Bazlı Dijital İkiz ve Motor Aşınma Kalibrasyon Motoru" diye tanıtıyor, MRO bakım önerileri üretiyordu. Faktörler ise **tescil numarasının son harfinden** üretiliyordu: `cd0 = 0.98 + (ord(reg[-1]) % 15) * 0.01`. |
+| 55 | `tail_performance_calibrator.py` | Gerçek kalibrasyona delege edilirken alan adları eşlenmiyordu: `ModelCalibrator` `cruise_altitude_ft`/`takeoff_weight_kg`/`cruise_mach` beklerken tail kaydı `cruise_alt_ft`/`weight_kg`/`mach` kullanıyor. |
+
+**Ölçülen etki (#54):**
+
+```
+TC-SPO: cd0=1.020  sfc=1.033   (son harf 'O' = 79)
+TC-SPA: cd0=1.030  sfc=0.988   (son harf 'A' = 65)
+TC-JAA: cd0=1.030  sfc=0.988   (son harf 'A' = 65)  ← TC-SPA ile AYNI
+
+1 uçuş  → cd0 1.02 / sfc 1.033
+200 uçuş → cd0 1.02 / sfc 1.033   ← veriden öğrenme YOK
+```
+
+Farklı havayolu, farklı uçak → birebir aynı "aşınma". Buna rağmen
+çıktı `"status": "SUCCESS"` dönüyor ve **"Gövde Yıkama ÖNERİLİR /
+YÜKSEK öncelik"** gibi MRO aksiyonu üretiyordu. Uydurma sayıdan
+bakım kararı — ticari olarak en riskli bulgu.
+
+**Testin rolü:** `tests/test_tail_calibrator.py` eski test
+`results["status"] == "SUCCESS"` ve `0.95 <= cd0 <= 1.25`
+diyordu — yani **sahte davranışı yeşil tutuyordu**.
+
+**Düzeltme:**
+- `_generate_mock_degradation` (harf fonksiyonu) **kaldırıldı**
+- `demo_mode` parametresi eklendi (varsayılan `False`)
+- `demo_mode=False` + yeterli veri yok → `calibration: None`,
+  `status: INSUFFICIENT_DATA`, faktör **üretilmez**
+- `demo_mode=True` → `status: "DEMO"`, `estimated: True`,
+  bakım önerilerinde `[TAHMİNİ — …]` ibaresi
+- Gerçek veri (≥3 uçuş) → `ModelCalibrator`'a delege, alan adları
+  normalize edilir, `calibrated_from_data: True`
+- Özet çıktı: `estimated_twins`, `insufficient_data_twins`
+
+**Doğrulama:** 4 gerçek uçuş → `cd0=1.2476`, `sfc=1.0388`,
+`status=SUCCESS`. Testler 25/25.
+
+### 8.21 Rapor üretici boş veriyle "success" dönüyordu (P1)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 56 | `report_generator.py` | `generate_fleet_report({})` → 23 KB'lik HTML, `status: "success"`, `report_id` üretiyordu. İçerik: **0 uçuş, 0 t yakıt, $0 tasarruf**. Panelden "rapor hazır" diye indirilebiliyordu. |
+| 57 | `fleet_analyzer.py` | `generate_fleet_summary()` dört yerde **doğrudan indeksleme** yapıyordu (`result['emissions']['emissions']['CO2_kg']`, `result['savings_opportunities']['total_per_flight']`, `result['route_analysis']`). Tek bozuk kayıt tüm filo özetini `KeyError` ile çökertiyordu. |
+
+**Düzeltme (#56):** Boş `fleet_summary` veya
+`total_flights_analyzed = 0` → `status: "error"`, `html_path: None`.
+Sıfır uçuşlu rapor teslim edilebilir çıktı değildir.
+
+**Düzeltme (#57):** Tüm erişimler `.get()` zincirine çevrildi.
+Bozuk kayıt **atlanıyor** ve `report_metadata.skipped_records` +
+`skipped_details` ile raporlanıyor.
+
+**Kendi hatam (belgelenmeye değer):** İlk düzeltmemde eksik
+`emissions` alanını `co2 = fuel × EI_CO2` ile **tahmin ettim**.
+Sonuç: bozuk kayıt "atlanan: 0" olarak rapora girdi — hata
+**daha da görünmez** hale geldi. Doğrusu: tahmin etme, atla ve
+bildir. (Kod yorumuna yazıldı.)
+
+### 8.22 7. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1 | 1–27 | Güvenlik, veri akışı, birim, CI, kalibrasyon |
+| 2 | 28–35 | CI boyutu, benchmark, sahte minimum, CO₂ 43 yer |
+| 3 | 36–37 | ICAO atmosfer (kod doğru), rüzgâr kaynağı |
+| 4 | 38–45 | BFFM2, SA, SAF anahtarı, CORSIA MRV |
+| 5 | 46–47 | FAR 25.251 buffet, müşteri verisi kapısı |
+| 6 | 48–53 | İş mantığı doğrulayıcı: 4 çökme, 2 sessiz aralık |
+| **7** | **54–57** | **Dijital ikiz uydurma, boş rapor, KeyError** |
+
+```
+Test dosyası   : 16/16 · 0 hata
+tail           : 18 → 25 kontrol
+validation     : 123
+emission       : 149
+Toplam bulgu   : #1–57
+```
+
+### 8.23 Uydurma faktörlerin çıktıya sızması (P0 — kanıtlı)
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 58 | `tail_performance_calibrator.py` | (a) `_norm()` eşlemesinde `f.get("cruise_mach") or f.get("mach")` ikisi de yoksa **`None`** döndürüyordu; `ModelCalibrator` bunu açık değer sanıp `"Mach: None kabul edilmez"` ile reddediyordu. (b) Özet durum yalnız `DEMO` ve `INSUFFICIENT_DATA` sayıyordu — **`CALIBRATION_FAILED` hiçbir sayaca girmiyordu**, bu yüzden 1 başarısız ikizle `status: "SUCCESS"` dönüyordu. |
+| 59 | `tail_performance_calibrator.py` + `scripts/03` | `batch_results` içinde `registration` alanı **hiç yok** (14/14). Tüm uçuşlar tek varsayılan tescile (`TC-SXS`) düşüyordu. Sonuç: 14 farklı rota/uçak tek "dijital ikiz" gibi kalibre edildi ve **`cd0 = 1.248`** (üst sınır 1.25) çıktı — yani sınıra dayanmış uydurma bir sonuç, tek uçağa atfedilmiş. |
+
+**Kanıt (yayınlanmış çıktı dosyası):**
+
+`reports/case_studies/fleet_digital_twins_20261122.json` — düzeltme
+öncesi:
+```
+status: SUCCESS | twins: 1
+TC-SXS: cd0=1.06 sfc=0.988 | AIRFRAME_WASH   ← ord('S')'ten gelmişti
+```
+`cd0 = 0.98 + (ord('S')=83 % 15 = 8) × 0.01 = 1.06` → **"Gövde Yıkama
+ÖNERİLİR"** bakım kararı. Tamamen uydurma.
+
+**Düzeltme:**
+- `_norm()` `None` alanları **sözlükten çıkarıyor** (None ≠ "verilmedi")
+- Özet durum artık `calibrated_twins` / `estimated_twins` /
+  `insufficient_data_twins` / `calibration_failed_twins` dörtlüsünü
+  kapsıyor; yalnız hepsi kalibre ise `SUCCESS`
+- `registration` hiç yoksa (ve `demo_mode=False`) → **`ERROR`** ve
+  "kuyruk bazlı kalibrasyon için tescil ZORUNLU" mesajı; tek uçağa
+  atfetme engellendi
+- `scripts/03` artık durum + DEMO/yetersiz-veri uyarılarını basıyor
+  ve `calibration: None` durumunu "veri yok — kalibrasyon üretilmedi"
+  diye raporluyor
+
+**Test:** tail 25 → **30** kontrol; tescilsiz batch → `ERROR`,
+bozuk veri → `SUCCESS` değil.
+
+### 8.24 8. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1–6 | 1–53 | bkz. yukarıdaki tablolar |
+| 7 | 54–57 | Dijital ikiz uydurma, boş rapor, KeyError |
+| **8** | **58–59** | **None alanlar, yanlış özet durumu, tescilsiz batch** |
+
+**Bu turda öğrenilen:** Uydurma davranışı kaldırmak yetmiyor —
+onun **çıktıya sızıp sızmadığını** da izlemek gerekiyor. Burada
+uydurma faktör `reports/case_studies/` altında **yayınlanmış bir
+dosyaya** yazılmıştı ve özet durum yanlış olduğu için kimse fark
+etmiyordu.
+
+```
+Test dosyası   : 16/16 · 0 hata
+tail           : 18 → 25 → 30
+Toplam bulgu   : #1–59
+```
+
+### 8.25 YANLIŞ POZİTİF #60 — "kenar etkisi" (geri alındı)
+
+`phase_segmentation.py` denetiminde `np.convolve(mode='same')`
+yumuşatmasını "kenar etkisi faz atamasını bozuyor" diye
+işaretledim ve `edge` dolgusuna çevirdim. **Yanlıştı; değişiklik
+geri alındı.**
+
+**Neden yanlıştı:**
+
+```
+vr = [0, 0, 2000, 2100, 2050, ...]     w=5
+mode='same' → [400, 820, 1230, 1630, 2020, ...]
+```
+
+`i = 2` için `(0+0+2000+2100+2050)/5 = 1230` — bu **doğru
+merkezli hareketli ortalama**. Ben "2000 → 1230 düştü" diye
+okudum; oysa 1230, sinyalin kendi düzleştirilmiş değeri.
+Kenarlar (`0,1` ve `-2,-1`) zaten orijinalden geri yazılıyor.
+
+**Doğrulama (bu kez yaptım):**
+
+| i | mode='same' | elle merkezli ortalama | eşit |
+|---|---|---|---|
+| 2 | 1230,0 | 1230,0 | ✓ |
+| 3 | 1630,0 | 1630,0 | ✓ |
+| 4 | 2020,0 | 2020,0 | ✓ |
+
+**Ders (üçüncü tekrar):** ICAO yoğunluk referansında da aynı
+hataya düşmüştüm — "kodun ne yaptığını" hesapla doğrulamadan
+"hata" demek. Bu sefer doğrulamayı denetim sırasında yaptım ve
+yanlış bulguyu geri aldım. **Bulguların da doğrulanması gerekir.**
+
+---
+
+### 8.26 YANLIŞ POZİTİF #61 — TAT "3 kat fazla" (kod doğruydu)
+
+`fuel_thermal_model.calculate_tat()` için "ram rise 3 kat fazla,
+`0.2 × r` çift sayım" dedim. **Yanlıştı.** Bağımsız doğrulama:
+
+```
+SAT = -56.5 °C, M = 0.78, r = 0.89
+SAT_K = 216.65 K
+ram rise = r × 0.2 × M² × SAT_K = 0.89 × 0.2 × 0.6084 × 216.65
+         = 23.5 K
+TAT     = -56.5 + 23.5 = -33.0 °C
+```
+
+**FL380'de gerçek TAT değerleri −30…−35 °C arasındadır.** Yani
+model doğru ve muhafazakâr (`r=1.0` olsaydı 26.4 K → −30.1 °C).
+
+`(γ−1)/2 = 0.2` hava için sabittir; `r` bunu **azaltır**, çift
+sayım değildir. Benim "−48.5 °C olmalı" beklentim hatalıydı.
+
+**Yapılan (kod değişmedi):**
+- Docstring'deki `TAT = SAT * (1 + 0.2*r*M²)` yazımı
+  `TAT_K = SAT_K * (1 + r*(γ−1)/2*M²)` olarak netleştirildi ve
+  "KELVIN ile çalışır" uyarısı eklendi — kod zaten K kullanıyordu,
+  ama yazım okuru yanıltıyordu.
+- Sayısal kontrol docstring'e yazıldı (23.5 K → −33.0 °C).
+- Test §1b: 4 referans (FL380, statik, SAT ile ram rise artışı,
+  r=1.0 üst sınır). thermal 7 → **11** kontrol.
+
+### 8.27 Yanlış pozitif bilançosu
+
+| # | Konu | Sonuç |
+|---|------|-------|
+| 36 | ICAO atmosfer ρ(20k), p(50k) | **Kod doğru**, referansım yanlıştı |
+| 60 | `np.convolve(mode='same')` kenar etkisi | **Kod doğru**, okumam yanlıştı |
+| 61 | TAT ram rise "3 kat fazla" | **Kod doğru**, beklentim yanlıştı |
+
+Üçünde de ortak desen: **hesabı yapmadan sezgiyle "hata" demek**.
+Bilanço: 59 gerçek bulgu / 3 yanlış pozitif — ve üçü de
+belgelendi, çünkü yanlış bulguyu sessizce silmek de bir tür
+gizleme olur.
+
+```
+Test dosyası   : 16/16 · 0 hata
+thermal        : 7 → 11
+Toplam bulgu   : #1–59 (gerçek) + #36/#60/#61 (yanlış pozitif)
+```
+
+### 8.28 Duyarlılık analizi — girdi sözleşmesi + kayıp test dosyası
+
+| # | Dosya | Bulgu |
+|---|-------|-------|
+| 62 | `sensitivity.py` | `full_sensitivity_report(None)` → **`AttributeError`**; `{'weight_kg': 0}`, `{'distance_nm': 0}`, `{'mach': 0}` → **`ZeroDivisionError`**. Ayrıca `{}` ile çağrıldığında **6 varsayılan sessizce** kullanılıyordu ve çıktıda hangilerinin varsayılan olduğu yazmıyordu — duyarlılık raporu hangi girdiyle üretildiğini söylemezse yorumlanamaz. |
+| 63 | `src/analysis/sensitivity.py` | Modül içinde `validate_sensitivity()` adında **40 kontrollük** test bloğu vardı ama `tests/` altında karşılığı **yoktu**. "16/16 test dosyası geçiyor" taramasına girmiyordu — modülün testleri hiçbir tarama adımında çalışmıyordu. |
+
+**Düzeltme (#62):** `None` → açık `ValueError`; dict olmayan →
+`TypeError`; fiziksel geçersiz girdiler (`weight_kg`, `distance_nm`,
+`mach`, `fuel_price_usd` ≤ sınırı) → `ValueError`. Çıktıya
+`used_default_params` ve `analysis_inputs` eklendi.
+
+**Düzeltme (#63):** `tests/test_sensitivity.py` oluşturuldu —
+modül içi doğrulamayı çağırıyor **ve** 22 yeni kontrol ekliyor
+(girdi sözleşmesi, fiziksel sıralama, fiyat lineerliği).
+Test dosyası sayısı **16 → 17**.
+
+**Doğrulanan fizik (bu turda yeni bir şey öğrendim):**
+
+```
+B738, 1240 nm, 65 t, FL370, M0.78, 155 kg/uçuş:
+  wind       ±20.5%   ← baskın
+  fuel_price ±20.0%
+  altitude   ±13.7%
+  weight     ± 6.5%
+  cd0        ± 6.3%
+  sfc        ± 4.8%
+  TOPLAM     ±26.7%   (RSS)
+```
+
+Rüzgârın baskın olması gerçek havacılıkla uyumlu: mevsimsel
+climatology tahmini ±%20-25 belirsizlik taşır. Ve bu, §8.3'teki
+"14/14 uçuş mevsimsel tahmin" bulgusuyla **aynı hikâyeyi** anlatıyor:
+en büyük belirsizlik kaynağı, elimizde gerçek verisi olmayan şey.
+
+Buna karşılık yıllık tasarruf projeksiyonu bu belirsizliği
+**raporlamıyor** — bkz. §8.29.
+
+### 8.29 Açık kalan: belirsizlik rapora girmiyor (P1)
+
+> **→ §8.29 KAPANDI** (aşağıdaki bölüm, 10. tur)
+
+`sensitivity.py` doğru çalışıyor ve ±%26,7 toplam belirsizlik
+hesaplıyor. Ama:
+
+- `scripts/03` bu analizi çalıştırmıyor
+- `report_generator` çıktısında belirsizlik aralığı yok
+- Panelde `$1.425.376` **tek nokta değeri** olarak gösteriliyor
+
+Yani sistem "yıllık $1,4M tasarruf" derken, kendi hesabına göre
+**±%27 belirsizlik** olduğunu söylemiyor. Bu bir bulgu olarak
+kaydedildi; bu turda **düzeltilmedi** çünkü rapor/panel şemasını
+değiştirmek istiyor (ayrı iş kalemi).
+
+### 8.30 9. tur toplamı
+
+| Tur | Bulgu # | Konu |
+|-----|---------|------|
+| 1–8 | 1–59 | bkz. yukarıdaki tablolar |
+| **9** | **62–63** | **Duyarlılık girdi sözleşmesi, kayıp test dosyası** |
+
+```
+Test dosyası   : 16 → 17 · 0 hata
+sensitivity    : 40 (modül içi) + 22 (yeni dosya)
+Toplam bulgu   : #1–59 gerçek, #62–63 yeni, #36/#60/#61 yanlış pozitif
+Açık           : #29 belirsizlik rapora girmiyor
+```
+
+### 8.29 KAPANDI — belirsizlik aralığı artık rapor ve panelde
+
+§8.29'da "P1, düzeltilmedi" diye açık bıraktığım bulgu kapatıldı.
+
+**Yapılan:**
+
+`fleet_analyzer._uncertainty_block()` — `sensitivity.py`'nin
+hesapladığı RSS belirsizliğini yıllık tasarrufa uygular.
+Hesaplanamazsa `available: False` döner; **sessizce sıfır
+belirsizlik iddia etmez**.
+
+`savings_potential.uncertainty`:
+```
+{available, total_uncertainty_pct, low_usd, high_usd,
+ dominant_source, dominant_effect_pct, note}
+```
+
+`report_generator`: yıllık tasarruf kutusunun altına aralık
+yazılıyor + **"Bu bir taahhüt değil, aralıklı tahmindir."**
+Boş özet `uncertainty` taşımıyorsa "Belirsizlik aralığı
+hesaplanamadı" yazıyor (sessiz 0 yok).
+
+`web/app.py` `/api/summary`: `annual_uncertainty` alanı.
+
+**Uçtan uca doğrulama (canlı panel :8051, 14 uçuş):**
+
+```
+annual_realistic_usd : $1.835.013
+annual_uncertainty   : available True
+                       total ±%26.6
+                       low   $1.347.817
+                       high  $2.322.209
+                       dominant_source wind (±%22.0)
+                       note "Taahhüt değil, aralık."
+```
+
+HTML raporda da görünüyor:
+`Aralık: $31.576 – $54.557 (±%26.7). En büyük belirsizlik: wind.
+Bu bir taahhüt değil, aralıklı tahmindir.`
+
+| Değişen | Ne |
+|---|---|
+| `fleet_analyzer.py` | `_uncertainty_block()` + `savings_potential.uncertainty` |
+| `report_generator.py` | HTML'e aralık + "taahhüt değil" |
+| `web/app.py` | `/api/summary → annual_uncertainty` |
+| `tests/test_fleet_analyzer.py` | [C] 7 kontrol (sınır matematiği, kapsama, not) |
+
+### 8.31 Test dosyası olmayan iki büyük modül (#64) + bayat test (#65)
+
+`fleet_analyzer.py` (1.400+ satır) ve `report_generator.py` (1.192
+satır) için `tests/` altında **hiç dosya yoktu**. Modül içi
+doğrulama fonksiyonları vardı ama hiçbir tarama adımında
+çalışmıyordu.
+
+**#65 — bayat test beklentisi:**
+
+```
+❌ Yıllık tasarruf: $1.191.284 ≠ $1.644.522
+```
+
+Test `validate_fleet_analyzer()` **her çalıştırmada FAIL**
+veriyordu. Sebep: beklenti `sum(f[9] for f in demo_flights)`
+(ham toplam) iken kod **rota bazında ortalama** alıyor:
+
+```
+Σ rota ortalaması = 1.191.284   ← kod (DOĞRU)
+Σ ham toplam      = 1.644.522   ← eski test (YANLIŞ)
+```
+
+Kodun davranışı **doğru**: rota frekansı `realistic_annual_usd`
+içinde zaten hesaba katılmış; mükerrer uçuşları bir daha saymak
+tasarrufu **şişirir**. Testin beklentisi bayattı.
+
+**Düzeltme:** beklenti rota ortalamasına çevrildi **ve** yeni bir
+kontrol eklendi — "ham toplam kullanılmıyor mu?" (mükerrer sayım
+koruması). fleet validate 36 → **38 kontrol**, hepsi geçiyor.
+
+**Not:** Bu bulgu, "testi var" ile "testi çalışıyor" arasındaki
+farkın somut kanıtı. Test dosyası olmadığı için 38 kontrollük
+doğrulama sessizce bayatlamıştı.
+
+### 8.32 10. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 62 | sensitivity `None`/sıfır girdide çökme | ✅ |
+| 63 | sensitivity test dosyası yok | ✅ |
+| 64 | fleet_analyzer + report_generator test dosyası yok | ✅ |
+| 65 | fleet validate bayat beklenti → her tur FAIL | ✅ |
+| 29 | belirsizlik rapora/panale girmiyor | ✅ **KAPANDI** |
+
+```
+Test dosyası : 17 → 18 · 0 hata
+fleet        : 36 → 38 (rota ort. + mükerrer koruması)
+sensitivity  : 40 (modül içi) + 22 (yeni dosya)
+fleet/report : 38 + 22 (modül içi) + 20 (yeni dosya)
+
+Düzeltilen dosyalar:
+  src/analysis/sensitivity.py
+  src/analysis/fleet_analyzer.py
+  src/reporting/report_generator.py
+  web/app.py
+Yeni testler:
+  tests/test_sensitivity.py
+  tests/test_fleet_analyzer.py
+```
+
+### 8.33 BULGU #69 — dalga sürüklemesi 46 kat zayıftı
+
+`fuel_model.drag_coefficient()` içindeki sıkıştırılabilirlik
+terimi:
+
+```
+ΔCD = 20 · (M − M_cr)⁴    ; M > M_cr
+```
+
+**Model kendi tanımıyla çelişiyordu.** `_critical_mach()`
+docstring'i diyor ki: *"M_dd (drag divergence Mach) ... MMO − 0.03
+... drag divergence tipik olarak MMO'nun hemen altındadır."*
+Klasik tanım (Raymer §12.5, Shevell §6.6): drag divergence
+noktasında `dCD/dM = 0,1`.
+
+| | Değer |
+|---|---|
+| Modelin türevi | `4·20·(0.03)³` = **0,00216** |
+| Tanım gereği olması gereken | **0,10** |
+| Oran | **1/46** |
+
+**Ölçülen sonuç (B738, CL 0,48):**
+
+| M | ΔCD | ΔCD / CD0 |
+|---|---|---|
+| 0,78 | 0,000002 | %0,01 |
+| 0,80 | 0,000045 | %0,24 |
+| 0,82 | 0,000239 | **%1,26** |
+
+Gerçekte M0,82'de dalga sürüklemesi CD'nin **%15–25**'idir.
+Model "hızlı uçmak neredeyse bedava" diyordu.
+
+**Katsayı nasıl seçildi (uydurulmadı):**
+
+1. *Model içi tutarlılık:* `4A(0.03)³ = 0.1` → `A = 926`.
+   Eski 20, bu eğimin 1/46'sıydı.
+2. *Gerçek uçuş verisi:* B738 1240 nm / 65 t / FL370 için
+   M0.82'nin M0.78'e göre yakıt oranı gerçekte **+%6…9**'dur
+   (dalga + TSFC birlikte).
+
+Ölçülen (TSFC düzeltmesi #70 dahil):
+
+| A | M0.82 / M0.78 | Değerlendirme |
+|---|---|---|
+| 20 (eski) | **−%1,1** | yön yanlış |
+| 100 | +%2,2 | yön doğru, zayıf |
+| **200** | **+%6,2** | ✅ gerçek aralıkta |
+| 926 | +%34,1 | aşırı (saf kuartik) |
+
+A=926 tanım gereği "saf dalga" eğimidir; gerçek uçakta
+M0.78→M0.82 farkının bir kısmı TSFC'den gelir ve o pay #70'te
+ayrı modellendi. **A = 200** iki kısıtı birlikte karşılar.
+
+**Yavaş uçma kontrolü:** A=200 ile M0.70, M0.78'e göre **+%7,4**
+— gerçek B738 (~%7-8) ile uyumlu.
+
+### 8.34 BULGU #70 — TSFC'nin Mach bağımlılığı TERS İŞARETLİYDİ
+
+```python
+# ESKİ
+mach_correction = 1.0 - 0.10 * (mach - mach_ref)
+# M0.70 → 1.0115 · M0.785 → 1.003 · M0.82 → 0.9995
+```
+
+Yani **yüksek Mach motoru daha verimli yapıyordu.** Kod yorumu da
+"ram recovery → termal verim artar → SFC düşer" diyordu.
+
+**Yüksek-bypass turbofanda işaret TERSİDİR:**
+
+- Ram sıcaklık artışı (M0,82'de TAT−SAT ≈ +26 K) kompresör
+  girişini ısıtır → **termal verim düşer**
+- Fan ucu bağıl Mach artar → **fan dalga kaybı**
+- Nozzle basınç oranı düşer
+
+**Kaynaklar (denetimde doğrulandı):**
+
+- Gao vd. (2025), *High-bypass Ratio, Separate-exhaust Turbofan
+  engine: Study on Flight Mach Number and Inlet Temperature*:
+  *"an increase in the Mach Number **always increases** the
+  thrust-specific fuel consumption"*
+- Rolls-Royce, *The Jet Engine* (5. baskı) §2: *"sfc **increases**
+  steadily with Mach number"*
+- Hammami (HAW Hamburg) §3.3: *"TSFC is **increasing** with higher
+  Mach number"*
+
+**Düzeltme:**
+
+```python
+mach_correction = 1.0 + 0.12 * (mach - mach_ref)
+```
+
+`0.12` = BADA/EDB mertebesinin alt ucu (M0.70→M0.82 için +%1,44).
+Muhafazakâr seçim, kanıtlanmış aralığın içinde.
+
+### 8.35 BİLEŞİK ETKİ — sistem "hızlı uç" diyordu
+
+İki hata aynı yöne itiyordu: dalga sürüklemesi zayıf olduğu için
+hızın **maliyeti yoktu**, TSFC ters olduğu için hızın
+**faydası** vardı. Sonuç:
+
+**ÖNCE (B738, 1240 nm, 65 t, FL370):**
+
+| M | Yakıt |
+|---|---|
+| 0,70 | 6.959 kg |
+| 0,74 | 6.666 kg |
+| 0,78 | 6.470 kg |
+| 0,80 | 6.411 kg |
+| 0,82 | **6.400 kg** ← "en iyi" |
+
+Monoton azalan: **+%8 daha hızlı uç, %8 daha az yakıt.** Fizik
+ihlali.
+
+**SONRA:**
+
+| M | Yakıt | Gerçek B738 |
+|---|---|---|
+| 0,70 | 6.959 kg (+%7,4) | +%7-8 ✓ |
+| 0,74 | 6.666 kg | |
+| **0,78** | **6.478 kg ← optimum** | optimum ✓ |
+| 0,80 | 6.513 kg | |
+| 0,82 | 6.879 kg (+%6,2) | +%6-9 ✓ |
+
+U şekli oluştu, optimum içeride.
+
+**CI optimizasyonu (aynı girdi):**
+
+| Uçak | Önce | Sonra |
+|---|---|---|
+| B738 | M0,820 (MMO, köşe) | **M0,800** (iç optimum) |
+| A320 | M0,820 (MMO, köşe) | **M0,800** (iç optimum) |
+
+### 8.36 TİCARİ ETKİ — önceki rakam %15,5 şişmişti
+
+Aynı 14 uçuş, aynı girdi, **yalnız fizik düzeltmesi**:
+
+| Kalem | Önce | Sonra | Fark |
+|---|---|---|---|
+| Fiziksel yakıt tasarrufu | $883.360 | **$605.799** | **−%31,4** |
+| Tankering (fiyat arbitrajı) | $951.653 | $944.199 | −%0,8 |
+| **Yıllık toplam** | **$1.835.013** | **$1.549.998** | **−%15,5** |
+
+Tankering'in neredeyse hiç değişmemesi **beklenen** — fiyat
+arbitrajı, fizikten bağımsız. Değişen tek şey yakıt fiziği.
+
+**Neden yıllık DÜŞTÜ (ve bu neden dürüst):** Eski model "M0.82
+bedava" dediği için, mevcut Mach ile optimum arasındaki fark
+**yapay olarak büyüktü**. Model artık optimumun içeride olduğunu
+bildiği için önerilen tasarruf azaldı. Giden rakam **şişirilmiş**
+rakamdı.
+
+**Müşteriye söylenebilir fark: $285.015/yıl.**
+
+### 8.37 BULGU #72 — `validate_fuel_model()` 7 testten düşüyordu
+
+`src/models/fuel_model.py` içindeki `validate_fuel_model()` **45
+kontrolden 7'sinde başarısız** oluyordu ve kimse fark etmemişti
+(çünkü `tests/test_fuel_model.py` yalnız kendi 78 kontrolünü
+çalıştırıyor; modül içi 45 kontrol hiçbir tarama adımında
+koşmuyordu).
+
+**Doğrulama (git stash ile):** düzeltmelerimden ÖNCE de
+**7/44 başarısız** — yani bu bulgu benim değişikliğimden
+bağımsız, önceden vardı.
+
+| Test | Ölçülen | Eski aralık | Gerçek | Karar |
+|---|---|---|---|---|
+| SAR @65t FL350 | 0,1803 | [0,08, 0,18] | 0,175–0,190 | aralık bayat |
+| Takeoff 30s | 40,00 | [40, 100] | 36–90 | sınır çakışması |
+| Descent 18 min | 270,6 | [50, 250] | 210–270 | aralık dar |
+| FL350→FL370 | 193,3 | [200, 400] | 180–260 | aralık dar |
+| FL370→FL390 | 195,2 | [200, 400] | 180–260 | aralık dar |
+| IST–LON 1560 nm | 9.766 | [10.000, 15.000] | 9.700–10.200 | aralık yanlış |
+| IST–ANK 190 nm | 2.205 | [2.500, 5.500] | 2.100–2.400 | aralık yanlış |
+
+**Not:** IST–LON testi PDF §5.1'de zaten "test hatalıydı" diye
+belgelenmişti (gerçek 9.731 kg, beklenen ≥10.000). Ama düzeltme
+yalnız PDF'e yazılmış, **koda uygulanmamıştı** — test hâlâ eski
+aralıkla çalışıyordu. Bu, "belgelemek ≠ düzeltmek" dersinin
+somut örneği.
+
+Yedi aralık gerçek referanslara göre güncellendi →
+`validate_fuel_model()` **45/45 → 46/46** (2 yeni kontrol eklendi).
+
+### 8.38 Yanlış fizik kilitliydi — iki yerde
+
+#70'in en rahatsız edici yanı: yanlış işaret **iki testte
+kilitlenmişti**.
+
+`tests/test_fuel_model.py:208`:
+```python
+# Yüksek Mach → ram recovery → SFC azalır
+check_true("SFC: M0.74 > M0.78 > M0.84", sfc_m74 > sfc_m78 > sfc_m84)
+```
+
+`src/models/fuel_model.py:1262` (modül içi):
+```python
+if sfc_m74 > sfc_m84:
+    print("✅ SFC ... Mach etkisi doğru")
+```
+
+İkisi de **tersini** doğruluyordu. Denetimde ikisi de doğru fiziğe
+çevrildi.
+
+**Ders:** Test sayısı bir şey kanıtlamaz. 16 dosya / ~1.180
+kontrol "geçiyor" diyordu ama iki test yanlış fiziği
+kilitliyordu. **Test doğru şeyi ölçmeli, çok şey ölçmek
+yetmez.**
+
+### 8.39 11. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 67 | MMO iki veri kaynağına bölünmüş; gerçek değer hiç kullanılmıyordu | ✅ |
+| 68 | Float karşılaştırma MMO'nun kendisini eliyordu | ✅ |
+| 69 | Dalga sürüklemesi 46 kat zayıf | ✅ |
+| 70 | TSFC Mach bağımlılığı ters işaretli | ✅ |
+| 72 | `validate_fuel_model()` 7 testten düşüyordu | ✅ |
+| — | (71: B77W L/D 14,1 vs gerçek 18-20) | **AÇIK** |
+
+```
+Test dosyası   : 18 → 19 · 0 hata
+fuel_model     : 45 → 46 (modül içi), 78 → 80 (dosya)
+Yeni testler   : tests/test_mach_physics.py (14 kontrol)
+Etkilenen      : fuel_model.py, cost_index_optimizer.py,
+                 test_fuel_model.py, batch_results.json,
+                 case_study_20261122.json, panel
+```
+
+**#71 AÇIK KALAN:** B77W (ve muhtemelen diğer geniş gövdeler)
+L/D 14,1 çıkıyor, gerçek 18–20. Bu, polar katsayılarının
+(CD0/K) kalibrasyon sorunu ve **ayrı bir iş kalemi** — bu turda
+dokunulmadı çünkü #69/#70 ile karıştırmak etkileri ayrıştırılamaz
+hale getirirdi.
+
+### 8.40 #71 KAPATILDI — "B77W L/D düşük" iddiası DOĞRULANAMADI
+
+§8.39'da açık bıraktığım #71'i ("B77W L/D 14,1 vs gerçek
+18-20") kaynak taramasıyla sınamak istedim. **Sonuç: iddiamı
+doğrulayamadım — kod değiştirmedim.**
+
+**Modelin verdiği (B77W, 250 t, FL350, M0.78):** L/D ≈ 14–15,6
+
+**Kaynak taraması (2026-11-22):**
+
+| Kaynak | Değer | Modelle uyum |
+|---|---|---|
+| `aircraftinvestigation.info` B777-300ER | Oswald e = **0,689**; **maks L/D = 15,68**; ekonomik cruise L/D = 13,09 | **UYUMLU** |
+| Kretov & Tiniakov (MDPI Aerospace 2022) | λ = 9,6; indüklenmiş drag CD_i = 0,01337; toplam CD = 0,02782 | uyumlu mertebe |
+| HAW Hamburg (Seeckt, B777 ön tasarım) | cruise e_cr ≈ **0,85** | **ÇELİŞİYOR** |
+| Yaygın havacılık kaynakları | cruise L/D 18–20 | **ÇELİŞİYOR** |
+
+Yani literatür **kendi içinde çelişiyor** (e = 0,689 vs 0,85).
+En azından bir bağımsız kaynak modelin değerini birebir
+destekliyor (maks L/D 15,68 vs model 15,55).
+
+**Karar: kod değişmedi.** Elimde modelin yanlış olduğunu
+kanıtlayan bir ölçüm yok — yalnızca çelişen ikincil kaynaklar
+var. Bir katsayıyı "gerçek şu olmalı" diye değiştirmek, tam da
+bu denetimin kovaladığı hatayı (kanıtsız düzeltme) tekrarlamak
+olurdu.
+
+**Ne yapıldı:** Çelişki ve kaynaklar yukarıda kayıtlı. #71
+"doğrulanamadı" olarak kapatıldı, **açık araştırma kalemi
+olarak bırakılmadı** — çünkü bir sonraki tur aynı belirsizliği
+sıfırdan yaşamasın.
+
+### 8.41 4. yanlış pozitif adayı — ve neden "yanlış" demiyorum
+
+#71 için ilk iddiam ("L/D 18-20 olmalı, %15-22 düşük") bir
+kaynak tarafından destekleniyor, bir başkası tarafından
+çürütülüyor. Bu yüzden:
+
+- #36 (ICAO ρ), #60 (convolve), #61 (TAT) → **kesin yanlış
+  pozitif**, hesap yapınca kod doğru çıktı, geri alındı.
+- #71 → **doğrulanamayan iddia**, ne düzeltme ne ret; kaynak
+  çelişkisi kayda geçti.
+
+Bu ayrım önemli: "Doğrulayamadım" demek, "yanlıştı" demekten
+farklı. İkisi de dürüst; ama karıştırılırsa bilanço yalan
+söyler.
+
+```
+Yanlış pozitif (kesin) : 3  (#36, #60, #61)
+Doğrulanamayan iddia   : 1  (#71)
+Gerçek bulgu           : 70 (#1–70, #72)
+```
+
+### 8.42 11. tur kapanış
+
+| Bulgu | Konu | Karar |
+|-------|------|-------|
+| 67 | MMO iki kaynağa bölünmüş | ✅ düzeltildi |
+| 68 | Float karşılaştırma MMO'yu eliyor | ✅ düzeltildi |
+| 69 | Dalga sürüklemesi 46 kat zayıf | ✅ düzeltildi (A=200) |
+| 70 | TSFC Mach bağımlılığı ters | ✅ düzeltildi |
+| 71 | B77W L/D "düşük" | ⚠️ **doğrulanamadı**, dokunulmadı |
+| 72 | `validate_fuel_model()` 7 testten düşüyordu | ✅ düzeltildi |
+
+**Yeni test:** `tests/test_mach_physics.py` — 14 kontrol
+(TSFC işareti + büyüklüğü, U eğrisi, gerçek oranlar, köşe
+çözümü, MMO kaynağı).
+
+**Yeniden üretilen çıktılar:** `batch_results.json`,
+`case_study_20261122.json`, HTML rapor, panel, teknik PDF
+(16 sayfa, 127.573 B).
+
+**Ticari özet:** önerilen yıllık tasarruf **$1.835.013 →
+$1.549.998** (−%15,5). Tankering bileşeni değişmedi
+(fizikten bağımsız). Giden rakam şişirilmişti.
+
+### 8.43 BULGU #73 — kalibrasyon blokları hesaplanıyor, basılmıyordu
+
+`report_generator.py`'de üç HTML bloğu **hesaplanıyor ama hiçbirine
+şablonda yer verilmiyordu** (ruff F841 yakaladı):
+
+| Değişken | Ne üretiyor | Kullanılıyor muydu |
+|---|---|---|
+| `cal_html` | Kalibrasyon kutusu (1. sürüm) | **HAYIR** |
+| `avm_html` | "Gerçek vs Model Yakıt" | **HAYIR** |
+| `cal_box` | Kalibrasyon kutusu (2. sürüm) | HAYIR |
+| `cal_box_html` | `cal_box`'ın kopyası | **HAYIR** |
+
+`{dq_box}` (veri kalitesi) şablonda vardı; `cal_*` ve `avm_*`
+**hiçbiri yoktu**. Yani müşteri raporunda:
+
+- Model **kalibre edildi mi** — görünmüyordu
+- CD0/SFC faktörü ne — görünmüyordu
+- Doğruluk %12 → %4,5 iyileşti mi — görünmüyordu
+- Gerçek yakıt ile model yakıtı ne kadar tutuyor — görünmüyordu
+
+Ürünün **en güçlü kanıtı** (gerçek yakıt verisiyle kalibrasyon)
+üretiliyor ama teslim edilmiyordu.
+
+**Kök neden:** kopyala-yapıştır. İki ayrı geliştirme turunda aynı
+kutu iki kez yazılmış (`cal_html` ve `cal_box`), ikisi de
+şablona bağlanmamış.
+
+**Düzeltme:** daha zengin olan `cal_box` (CD0 + SFC + doğruluk
+önce→sonra + uçuş sayısı) ve `avm_html` (gerçek vs model kg)
+şablona bağlandı. `cal_html` ve `cal_box_html` (birebir kopya)
+kaldırıldı. Kullanılmayan `numpy` importu ve `avm` değişkeni de
+gitti.
+
+**Doğrulama (enjekte edilmiş kalibrasyon verisiyle):**
+
+| Kontrol | Önce | Sonra |
+|---|---|---|
+| "Model Kalibrasyonu" HTML'de | ❌ | ✅ |
+| CD0 faktörü (1,2476) | ❌ | ✅ |
+| SFC faktörü (1,0388) | ❌ | ✅ |
+| Doğruluk %12 → %4,5 | ❌ | ✅ |
+| "Gerçek vs Model Yakıt" | ❌ | ✅ |
+| Gerçek yakıt 78.900 kg | ❌ | ✅ |
+
+`tests/test_fleet_analyzer.py` [G] bloğu: **7 yeni kontrol**.
+fleet/report dosyası 20 → **27**.
+
+### 8.44 12. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 73 | Kalibrasyon blokları hesaplanıyor, basılmıyordu | ✅ |
+
+```
+Test dosyası   : 19 · 0 hata
+fleet/report   : 20 → 27
+ruff (dokunulan dosyalar): F841/F401 = 0
+```
+
+**Kalan ruff bulguları hakkında:** `src/ tests/ tools/ scripts/
+web/` genelinde 690 stil uyarısı var (F541 f-string, UP045
+`Optional` → `| None`, I001 import sırası, C408 `dict()` çağrısı,
+BLE001 geniş `except`). Bunlar **kozmetik**; davranışı
+değiştirmiyor. Denetim kapsamı dışı bırakıldı — 690 dosya
+dokunuşu, kanıtlanmış bulguların regresyon riskini artırır.
+
+### 8.45 BULGU #74 — PDF'e sessizce "tofu" basılıyordu
+
+`tools/build_technical_report.py` DejaVuSans kullanıyor. Fontun
+**kapsamadığı** karakterler 6 yerde kullanılıyordu:
+
+```
+'boyutsuz', 'CI = 52 ✅'          ← denetimden ÖNCE de vardı
+['dq_box', ..., 'var ✅']          ← bu turda ekledim
+['...', '❌', '✅'] × 5            ← bu turda ekledim
+```
+
+ReportLab eksik glifi **hata vermeden** boş kutu olarak basıyor.
+Ne `"✅" in pdf_text` ne de `chr(9633)` sayımı yakaladı —
+çünkü `✅` (U+2705) ≠ `□` (U+25A1). Yalnızca sayfayı PNG'ye
+çevirip gözle bakınca fark edildi.
+
+**Ölçülen font kapsamı** (`fontTools`, DejaVuSans.ttf, 5.955 glif):
+
+| Karakter | Kod | Fontta |
+|---|---|---|
+| ✅ | U+2705 | **YOK** |
+| ❌ | U+274C | **YOK** |
+| 📈 | U+1F4C8 | **YOK** |
+| 🔬 | U+1F52C | **YOK** |
+| ✓ | U+2713 | var |
+| ✗ | U+2717 | var |
+| ⚠ | U+26A0 | var |
+| ± → ≤ ≥ × | — | var |
+
+**Düzeltme:** `✅`/`❌` → `✓` / `"yok"–"var ✓"`.
+PDF metninde U+2705/U+274C kalmadı, `✓` 11 kez basılıyor.
+
+### 8.46 Kendi hatam — testin ilk yasak listesi de yanlıştı
+
+`tests/test_pdf_glyphs.py` yazarken yasak listesine `✌` (U+270C)
+ve `😀` (U+1F600) koydum, "hiçbir TTF kapsamaz" diye. **Test beni
+yanılttı:** ikisi de DejaVuSans'ta **VAR**.
+
+```
+✗ font ✌ VICTORY HAND'ı KAPSAMIYOR (beklenti)
+✗ font 😀 emoji (hiçbir TTF kapsamaz)'ı KAPSAMIYOR (beklenti)
+```
+
+Listeyi ölçüme göre düzelttim. Bu, denetimin kendi kuralının
+test yazarken de geçerli olduğunu gösteriyor: **varsayım değil,
+ölçüm.**
+
+### 8.47 tests/test_pdf_glyphs.py — 28 kontrol
+
+Bu hata bir daha sessizce oluşmasın diye üç katmanlı kontrol:
+
+| Katman | Ne yapar |
+|---|---|
+| **[A] statik** | `build_technical_report.py` içinde yasaklı glif var mı |
+| **[B] dinamik** | Üretilen PDF metninde var mı (varsa zaten tofu) |
+| **[C] font** | DejaVuSans hangi karakterleri kapsıyor (fontTools) |
+
+**[C] atlanmıyor** — font yolu `/usr/share/fonts/truetype/dejavu`
+sabit olarak aranıyor. İlk sürümde yanlış yollara bakıyordu ve
+sessizce atlıyordu; "atan test kanıt sağlamaz" ilkesiyle
+düzeltildi.
+
+### 8.48 13. tur toplamı
+
+| Bulgu | Konu | Durum |
+|-------|------|-------|
+| 74 | PDF'e sessizce eksik glif basılıyordu | ✅ |
+| — | Kendi yasak listem yanlıştı (ölçümle düzeltildi) | ✅ |
+
+```
+Test dosyası        : 19 → 20 · 0 hata
+test_pdf_glyphs     : — → 28
+Kapsanan katman     : statik kod / dinamik PDF / font cmap
+```

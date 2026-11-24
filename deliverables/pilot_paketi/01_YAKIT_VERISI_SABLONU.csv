@@ -1,0 +1,24 @@
+﻿ucus_no,tarih,kalkis,varis,ucak_tipi,kuyruk_no,kalkis_zamani,varis_zamani,taksi_yakiti_kg,blok_yakit_kg,ucus_yakiti_kg,cruise_irtifasi_ft,ortalama_mach,ziyaret_yuku_kg,yakit_fiyati_usd_kg,planlanan_yakit_kg,notlar
+# ÖRNEK SATIR — silin
+PC1201,2026-11-15,LTFJ,EHAM,B738,TC-CPN,2026-11-15T07:35Z,2026-11-15T11:10Z,180,6450,6270,37000,0.785,14800,0.82,6380,
+PC1202,2026-11-15,LTFJ,EDDF,B738,TC-CPP,2026-11-15T12:20Z,2026-11-15T15:05Z,175,5620,5445,35000,0.780,13900,0.82,5580,
+PC1203,2026-11-16,LTFJ,LTAI,A20N,TC-NBA,2026-11-16T06:10Z,2026-11-16T07:25Z,145,3180,3035,33000,0.770,16200,0.86,3110,kısa sektör
+
+# KOLON AÇIKLAMALARI
+#,ucus_no,ZORUNLU,Uçuş numarası (callsign),örnek: PC1201
+#,tarih,ZORUNLU,Kalkış tarihi (YYYY-AA-GG),örnek: 2026-11-15
+#,kalkis,ZORUNLU,Kalkış meydanı ICAO,örnek: LTFJ
+#,varis,ZORUNLU,Varış meydanı ICAO,örnek: EHAM
+#,ucak_tipi,ZORUNLU,"ICAO tip kodu (B738, A20N...)",örnek: B738
+#,kuyruk_no,ÖNERİLEN,Tescil (dijital ikiz için),örnek: TC-CPN
+#,kalkis_zamani,ZORUNLU,Gerçek kalkış (UTC),örnek: 2026-11-15T07:35Z
+#,varis_zamani,ZORUNLU,Gerçek iniş (UTC),örnek: 2026-11-15T11:10Z
+#,taksi_yakiti_kg,ÖNERİLEN,Taksi yakıtı (kg),örnek: 180
+#,blok_yakit_kg,ZORUNLU,Blok yakıt: kalkış öncesi − iniş sonrası,örnek: 6450
+#,ucus_yakiti_kg,ÖNERİLEN,Havada tüketilen (blok − taksi),örnek: 6270
+#,cruise_irtifasi_ft,ZORUNLU,Seyir irtifası (ortalama veya ilk),örnek: 37000
+#,ortalama_mach,ÖNERİLEN,Ortalama cruise Mach,örnek: 0.785
+#,ziyaret_yuku_kg,ÖNERİLEN,Kalkıştaki payload (yolcu+kargo),örnek: 14800
+#,yakit_fiyati_usd_kg,ÖNERİLEN,O uçuşun gerçek yakıt fiyatı,örnek: 0.82
+#,planlanan_yakit_kg,OPSİYONEL,OFP planı (sapma analizi için),örnek: 6380
+#,notlar,OPSİYONEL,"Anomali, holding, diversion vb.",örnek: 

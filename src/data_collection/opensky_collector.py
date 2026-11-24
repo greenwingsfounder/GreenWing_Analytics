@@ -1,29 +1,29 @@
 # src/data_collection/opensky_collector.py
 
 """
-GreenWing Analytics — OpenSky Network Veri Toplama ve Gerçek Uçuş Veri Havuzu
+GreenWing Analytics — OpenSky Network Veri Toplama
 ══════════════════════════════════════════════════════════════════════════════
 
 Bu dosya OpenSky Network API'dan gerçek uçuş verisi toplar.
 
-MÜKEMMEL VERİ DOĞRULUĞU VE GÜVENİLİRLİK (Zero-Fail Real Data Architecture):
-────────────────────────────────────────────────────────────────────────────
-    Havacılık verisi toplarken, OpenSky Network API'si (özellikle arrivals/departures)
-    halka açık hesaplar için sık sık yetersizlik (HTTP 403) veya hız sınırı (HTTP 429) verir.
-    Sunum veya test sırasında veri toplamanın sıfır hatayla (%100 uptime) çalışması için:
-    
-    1. HİBRİT AUTH: OAuth2 başarısız olursa anında Basic Auth oturumunu devreye sokar.
-    
-    2. GERÇEK UÇUŞ VERİ HAVUZU (Data Bank Fallback):
-       Sistem API hatası veya kısıtla karşılaştığında, matematiksel sentetik çizgiler üretmek
-       yerine, 'data/archive/opensky_real/' altında arşivlenmiş olan **%100 gerçek, radar kayıtlı,
-       anomalili (holding pattern, step climb, rüzgar sapması olan) uçuş yolu dosyalarını**
-       otomatik olarak yükler!
-       
-    3. CANLI ZAMAN KAYDIRMASI (Live Time-Shifting):
-       Arşivden yüklenen uçuşların tüm zaman damgaları (timestamps), anlık sistem zamanına göre
-       ileriye doğru kaydırılır. Böylece veriler **tamamen taze, canlı ve 5 dakika önce radarla
-       yakalanmış gerçek uçuşlar gibi** görünür.
+VERİ KAYNAĞI ŞEFFAFLIĞI (PROVENANCE):
+─────────────────────────────────────
+    Bu modül İKİ tür veri üretir ve ikisi de kaynağını açıkça taşır:
+
+    1. GERÇEK VERİ (collection_method = 'arrivals' / 'departures' / 'active_flight')
+       OpenSky Network API'sinden canlı çekilen ADS-B uçuş yolları.
+
+    2. SENTETİK YEDEK VERİ (collection_method = 'synthetic_fallback')
+       API 403/429 verdiğinde devreye giren, 'data/archive/opensky_real/'
+       klasöründeki dosyalar. ⚠️ ÖNEMLİ: scripts/06_seed_real_data.py bu
+       dosyaları matematiksel olarak ÜRETİR (simülasyon). Bunlar GERÇEK radar
+       kaydı DEĞİLDİR.
+
+    SENTETİK YEDEK VERİ:
+        • Artık "gerçek" olarak ETİKETLENMEZ (eski sürümde etiketleniyordu → düzeltildi).
+        • Zaman damgaları "canlıymış gibi" ileri KAYDIRILMAZ (eski sürümde kaydırılıyordu → düzeltildi).
+        • Her kayda 'synthetic_fallback' + 'data_provenance' damgası vurulur;
+          rapor/benchmark katmanı bunu sentetik olarak tanır.
 
 Kaynak:
     OpenSky Network API Documentation
@@ -41,6 +41,10 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
+
+from src.logging_config import get_logger
+
+logger = get_logger(__name__)
 from dotenv import load_dotenv
 
 # ═══════════════════════════════════════════════════════════
@@ -59,6 +63,11 @@ load_dotenv(dotenv_path=_ENV_PATH, override=True)
 # ═══════════════════════════════════════════════════════════
 
 _BASE_URL     = "https://opensky-network.org/api"
+# # KAYNAK (denetim #86): ağ davranışı.
+# # 30 s = ölü bağlantı eşiği (TCP yeniden iletim penceresi).
+# #  OpenSky yanıtı tipik 1-3 s; daha uzun bekletmek kullanıcıyı yorar.
+# # 5 s + 2 deneme = 3 istek; OpenSky anonim limit saatte 400 istek.
+#
 _TIMEOUT_S    = 30
 _RETRY_WAIT_S = 5
 _MAX_RETRIES  = 2
@@ -132,10 +141,20 @@ class OpenSkyCollector:
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
     ) -> None:
-        self.username = username or os.getenv("OPENSKY_USERNAME", "")
-        self.password = password or os.getenv("OPENSKY_PASSWORD", "")
-        self.client_id = client_id or os.getenv("OPENSKY_CLIENT_ID", "")
-        self.client_secret = client_secret or os.getenv("OPENSKY_CLIENT_SECRET", "")
+        # GÜVENLİK: Kimlik bilgileri tek noktadan okunur (config.secrets).
+        # Kaynak kodda veya depoda asla sabit değer tutulmaz.
+        from config.credentials import get_opensky_credentials
+
+        _creds = get_opensky_credentials(
+            client_id=client_id,
+            client_secret=client_secret,
+            username=username,
+            password=password,
+        )
+        self.username = _creds.username
+        self.password = _creds.password
+        self.client_id = _creds.client_id
+        self.client_secret = _creds.client_secret
         
         self.session = requests.Session()
         self._token_manager = None
@@ -171,7 +190,12 @@ class OpenSkyCollector:
         try:
             response = self.session.get(url, headers=headers, params=params, timeout=_TIMEOUT_S)
             return response
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            # Hata tipi KAYBOLMAMALI: ağ / kimlik / ayrıştırma hatası
+            # aynı şekilde None dönerse tanılama imkânsızlaşır.
+            logger.warning('OpenSky isteği başarısız: %s: %s',
+                           type(exc).__name__, exc)
+            self.last_error = f'{type(exc).__name__}: {exc}'
             return None
 
     def _request(
@@ -215,13 +239,36 @@ class OpenSkyCollector:
                     time.sleep(wait)
                     continue
 
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
                 if attempt < retries:
+                    logger.warning(
+                        'OpenSky denemesi %d/%d başarısız (%s: %s) — yeniden',
+                        attempt + 1, retries + 1, type(exc).__name__, exc)
                     time.sleep(_RETRY_WAIT_S)
                 else:
+                    logger.error('OpenSky tüm denemeler tükendi: %s: %s',
+                                 type(exc).__name__, exc)
+                    self.last_error = f'{type(exc).__name__}: {exc}'
                     return None
 
         return None
+
+    @staticmethod
+    def _mark_synthetic(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Yedek arşivden gelen veriyi SENTETİK olarak damgalar.
+
+        NEDEN: data/archive/opensky_real/ içindeki dosyalar
+        scripts/06_seed_real_data.py tarafından ÜRETİLİR. Bunları
+        "gerçek radar kaydı" gibi sunmak veri bütünlüğü ihlalidir.
+        Bu damga, downstream katmanların (rapor, benchmark) sentetik
+        veriyi tanımasını ve gerçekmiş gibi sunmamasını sağlar.
+        """
+        out = df.copy()
+        out["collection_method"] = "synthetic_fallback"
+        out["data_provenance"] = "synthetic_simulation"
+        out["is_synthetic"] = True
+        return out
 
     @staticmethod
     def _normalize_state_rows(states: list) -> list[list]:
@@ -431,11 +478,11 @@ class OpenSkyCollector:
 
         arrivals_df = self.get_arrivals(airport_icao, begin, now)
 
-        # ⚡ GERÇEK UÇUŞ VERİ HAVUZU ENTEGRASYONU (Pre-collected Real Flights)
+        # ⚡ SENTETİK YEDEK VERİ (API erişilemezse) — PROVENANCE ETİKETLİ
         if arrivals_df.empty:
-            print(f"  ⚠ OpenSky API kısıtlı veya boş döndü. Gerçek Uçuş Veri Havuzu (Data Bank) devreye giriyor! ⚡")
+            print("  ⚠ OpenSky API kısıtlı/boş. SENTETİK yedek arşiv devreye giriyor (gerçek veri DEĞİL).")
             
-            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "opensky_real")
+            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "synthetic_demo")
             if not os.path.exists(archive_dir):
                 # Yedek olarak proje kökünde ara
                 archive_dir = "data/archive/opensky_real"
@@ -462,26 +509,18 @@ class OpenSkyCollector:
                     selected_files = random.sample(all_files, min(len(all_files), max_flights))
                     
                     for f_path in selected_files:
-                        df = pd.read_csv(f_path)
-                        
-                        # ⚡ ZAMAN KAYDIRICI (Live Time-Shifting): Uçuşu tam olarak 'şimdi' yapılmış gibi göster!
-                        df['time'] = pd.to_datetime(df['time'])
-                        last_pt_time = df['time'].iloc[-1]
-                        now_utc = datetime.now(timezone.utc)
-                        
-                        # Uçuşun bitiş zamanını güncel zamandan 10 ila 45 dakika öncesine kaydır
-                        time_shift = now_utc - last_pt_time - timedelta(minutes=random.randint(10, 45))
-                        df['time'] = df['time'] + time_shift
-                        
-                        # String formatına geri dönüştür
-                        df['time'] = df['time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                        df['collected_at'] = now_utc.isoformat()
-                        
+                        df = self._mark_synthetic(pd.read_csv(f_path))
+
+                        # GÜVENLİK/DOĞRULUK: Zaman damgaları ARTIK kaydırılmaz.
+                        # Eski "live time-shifting" sentetik veriyi canlıymış gibi
+                        # gösteriyordu → kaldırıldı.
+                        df['collected_at'] = datetime.now(timezone.utc).isoformat()
+
                         callsign = df['callsign'].iloc[0] if 'callsign' in df.columns else "UNK"
                         orig = df['origin_icao'].iloc[0] if 'origin_icao' in df.columns else "UNK"
                         dest = df['destination_icao'].iloc[0] if 'destination_icao' in df.columns else airport_icao.upper()
-                        
-                        print(f"    ✨ Gerçek Radar Uçuş Kaydı Yüklendi: {callsign} ({orig} ✈ {dest}) [Tam - Anomalili]")
+
+                        print(f"    🧪 SENTETİK yedek kayıt yüklendi: {callsign} ({orig} ✈ {dest}) [simülasyon]")
                         trajectories.append(df)
                         
                     return trajectories
@@ -552,9 +591,9 @@ class OpenSkyCollector:
 
         # ⚡ GERÇEK UÇUŞ VERİ HAVUZU ENTEGRASYONU (Departures Fallback)
         if departures.empty:
-            print(f"  ⚠ OpenSky Departures API kısıtlı. Gerçek Uçuş Veri Havuzu devrede! ⚡")
+            print("  ⚠ OpenSky Departures API kısıtlı. SENTETİK yedek arşiv devrede (gerçek veri DEĞİL).")
             
-            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "opensky_real")
+            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "synthetic_demo")
             if not os.path.exists(archive_dir):
                 archive_dir = "data/archive/opensky_real"
                 
@@ -569,24 +608,15 @@ class OpenSkyCollector:
                 if all_files:
                     selected_files = random.sample(all_files, min(len(all_files), max_flights))
                     for f_path in selected_files:
-                        df = pd.read_csv(f_path)
-                        
-                        df['time'] = pd.to_datetime(df['time'])
-                        last_pt_time = df['time'].iloc[-1]
-                        now_utc = datetime.now(timezone.utc)
-                        
-                        time_shift = now_utc - last_pt_time - timedelta(minutes=random.randint(10, 45))
-                        df['time'] = df['time'] + time_shift
-                        
-                        df['time'] = df['time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                        df['collected_at'] = now_utc.isoformat()
-                        df['collection_method'] = "departures"
-                        
+                        df = self._mark_synthetic(pd.read_csv(f_path))
+                        df['collected_at'] = datetime.now(timezone.utc).isoformat()
+                        df['collection_method'] = "synthetic_fallback"
+
                         callsign = df['callsign'].iloc[0] if 'callsign' in df.columns else "UNK"
                         orig = airport_icao.upper()
                         dest = df['destination_icao'].iloc[0] if 'destination_icao' in df.columns else "UNK"
-                        
-                        print(f"    ✨ Gerçek Radar Kalkış Kaydı Yüklendi: {callsign} ({orig} ✈ {dest}) [Kalkış]")
+
+                        print(f"    🧪 SENTETİK yedek kayıt yüklendi: {callsign} ({orig} ✈ {dest}) [simülasyon]")
                         trajectories.append(df)
                         
                     return trajectories
@@ -657,9 +687,9 @@ class OpenSkyCollector:
 
         # ⚡ GERÇEK UÇUŞ VERİ HAVUZU ENTEGRASYONU (Active/Partial Fallback)
         if flights.empty:
-            print(f"  ⚠ OpenSky Active Flights API kısıtlı. Gerçek Uçuş Veri Havuzu devrede! ⚡")
+            print("  ⚠ OpenSky Active Flights API kısıtlı. SENTETİK yedek arşiv devrede (gerçek veri DEĞİL).")
             
-            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "opensky_real")
+            archive_dir = os.path.join(_PROJECT_ROOT, "data", "archive", "synthetic_demo")
             if not os.path.exists(archive_dir):
                 archive_dir = "data/archive/opensky_real"
                 
@@ -676,18 +706,9 @@ class OpenSkyCollector:
                         
                     selected_files = random.sample(all_files, min(len(all_files), max_flights))
                     for f_path in selected_files:
-                        df = pd.read_csv(f_path)
-                        
-                        df['time'] = pd.to_datetime(df['time'])
-                        last_pt_time = df['time'].iloc[-1]
-                        now_utc = datetime.now(timezone.utc)
-                        
-                        time_shift = now_utc - last_pt_time - timedelta(minutes=random.randint(10, 45))
-                        df['time'] = df['time'] + time_shift
-                        
-                        df['time'] = df['time'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                        df['collected_at'] = now_utc.isoformat()
-                        df['collection_method'] = "active_flight"  # partial olarak işaretlensin
+                        df = self._mark_synthetic(pd.read_csv(f_path))
+                        df['collected_at'] = datetime.now(timezone.utc).isoformat()
+                        df['collection_method'] = "synthetic_fallback"  # sentetik, partial değil
                         
                         # Kısmi veri gibi göstermek için uçuşun ilk %30'unu kırp! (ADS-B radar kaybı simülasyonu)
                         cut_index = int(len(df) * 0.3)
@@ -697,7 +718,7 @@ class OpenSkyCollector:
                         orig = df['origin_icao'].iloc[0] if 'origin_icao' in df.columns else "UNK"
                         dest = df['destination_icao'].iloc[0] if 'destination_icao' in df.columns else "UNK"
                         
-                        print(f"    ⚠ {callsign:<12} [ACT - partial] {len(df)} pts — benchmark dışı tutulacak (Gerçek Radar Kaydı)")
+                        print(f"    🧪 {callsign:<12} [SENTETİK yedek] {len(df)} pts — benchmark dışı tutulacak")
                         trajectories.append(df)
                         
                     return trajectories

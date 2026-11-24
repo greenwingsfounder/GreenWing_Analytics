@@ -61,7 +61,8 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.units import Units
-from src.utils import calculate_initial_heading, get_seasonal_wind_estimate
+from src.utils import (calculate_initial_heading, get_seasonal_wind_estimate,
+                        normalize_trajectory_columns)
 from src.analysis.flight_analyzer import SingleFlightAnalyzer
 from src.analysis.benchmark import ResultBenchmark
 from src.optimization.altitude_optimizer import AltitudeOptimizer
@@ -576,9 +577,45 @@ def main():
                     )
 
             # ─── collection_method ────────────────────────
-            collection_method = _safe_str(
+            # DENETİM #91: CSV'deki 'collection_method' alanı GÜVENİLMEZ.
+            # 06_seed_real_data.py sentetik yolları synthetic_demo/ klasörüne
+            # 'collection_method=arrivals' yazarak kaydediyor. Bu etiket
+            # "gerçek uçuş" sanılıyordu — panellerde "1 gerçek + 13 sentetik"
+            # diyordu, oysa 14'ü de sentetikti.
+            #
+            # KURAL: bir kaydın gerçek sayılması için (a) dosya synthetic_
+            # içermeyen bir klasörde olacak VE (b) etiket gerçek toplama
+            # yöntemlerinden biri olacak. İkisi birden gerekli.
+            raw_method = _safe_str(
                 df['collection_method'].iloc[0], ''
             ) if 'collection_method' in df.columns and len(df) > 0 else 'unknown'
+            _path_l = str(csv_path).lower()
+            _is_synth_path = ('synthetic' in _path_l or 'demo' in _path_l
+                              or 'seed' in _path_l or 'mock' in _path_l)
+            # ── İÇERİK İMZASI (denetim #91) ──────────────────
+            # Klasör adına güvenmek yetmez: data/raw/opensky/ de
+            # sentetik. Sentetik üretici her örneği TAM 30,0 s
+            # aralıkla yazar (std = 0.0000). Gerçek ADSB düzensizdir.
+            _is_synth_content = False
+            try:
+                if 'time' in df.columns and len(df) > 5:
+                    _dt = (pd.to_datetime(df['time'])
+                           .diff().dt.total_seconds().dropna())
+                    if len(_dt) > 3 and float(_dt.std()) < 0.01:
+                        _is_synth_content = True
+            except Exception:
+                pass
+            _REAL_METHODS = ('opensky_api', 'adsb_lol', 'customer_csv',
+                             'live', 'adsb')
+            if _is_synth_path or _is_synth_content:
+                collection_method = 'synthetic_fallback'
+            elif raw_method in _REAL_METHODS:
+                collection_method = raw_method
+            elif raw_method and raw_method not in ('arrivals', 'departures'):
+                collection_method = raw_method
+            else:
+                # etiket bilinmiyor → muhafazakâr: sentetik say
+                collection_method = 'unverified'
 
             print(f"  📏 Mesafe: {distance:.0f} Nm | Heading: {heading:.0f}°")
             print(f"  ⛽ Yakıt: {estimated_fuel:,.0f} kg | FL: {cruise_alt/100:.0f}")
@@ -593,6 +630,10 @@ def main():
             mid_weight = estimated_weight - estimated_fuel * 0.5
 
             # ─── Rüzgar ───────────────────────────────────
+            # NOT: wind_source sonuca YAZILMALI; yalnız konsola
+            # basmak, raporda hangi rüzgârın kullanıldığını
+            # gizler (gerçek ADS-B mi, mevsimsel climatology mi).
+            wind_source = 'Bilinmiyor'
             has_real_wind = (
                 'wind_speed_kts' in df.columns 
                 and 'wind_direction_deg' in df.columns
@@ -653,11 +694,35 @@ def main():
                 opt_alt_ft    = float(opt_alt['optimum']['altitude_ft'])
                 altitude_deviation_ft = abs(cruise_alt - opt_alt_ft)
                 buffet_margin = float(opt_alt['optimum']['buffet_margin_pct'])
-                fuel_save_1k  = float(
-                    opt_alt['vs_fl350'].get('fuel_saving_per_1000nm_kg', 0)
-                )
-                alt_saving = abs(fuel_save_1k) * distance / 1000
-                print(f"  📐 Optimum: {opt_fl} | Buffet: %{buffet_margin:.1f} | Sapma: {altitude_deviation_ft:.0f} ft")
+
+                # ═══════════════════════════════════════════════════
+                # TASARRUF, UÇAĞIN GERÇEK İRTİFASINA göre hesaplanır.
+                #
+                # ÖNCEKİ HATALAR (2026-11-22 denetimi):
+                #  1) abs(...) — optimum irtifa yakıt KAYBETTİRİYORSA
+                #     bile "tasarruf" olarak yazılıyordu (negatif
+                #     değer pozitife çevriliyordu).
+                #  2) Referans sabit FL350'ydi. Uçak zaten FL350'de
+                #     uçuyorsa tasarruf 0 çıkıyordu; FL370'te uçuyorsa
+                #     yanlış referansla kıyaslanıyordu.
+                #
+                # DOĞRU: uçağın GÖZLEMLENEN seyir irtifası ile
+                # optimum irtifa arasındaki SAR farkı; yakıt
+                # kaybı varsa 0 (tasarruf yok), negatif yazılmaz.
+                # ═══════════════════════════════════════════════════
+                _fm = alt_opt.fuel_model
+                _sar_actual = _fm.specific_air_range(
+                    mid_weight, float(cruise_alt), CRUISE_MACH)
+                _sar_opt = _fm.specific_air_range(
+                    mid_weight, opt_alt_ft, CRUISE_MACH)
+                if _sar_actual > 0 and _sar_opt > _sar_actual:
+                    fuel_save_1k = (1000 / _sar_actual) - (1000 / _sar_opt)
+                    alt_saving = fuel_save_1k * distance / 1000
+                else:
+                    # Zaten optimumda veya daha iyide → tasarruf YOK
+                    alt_saving = 0.0
+                print(f"  📐 Optimum: {opt_fl} | Mevcut: FL{cruise_alt/100:.0f} | "
+                      f"Buffet: %{buffet_margin:.1f} | Tasarruf: {alt_saving:.0f} kg")
 
             # ─── OPT 2: Step climb ────────────────────────
             step_saving = 0.0
@@ -739,9 +804,27 @@ def main():
             co2_pax_km = float(emissions['metrics']['co2_per_pax_km_g'])
 
             # ─── Toplam tasarruf ──────────────────────────
-            fuel_optimization = max(alt_saving, step_saving)
+            # DİKKAT: irtifa ve step-climb AYNI yakıtı iki kez saymamalı,
+            # ama max() almak da yanlış — step-climb, optimum irtifaya
+            # ULAŞTIKTAN SONRA ek bir kazançtır. Bu yüzden toplanır;
+            # alt_saving zaten "mevcut irtifadan optimuma" kazancı,
+            # step_saving ise "optimuma çıktıktan sonra ağırlık azaldıkça
+            # kademeli yükselme" kazancını temsil eder.
+            fuel_optimization = alt_saving + step_saving
             total_cost        = fuel_optimization * origin_price + tank_saving
-            annual_proj       = Assumptions.annual_projection(total_cost, distance)
+
+            # Tasarrufun KAYNAĞINI ayrıştır (panelde gösterilir)
+            saving_breakdown = {
+                'altitude_kg'  : round(alt_saving, 1),
+                'step_climb_kg': round(step_saving, 1),
+                'tankering_usd': round(tank_saving, 2),
+                'fuel_kg_total' : round(fuel_optimization, 1),
+            }
+            # Tankering bir FİYAT arbitrajıdır, fiziksel yakıt tasarrufu
+            # değil. Yıllık projeksiyonda ayrı ve sürdürülebilirlik
+            # düzeltmesiyle (%50) işlenir — bkz. TANKERING_PERSISTENCE.
+            annual_proj       = Assumptions.annual_projection(
+                total_cost, distance, tankering_usd_per_flight=tank_saving)
 
             print(f"\n  💰 Tasarruf: {fuel_optimization:.0f} kg = ${total_cost:.0f}/uçuş")
             print(f"  📅 Yıllık: ${annual_proj['realistic_annual_usd']:,}")
@@ -761,7 +844,7 @@ def main():
 
             # ─── Benchmark ────────────────────────────────
             bm_report = benchmark.check_all({
-                'sar'               : alt_info.get('sar_at_actual_alt', 0),
+                'sar'               : alt_info.get('sar_at_actual_alt', 0),  # Nm/kg (benchmark birimi)
                 'fuel_flow_kg_hr'   : (
                     estimated_fuel / basic['total_flight_time_hr']
                     if basic.get('total_flight_time_hr', 0) > 0 else 0
@@ -786,12 +869,24 @@ def main():
                 # Route
                 'origin_airport'         : origin_icao,
                 'dest_airport'           : dest_icao,
+                # DENETİM #92: eşleştirici 'origin'/'dest' okuyordu,
+                # batch_results ise yalnızca 'origin_airport' yazıyordu
+                # → eşleşme DAİMA 0 çıkıyordu ve kalibrasyon boru
+                # hattı (ticari planın kalbi) hiç çalışmıyordu.
+                # Ayrıca 'flight_date' hiç yazılmıyordu. İkisi eklendi.
+                'origin'                 : origin_icao,
+                'destination'            : dest_icao,
+                'flight_date'            : str(df['time'].iloc[0])[:10]
+                                           if 'time' in df.columns and len(df)
+                                           else '',
                 'route_validity'         : route_info['route_validity'],
                 'route_resolution_source': route_info['source'],
                 'route_warnings'         : route_info['route_warnings'],
 
-                # Collection
+                # Collection + rüzgâr kaynağı (şeffaflık)
                 'collection_method'      : collection_method,
+                'wind_source'            : wind_source,
+                'wind_is_estimated'      : 'Climatology' in str(wind_source),
 
                 # Metrikler
                 'distance_nm'            : round(distance),
@@ -823,8 +918,11 @@ def main():
                 # Tasarruf (03 scripti bu alanları kullanır)
                 'fuel_optimization_kg'   : round(fuel_optimization),
                 'total_cost_saving_usd'  : round(total_cost, 2),
+                'saving_breakdown'       : saving_breakdown,
                 'annual_raw_usd'         : annual_proj['raw_annual_usd'],
                 'annual_realistic_usd'   : annual_proj['realistic_annual_usd'],
+                'annual_fuel_saving_usd' : annual_proj['fuel_saving_usd'],
+                'annual_tankering_usd'   : annual_proj['tankering_usd'],
                 'realization_factor'     : annual_proj['realization_factor'],
 
                 # Emisyon
@@ -893,9 +991,77 @@ def main():
 
         print(f"\n  ÖZET:")
         print(f"  Ort. tasarruf/uçuş : {avg_fuel:.0f} kg = ${avg_saving:.0f}")
-        print(f"  Ort. yıllık         : ${avg_annual:,.0f}")
+        # ══════════════════════════════════════════════════════
+        # ÖNEMLİ AYRIM (2026-11-22 denetimi): aşağıdaki iki sayı
+        # FARKLI tanımlara sahiptir ve karıştırılmamalıdır:
+        #
+        #   (a) Uçuş-bazlı toplam  = Σ annual_realistic_usd
+        #       Aynı rota iki kez uçulduysa İKİ KEZ sayılır.
+        #
+        #   (b) Rota-bazlı toplam  = Σ rota başına ortalama
+        #       Aynı rota bir kez sayılır (fleet_analyzer ve
+        #       03_generate_outputs bunu kullanır).
+        #
+        # İkisi arasındaki fark mükerrer uçuşlardan gelir. Rapor
+        # ve panel (b)'yi gösterir; burada (a) yazıldığı için
+        # rakamlar tutarsız görünüyordu.
+        # ══════════════════════════════════════════════════════
+        _routes: dict[tuple, list] = {}
+        for _r in all_results:
+            _k = (_r.get('origin_airport', '?'), _r.get('dest_airport', '?'))
+            _routes.setdefault(_k, []).append(_r.get('annual_realistic_usd', 0))
+        _route_annual = float(sum(sum(v) / len(v) for v in _routes.values()))
+
+        print(f"  Ort. yıllık/uçuş    : ${avg_annual:,.0f}"
+              f"  (toplam ÷ {len(all_results)})")
+        print(f"  Yıllık (rota bazlı) : ${_route_annual:,.0f}"
+              f"  ({len(_routes)} benzersiz rota — rapor/panel bunu kullanır)")
+        _fuel_ann = float(np.sum([r.get('annual_fuel_saving_usd', 0)
+                                  for r in all_results]))
+        _tank_ann = float(np.sum([r.get('annual_tankering_usd', 0)
+                                  for r in all_results]))
+        if _fuel_ann or _tank_ann:
+            # Toplamı BİLEŞENLERDEN al — böylece raporlanan sayı ile
+            # ayrıştırma her zaman birbirini tutar.
+            _tot = _fuel_ann + _tank_ann
+            print(f"    ├─ fiziksel yakıt : ${_fuel_ann:,.0f}"
+                  f"  (%{_fuel_ann/_tot*100 if _tot else 0:.0f}) — tekrarlanabilir")
+            print(f"    └─ tankering      : ${_tank_ann:,.0f}"
+                  f"  (%{_tank_ann/_tot*100 if _tot else 0:.0f}) — fiyat arbitrajı,"
+                  f" %50 sürdürülebilirlik")
+            print(f"    TOPLAM yıllık     : ${_tot:,.0f}"
+                  f"  ({len(all_results)} uçuş toplamı — rota bazlı için üstteki satır)")
         print(f"  Partial uçuş oranı  : %{partial_n/len(all_results)*100:.0f}")
         print(f"  UNK route alanı     : {unk_n}")
+
+        # ── VERİ KAYNAĞI UYARISI ────────────────────────────
+        # Ticari dürüstlük: sentetik ve gerçek veriyi karıştırıp tek
+        # sayı vermek yanıltıcıdır. Her çalıştırmada açıkça yaz.
+        _methods: dict[str, int] = {}
+        for _r in all_results:
+            _m = str(_r.get('collection_method') or 'bilinmiyor')
+            _methods[_m] = _methods.get(_m, 0) + 1
+        # DENETİM #91: 'unverified' (kaynağı doğrulanmamış) GERÇEK
+        # sayılamaz. Önceki sürüm sayıyordu → panel "1 gerçek" diyordu,
+        # oysa o kayıt da sentetikti (yalnızca etiketi farklıydı).
+        # "Gerçek" için POZİTİF kanıt gerekir, yokluk kanıt değildir.
+        _REAL_M = ('opensky_api', 'adsb_lol', 'customer_csv', 'live', 'adsb')
+        _real = sum(_methods.get(m, 0) for m in _REAL_M)
+        _synth = (_methods.get('synthetic_fallback', 0)
+                  + _methods.get('demo', 0))
+        _unknown = len(all_results) - _real - _synth
+        print(f"  Veri kaynağı        : {dict(sorted(_methods.items()))}")
+        if _real and (_synth or _unknown):
+            print(f"  ⚠️  KARIŞIK VERİ: {_real} gerçek + {_synth} sentetik"
+                  + (f" + {_unknown} doğrulanmamış." if _unknown else "."))
+            print("      Aşağıdaki $ rakamları MÜŞTERİYE TAAHHÜT EDİLEMEZ.")
+        elif _real:
+            print(f"  ✅ TAMAMEN GERÇEK VERİ ({_real} uçuş).")
+        else:
+            print(f"  ⛔ GERÇEK VERİ YOK — {_synth} sentetik"
+                  + (f", {_unknown} doğrulanmamış" if _unknown else "") + ".")
+            print("      Sadece model/arayüz doğrulaması içindir.")
+            print("      Ticari taahhüt için gerçek veri şart (0 kayıt).")
 
         # JSON
         os.makedirs(REPORTS_OPTIMIZATIONS, exist_ok=True)

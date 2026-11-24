@@ -183,15 +183,64 @@ class CostIndexOptimizer:
         # Mach aralığını oluştur
         mach_range = np.arange(mach_min, mach_max + mach_step / 2, mach_step)
 
-        # Uçak MMO kontrolü
-        mmo = self.fuel_model.params.get('cruise_mach', 0.82) + 0.03
-        mach_range = mach_range[mach_range <= min(mmo, 0.90)]
+        # ══════════════════════════════════════════════════════
+        # DENETİM #67 — MMO TÜRETİLİYORDU, GERÇEK VERİ VARDI
+        # ══════════════════════════════════════════════════════
+        # Eski kod:  mmo = cruise_mach + 0.03
+        #   B738: 0.785 + 0.03 = 0.815   (gerçek MMO 0.82)
+        #   A320: 0.780 + 0.03 = 0.810   (gerçek MMO 0.82)
+        #   B77W: 0.840 + 0.03 = 0.870   (gerçek MMO 0.89)
+        #
+        # Sonuç: kullanıcı mach_max=0.84 istese bile tarama sessizce
+        # 0.815'te kesiliyordu; 0.82–0.84 arası 5 nokta hiç
+        # hesaplanmıyordu. "Optimum" hep sınırın en ucunda çıkıyordu
+        # çünkü gerçek tepe noktaları taranmamış bölgedeydi.
+        #
+        # Artık `fuel_model.params['mmo']` kullanılıyor (OpenAP
+        # YAML'ından okunuyor — denetim #67 köprüsü). Veri yoksa
+        # TÜRETME yapılmaz; MMO bilinmiyorsa ve istenen aralık
+        # bilinmeyen bir limiti aşıyorsa bu raporda görünür.
+        _mmo_param = self.fuel_model.params.get('mmo')
+        mmo_source = 'openap'
+        if _mmo_param is None:
+            # Veri yok: muhafazakâr ama ŞEFFAF varsayılan.
+            mmo = 0.82
+            mmo_source = 'varsayılan 0.82 (veri yok)'
+        else:
+            mmo = float(_mmo_param)
+
+        _effective_max = min(mmo, 0.90) if mmo else mmo
+        _requested_max = float(mach_max)
+
+        # ══════════════════════════════════════════════════════
+        # DENETİM #68 — FLOAT KARŞILAŞTIRMA MMO'YU ELİYORDU
+        # ══════════════════════════════════════════════════════
+        # np.arange(0.70, 0.8225, 0.005) 0.82'yi şu değerle üretir:
+        #   0.8200000000000001
+        # Bu değer `<= 0.82` karşılaştırmasında False döner.
+        # Yani UÇAĞIN KENDİ LİMİTİ tarama dışında kalıyordu —
+        # tam olarak sınırdaki davranışı görmemiz gereken nokta.
+        #
+        # Düzeltme: yarım adım tolerans (float temsili için yeterli,
+        # fiziksel olarak anlamlı bir genişleme değil).
+        _tol = mach_step / 2.0
+        mach_range = mach_range[mach_range <= _effective_max + _tol]
 
         if len(mach_range) == 0:
             return {
                 'status': 'ERROR',
                 'message': 'Uygun Mach aralığı yok.',
             }
+
+        # İstenen üst sınır MMO tarafından kırpıldıysa SESSİZ kalma.
+        capped_by_mmo = _requested_max > _effective_max + 1e-9
+        mmo_note = None
+        if capped_by_mmo:
+            mmo_note = (
+                f'İstenen mach_max={_requested_max:.3f} MMO ile '
+                f'sınırlandı ({_effective_max:.3f}, kaynak: {mmo_source}). '
+                f'{(1 if mmo_source == "openap" else 0) and "Bu bir uçak limiti, keyfi kesme değil." or ""}'
+            )
 
         # Baseline Mach (referans: M0.78 — tipik CI=0 yakını)
         baseline_mach = 0.78
@@ -275,13 +324,44 @@ class CostIndexOptimizer:
         # Min time (CI=999 eşdeğeri)
         min_time = min(results, key=lambda x: x['flight_time_hr'])
 
-        # CI değeri hesapla (basitleştirilmiş)
-        # CI ∝ time_cost / fuel_cost
+        # ═══════════════════════════════════════════════════════════
+        # COST INDEX — BOYUT DÜZELTMESİ (2026-11-22 denetimi)
+        #
+        # ÖNCEKİ HATA: ci = time_cost($/hr) / fuel_price($/kg) / 100
+        #   Boyut: ($/hr) / ($/kg) = kg/hr  →  bu bir YAKIT AKIŞIDIR,
+        #   cost index değil. Sonra /100 ile "CI" adı verilmişti.
+        #   Sonuç: 2000 $/hr ve 0.85 $/kg için CI=23.5 — havayolu
+        #   CI'ları tipik 5–80 aralığında olduğu için "makul"
+        #   görünüyordu ama tamamen tesadüftü.
+        #
+        # DOĞRU TANIM (Boeing/Airbus ortak):
+        #   CI = (zaman maliyeti, $/saat) / (yakıt maliyeti, cent/lb)
+        #
+        #   Yakıt maliyeti $/kg → cent/lb çevrimi:
+        #       1 kg = 2.20462 lb
+        #       1 $ = 100 cent
+        #       $x/kg = 100·x/2.20462 cent/lb = 45.36·x cent/lb
+        #
+        #   B738 tipik: 2000 $/hr, 0.85 $/kg (= 38.6 cent/lb)
+        #       CI = 2000 / 38.6 = 51.8  →  gerçekçi CI ✅
+        #
+        # Sınır: Boeing CI 0–999, Airbus 0–99 aralığında tanımlı.
+        # ═══════════════════════════════════════════════════════════
         if fuel_price_usd_per_kg > 0:
-            ci_value = round(time_cost_usd_per_hr / fuel_price_usd_per_kg / 100)
+            # $/kg → cent/lb
+            fuel_cost_cent_per_lb = fuel_price_usd_per_kg * 100.0 / 2.20462
+            ci_value = round(time_cost_usd_per_hr / fuel_cost_cent_per_lb)
             ci_value = max(0, min(999, ci_value))
+            # Tanılama için çevrimi de raporla
+            ci_basis = {
+                'time_cost_usd_per_hr'     : round(time_cost_usd_per_hr, 1),
+                'fuel_price_usd_per_kg'    : round(fuel_price_usd_per_kg, 4),
+                'fuel_cost_cent_per_lb'    : round(fuel_cost_cent_per_lb, 2),
+                'formula': 'CI = time_cost($/hr) / fuel_cost(cent/lb)',
+            }
         else:
             ci_value = 50
+            ci_basis = {'formula': 'yakıt fiyatı geçersiz → varsayılan CI'}
 
         # ─── Karşılaştırma ───────────────────────────────
         fuel_diff_vs_fastest = min_time['fuel_kg'] - best['fuel_kg']
@@ -307,6 +387,13 @@ class CostIndexOptimizer:
 
         return {
             'status': 'SUCCESS',
+            'mach_limit': {
+                'mmo'                : round(float(_effective_max), 3),
+                'source'             : mmo_source,
+                'requested_mach_max' : _requested_max,
+                'capped_by_mmo'      : capped_by_mmo,
+                'note'               : mmo_note,
+            },
 
             'optimum': {
                 'cost_index'    : ci_value,
@@ -317,6 +404,7 @@ class CostIndexOptimizer:
                 'time_cost_usd' : best['time_cost_usd'],
                 'flight_time_hr': best['flight_time_hr'],
                 'flight_time_min': best['flight_time_min'],
+                'ci_basis'      : ci_basis,
             },
 
             'comparison': {

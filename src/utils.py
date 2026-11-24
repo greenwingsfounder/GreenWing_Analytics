@@ -797,3 +797,118 @@ def validate_utils() -> bool:
 if __name__ == "__main__":
     validate_utils()
 
+
+
+# ═══════════════════════════════════════════════════════════
+# VERİ NORMALİZASYONU — birimler ve sütun adları
+# ═══════════════════════════════════════════════════════════
+
+# # 0.3048 — feet tanımı (1959 uluslararası anlaşma), TAM değer.
+# # Tek kaynak: src/units.py. Burada yerel kopya bırakıldı çünkü
+# # units.py utils'i import etmiyor (döngüsel import olmasın).
+#
+_M_PER_FT = 0.3048
+
+
+def normalize_trajectory_columns(df):
+    """
+    Ham ADS-B/OpenSky CSV'sini analiz sözleşmesine getir.
+
+    SORUN
+    -----
+    OpenSky `states/all` irtifayı **metre** (baro_altitude) verir; bazı
+    arşivler feet (baro_altitude_ft) verir. Analiz kodu `baro_altitude_ft`
+    bekler. Aynı şekilde hız `velocity` açıkça m/s'dir, `ground_speed_kts`
+    değildir.
+
+    DÖNÜŞÜMLER
+    ----------
+        baro_altitude (m)      → baro_altitude_ft  (× 3.28084)
+        baro_altitude_m (m)    → baro_altitude_ft
+        velocity (m/s)         → ground_speed_kts  (× 1.94384)
+        geo_altitude (m)       → geo_altitude_ft
+
+    Birim tespiti: değer > 20 000 ise zaten feet kabul edilir
+    (20 000 m ≈ 65 000 ft üstü ticari uçuş yok).
+
+    Ayrıca `flight_phase` yoksa irtifa/hız profiline göre segmentlenir.
+
+    Args:
+        df: Ham CSV DataFrame
+
+    Returns:
+        DataFrame — standart sütunlarla (yerinde değiştirilir, kopya döner)
+    """
+    import pandas as pd
+
+    if df is None or len(df) == 0:
+        return df
+
+    out = df.copy()
+
+    def _ensure_ft(src: str) -> bool:
+        """Kaynak sütunu feet'e çevirip baro_altitude_ft yaz."""
+        if src not in out.columns:
+            return False
+        vals = pd.to_numeric(out[src], errors='coerce')
+        if vals.notna().sum() == 0:
+            return False
+        peak = float(vals.max())
+        out['baro_altitude_ft'] = vals if peak > 20000 else vals * (1.0 / _M_PER_FT)
+        return True
+
+    if 'baro_altitude_ft' not in out.columns:
+        for src in ('baro_altitude', 'baro_altitude_m'):
+            if _ensure_ft(src):
+                break
+
+    if 'geo_altitude_ft' not in out.columns:
+        for src in ('geo_altitude', 'geo_altitude_m'):
+            if src in out.columns:
+                vals = pd.to_numeric(out[src], errors='coerce')
+                if vals.notna().sum():
+                    peak = float(vals.max())
+                    out['geo_altitude_ft'] = (vals if peak > 20000
+                                              else vals * (1.0 / _M_PER_FT))
+                    break
+
+    if 'ground_speed_kts' not in out.columns and 'velocity' in out.columns:
+        v = pd.to_numeric(out['velocity'], errors='coerce')
+        if v.notna().sum():
+            # BİRİM TESPİTİ: OpenSky API'si m/s verir, ama arşivlenmiş
+            # CSV'ler kt olarak kaydedilmiş olabilir. Ticari uçak cruise'u
+            # 400-520 kt aralığındadır; m/s olsaydı 200-270 görürdük.
+            # 90. persentil > 350 ise zaten knot kabul et.
+            p90 = float(v.quantile(0.90))
+            out['ground_speed_kts'] = v if p90 > 350 else v * 1.943844
+
+    if 'vertical_rate_fpm' not in out.columns and 'vertical_rate' in out.columns:
+        vr = pd.to_numeric(out['vertical_rate'], errors='coerce')
+        if vr.notna().sum():
+            # m/s → ft/min
+            out['vertical_rate_fpm'] = vr * 196.850
+
+    # ── ZAMAN ARALIĞI (time_diff_s) ────────────────────────
+    # KRİTİK: yakıt = akış × süre. Zaman aralığı yanlışsa yakıt da
+    # yanlıştır. Önceden `time_diff_s` hiç üretilmiyordu ve analiz
+    # her noktayı 60 s varsayıyordu. Gerçek örneklemede 30 s olduğu
+    # için yakıt TAM 2× fazla çıkıyordu (LTAI→EDDF 9 292 kg vs
+    # gerçek ~7 700 kg).
+    if 'time_diff_s' not in out.columns and 'time' in out.columns:
+        ts = pd.to_datetime(out['time'], errors='coerce')
+        if ts.notna().sum() > 1:
+            dt = ts.diff().dt.total_seconds()
+            # İlk satır: ikinci aralığı geriye uygula (0 yerine)
+            med = float(dt.median()) if dt.notna().any() else 0.0
+            out['time_diff_s'] = dt.fillna(med).clip(upper=3600)
+
+    # flight_phase: yoksa irtifa/hız/dikey hıza göre segmentle
+    if 'flight_phase' not in out.columns and 'baro_altitude_ft' in out.columns:
+        try:
+            from src.analysis.phase_segmentation import FlightPhaseSegmenter
+            seg = FlightPhaseSegmenter()
+            out = seg.segment_trajectory(out)
+        except Exception:  # noqa: BLE001 — segmenter opsiyonel
+            pass
+
+    return out

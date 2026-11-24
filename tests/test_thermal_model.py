@@ -59,6 +59,39 @@ def run_tests():
     model_std = FuelThermalModel(freezing_point_c=-47.0, cooling_coefficient=0.25)
     tat = model_std.calculate_tat(sat_c=-60.0, mach=0.78)
     check("Aerodinamik ısınma (SAT -60, M0.78)", tat, -36.91, 0.1)
+
+    # ── [1b] DENETİM REFERANSLARI (2026-11-22) ──
+    # Denetimde bu formülü "ram rise 3 kat fazla" diye şüphelendim;
+    # bağımsız olarak doğrulayınca KODUN DOĞRU olduğu görüldü:
+    #   FL380'de gerçek TAT değerleri -30…-35 °C arasındadır.
+    #   SAT -56.5 °C, M0.78, r=0.89 → TAT -33.0 °C  ✓
+    #   (Tam kurtarma r=1.0 olsaydı 26.4 K ram rise → -30.1 °C)
+    #
+    # Referans 1: FL380 tipik
+    check("TAT referans: FL380 (SAT -56.5, M0.78)",
+          model_std.calculate_tat(-56.5, 0.78), -33.04, 0.05)
+
+    # Referans 2: statik hâl → ram rise YOK
+    check("TAT statik (M0) = SAT",
+          model_std.calculate_tat(15.0, 0.0), 15.0, 0.001)
+
+    # Referans 3: Kelvin zorunlu — °C ile çarpılırsa saçma çıkar
+    # İki farklı SAT ama aynı ram rise (K cinsinden sabit)
+    _rr1 = model_std.calculate_tat(-56.5, 0.80) - (-56.5)
+    _rr2 = model_std.calculate_tat(-40.0, 0.80) - (-40.0)
+    # SAT daha sıcak → SAT_K büyük → ram rise büyük (fizik)
+    check_true(
+        f"ram rise SAT ile artar ({_rr1:.2f} < {_rr2:.2f})",
+        _rr2 > _rr1
+    )
+
+    # Referans 4: r=1.0 tam kurtarma üst sınırdır
+    _perfect = FuelThermalModel(recovery_factor=1.0)
+    _rr_perfect = _perfect.calculate_tat(-56.5, 0.78) - (-56.5)
+    check_true(
+        f"r=1.0 ram rise ({_rr_perfect:.2f}) ≥ r=0.89",
+        _rr_perfect > 23.0
+    )
     
     # 2. SİMÜLASYON VE SOĞUMA KANUNU
     print("\n  [2] Newton Soğuma Kanunu Entegrasyon Simülasyonu")
