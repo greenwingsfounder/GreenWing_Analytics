@@ -159,6 +159,41 @@ python scripts/02_analyze_and_optimize.py
 
 Sonuçta `data/calibrations/` içinde modelin ayarlanmış hâli çıkar.
 
+### Bu betiğin GERÇEKTE ne yaptığı (dürüst hâli)
+
+Boru hattı **üç kapıdan** geçer; biri düşerse kalibrasyonu
+KABUL ETMEZ ve yazar. Bu kasıtlıdır — kötü kalibrasyonu sessizce
+kabul eden bir sistem havayoluna veri satamaz.
+
+| Kapı | Eşik | Ne demek |
+|---|---|---|
+| Eşleşme | **≥ 12 uçuş** | Müşteri yakıt satırı ile uçuş izi eşleşmeli |
+| Model iyileşmesi | **≥ %4** | Kalibrasyon hatayı gerçekten azaltmalı |
+| Kalan sapma | **≤ %6,5** | Kalibrasyon sonrası ortalama hata |
+
+Eşikler `config/ingestion_config.py` içinde, **gerekçeleriyle**
+yazılıdır. Neden 12: 10 parametreli modelde n ≥ ~10·p kuralının alt
+sınırı. Hedef 30+ uçuştur; 12 yalnızca "bu veriyle konuşulabilir mi"
+sınırıdır.
+
+**Şu anki durum:** Depoda 14 uçuş var; mock bu 14 uçuştan türetiliyor
+ve 13/13 eşleşiyor. Ama mock **sentetik** olduğu için kalibrasyon
+modeli %22,6 sapmayla bitiyor → üçüncü kapı reddediyor. Bu doğru
+davranış: sentetik veri kalibrasyon için temsili değildir. Gerçek
+pilot verisi geldiğinde aynı komut aynı yerde çalışır.
+
+Çıktının anlamı:
+
+```
+❌ PIPELINE REJECTED
+   Message: Quality gate failed (imp=17.2%, after=22.6%)
+   Action: model sapması eşiğin üstünde. BU İYİ BİR ŞEY —
+           sistem kötü kalibrasyonu KABUL ETMİYOR.
+```
+
+`SUCCESS` görürsen kalibrasyon kabul edildi ve
+`data/calibrations/*.json` yazıldı demektir.
+
 ---
 
 ## 9. Sık yapılan hatalar

@@ -6,6 +6,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFJ",
     "dest_airport": "EHAM",
+    "origin": "LTFJ",
+    "destination": "EHAM",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -58,7 +61,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.865,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:10.623139"
+    "timestamp": "2026-11-24T11:26:30.380245"
   },
   {
     "filename": "ARR_PGT_PGT501_20261122_121559.csv",
@@ -67,6 +70,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFJ",
     "dest_airport": "EDDF",
+    "origin": "LTFJ",
+    "destination": "EDDF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -119,7 +125,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.816,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:11.120543"
+    "timestamp": "2026-11-24T11:26:30.832320"
   },
   {
     "filename": "ARR_PGT_PGT802_20261122_121651.csv",
@@ -128,6 +134,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFJ",
     "dest_airport": "LIRF",
+    "origin": "LTFJ",
+    "destination": "LIRF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -180,7 +189,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.515,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:11.512177"
+    "timestamp": "2026-11-24T11:26:31.202651"
   },
   {
     "filename": "ARR_SXS_SXS1409_20261122_121559.csv",
@@ -189,6 +198,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTAI",
     "dest_airport": "EDDF",
+    "origin": "LTAI",
+    "destination": "EDDF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -241,7 +253,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:12.026179"
+    "timestamp": "2026-11-24T11:26:31.715624"
   },
   {
     "filename": "ARR_SXS_SXS1409_LTAI_EDDF.csv",
@@ -250,6 +262,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTAI",
     "dest_airport": "EDDF",
+    "origin": "LTAI",
+    "destination": "EDDF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -302,7 +317,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.797,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:12.539525"
+    "timestamp": "2026-11-24T11:26:32.221063"
   },
   {
     "filename": "ARR_SXS_SXS5720_20261122_121612.csv",
@@ -311,6 +326,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTAI",
     "dest_airport": "EDDM",
+    "origin": "LTAI",
+    "destination": "EDDM",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -363,7 +381,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.872,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:13.008589"
+    "timestamp": "2026-11-24T11:26:32.693014"
   },
   {
     "filename": "ARR_SXS_SXS6381_20261122_121559.csv",
@@ -372,6 +390,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTBJ",
     "dest_airport": "EDDF",
+    "origin": "LTBJ",
+    "destination": "EDDF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -424,7 +445,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.843,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:13.471380"
+    "timestamp": "2026-11-24T11:26:33.168926"
   },
   {
     "filename": "ARR_THY_THY1011_20261122_121638.csv",
@@ -433,6 +454,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFM",
     "dest_airport": "LEMD",
+    "origin": "LTFM",
+    "destination": "LEMD",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -485,7 +509,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.634,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:14.044304"
+    "timestamp": "2026-11-24T11:26:33.769992"
   },
   {
     "filename": "ARR_THY_THY1587_20261122_121559.csv",
@@ -494,6 +518,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFM",
     "dest_airport": "EDDF",
+    "origin": "LTFM",
+    "destination": "EDDF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -546,7 +573,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.808,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:14.495334"
+    "timestamp": "2026-11-24T11:26:34.213370"
   },
   {
     "filename": "ARR_THY_THY1629_20261122_121612.csv",
@@ -555,6 +582,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFM",
     "dest_airport": "EDDM",
+    "origin": "LTFM",
+    "destination": "EDDM",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -607,7 +637,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.737,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:14.926454"
+    "timestamp": "2026-11-24T11:26:34.625881"
   },
   {
     "filename": "ARR_THY_THY1865_20261122_121651.csv",
@@ -616,6 +646,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFM",
     "dest_airport": "LIRF",
+    "origin": "LTFM",
+    "destination": "LIRF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -668,7 +701,7 @@
     "is_partial_flight": true,
     "fuel_per_nm": 5.482,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:15.303355"
+    "timestamp": "2026-11-24T11:26:35.009152"
   },
   {
     "filename": "ARR_THY_THY1951_20261122_121625.csv",
@@ -677,6 +710,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFM",
     "dest_airport": "EHAM",
+    "origin": "LTFM",
+    "destination": "EHAM",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -729,7 +765,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 5.97,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:15.861402"
+    "timestamp": "2026-11-24T11:26:35.515617"
   },
   {
     "filename": "ARR_THY_THY501_20261122_121559.csv",
@@ -738,6 +774,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFM",
     "dest_airport": "EDDF",
+    "origin": "LTFM",
+    "destination": "EDDF",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -790,7 +829,7 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.771,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:16.340474"
+    "timestamp": "2026-11-24T11:26:35.985074"
   },
   {
     "filename": "ARR_THY_THY764_20261122_121612.csv",
@@ -799,6 +838,9 @@
     "aircraft_type": "B738",
     "origin_airport": "LTFM",
     "dest_airport": "EDDM",
+    "origin": "LTFM",
+    "destination": "EDDM",
+    "flight_date": "2026-11-22",
     "route_validity": "HIGH",
     "route_resolution_source": "trajectory_metadata",
     "route_warnings": [],
@@ -851,6 +893,6 @@
     "is_partial_flight": false,
     "fuel_per_nm": 6.894,
     "benchmark_status": "✅ Benchmark: 6 PASS, 0 WARNING, 0 FAIL (toplam 6)",
-    "timestamp": "2026-11-24T11:14:16.745435"
+    "timestamp": "2026-11-24T11:26:36.417412"
   }
 ]

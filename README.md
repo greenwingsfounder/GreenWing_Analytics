@@ -113,9 +113,14 @@ python tools/full_audit.py
 # Belirli bir katman
 python tools/full_audit.py --layer K5     # fizik
 
-# Tüm testler
+# Tüm testler (pytest: 25 test)
+python -m pytest tests/ -q
+
+# Site testleri (standalone: 51 kontrol)
 python tests/test_webapp.py
-python tests/test_aircraft_data_provenance.py
+
+# Kalibrasyon boru hattı regresyonu (7 test)
+python -m pytest tests/test_ingestion_pipeline.py -v
 
 # Yapı ağacını yenile
 python tools/build_tree.py --md
@@ -148,6 +153,7 @@ Veri kaynağı : {'synthetic_fallback': 14}
 | Konu | Durum | Etki |
 |---|---|---|
 | Gerçek uçuş verisi | **0** (14 sentetik) | Model doğrulanmadı |
+| Kalibrasyon kabulü | **Reddediliyor** (sentetik veri) | Doğru davranış — gerçek veri bekliyor |
 | Rüzgâr | GFS kodu hazır, GRIB2 yok | Belirsizlik ±%22,2 |
 | A20N yakıtı | ICAO EDB'de yok → tahmin | ±%20 sapma riski |
 | Geniş gövde poları | +%63 sapma | B77W/B789/A350 dikkatli |

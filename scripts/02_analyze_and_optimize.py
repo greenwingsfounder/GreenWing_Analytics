@@ -869,6 +869,16 @@ def main():
                 # Route
                 'origin_airport'         : origin_icao,
                 'dest_airport'           : dest_icao,
+                # DENETİM #92: eşleştirici 'origin'/'dest' okuyordu,
+                # batch_results ise yalnızca 'origin_airport' yazıyordu
+                # → eşleşme DAİMA 0 çıkıyordu ve kalibrasyon boru
+                # hattı (ticari planın kalbi) hiç çalışmıyordu.
+                # Ayrıca 'flight_date' hiç yazılmıyordu. İkisi eklendi.
+                'origin'                 : origin_icao,
+                'destination'            : dest_icao,
+                'flight_date'            : str(df['time'].iloc[0])[:10]
+                                           if 'time' in df.columns and len(df)
+                                           else '',
                 'route_validity'         : route_info['route_validity'],
                 'route_resolution_source': route_info['source'],
                 'route_warnings'         : route_info['route_warnings'],

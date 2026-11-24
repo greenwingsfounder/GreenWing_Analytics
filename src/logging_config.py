@@ -78,6 +78,35 @@ _SYSTEM_VERSION = "1.0.0"
 
 import logging
 
+def setup_logging(level: str = "INFO") -> None:
+    """
+    Kök log yapılandırmasını kur.
+
+    DENETİM #92: `scripts/10_pre_real_ingestion_demo.py` bu fonksiyonu
+    import ediyordu ama fonksiyon HİÇ YOKTU → script ImportError ile
+    çöküyordu. Yani müşteri verisini alacak olan tek script çalışmıyordu
+    ve bu, hiçbir test kapsamadığı için fark edilmemişti.
+
+    Kullanım:
+        from src.logging_config import setup_logging, get_logger
+        setup_logging("INFO")
+        logger = get_logger(__name__)
+    """
+    import sys as _sys
+    lvl = getattr(logging, str(level).upper(), logging.INFO)
+    root = logging.getLogger()
+    if root.handlers:            # ikinci çağrıda çift handler olmasın
+        root.setLevel(lvl)
+        return
+    h = logging.StreamHandler(_sys.stdout)
+    h.setLevel(lvl)
+    h.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"))
+    root.addHandler(h)
+    root.setLevel(lvl)
+
+
 def get_logger(name: str) -> logging.Logger:
     """
     Merkezi logger factory.

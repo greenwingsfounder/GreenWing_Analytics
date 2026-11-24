@@ -1,7 +1,7 @@
 # GreenWing Analytics — Proje Yapı Ağacı
 
 > Otomatik üretildi: `python tools/build_tree.py`  
-> **160 dosya** · **94 Python modülü** · **51.577 satır kod**
+> **177 dosya** · **95 Python modülü** · **51.938 satır kod**
 
 **İşaretler:** ★ = kritik dosya · ⚠️ = dikkat · (0 byte) = silinecek
 
@@ -17,12 +17,28 @@
 │   ├── phase_thrust_table.yaml  — Faz bazlı itki tablosu
 │   ├── saf_database.yaml  — SAF türleri ve özellikleri
 │   └── settings.py  — Sistem ayarları (units.py'den okur)
-├── data/   (32 dosya)
+├── data/   (48 dosya)
 │   ├── calibrations/   (1 dosya)
 │   │   └── OKU.md
-│   ├── customer_fuel/   (1 dosya)
-│   │   └── OKU.md
-│   ├── mocks/   (1 dosya)
+│   ├── customer_fuel/   (11 dosya)
+│   │   ├── OKU.md
+│   │   ├── pytest2_137847.csv
+│   │   ├── pytest2_459835.csv
+│   │   ├── pytest2_45b2c7.csv
+│   │   ├── pytest2_c507b7.csv
+│   │   ├── pytest_07945f.csv
+│   │   ├── pytest_21109d.csv
+│   │   ├── pytest_785dba.csv
+│   │   ├── pytest_aab2b8.csv
+│   │   ├── regression_e8aa5e.csv
+│   │   └── sunexpress_demo_d6ea5a.csv
+│   ├── mocks/   (7 dosya)
+│   │   ├── mock_default_20.csv
+│   │   ├── mock_default_25.csv
+│   │   ├── mock_pytest2_20.csv
+│   │   ├── mock_pytest_20.csv
+│   │   ├── mock_regression_30.csv
+│   │   ├── mock_sunexpress_demo_30.csv
 │   │   └── OKU.md
 │   ├── openap/   (14 dosya)
 │   │   ├── aircraft/
@@ -83,7 +99,7 @@
 │   │   ├── data_quality_20261122.json [4 KB]
 │   │   └── fleet_digital_twins_20261122.json [0 KB]
 │   ├── optimizations/   (1 dosya)
-│   │   └── batch_results.json [25 KB]
+│   │   └── batch_results.json [26 KB]
 │   ├── GreenWing_CaseStudy_20261122.html
 │   ├── GreenWing_Fleet_Report_20261122.html
 │   ├── GreenWing_Proje_El_Kitabi.pdf [116 KB]
@@ -153,7 +169,7 @@
 │   ├── logging_config.py  — Hesaplama izleme / log sistemi
 │   ├── units.py  — ★ Birim dönüşümü + fizik sabitleri — TEK KAYNAK
 │   └── utils.py  — Ortak yardımcılar (haversine, biçimlendirme)
-├── tests/   (24 dosya)
+├── tests/   (25 dosya)
 │   ├── __init__.py  — Test Package
 │   ├── test_aircraft_data_provenance.py  — ★ Uçak verisi kaynak doğrulaması
 │   ├── test_atmosphere.py  — ISA atmosfer (ICAO elle hesap)
@@ -162,6 +178,7 @@
 │   ├── test_fleet_analyzer.py  — Filo analizi
 │   ├── test_fuel_model.py  — Yakıt modeli fizik
 │   ├── test_fuel_model_estimate_flag.py  — Tahmin bayrağı
+│   ├── test_ingestion_pipeline.py  — Regresyon testleri — DENETİM #92 / #93.
 │   ├── test_logging.py  — Log sistemi
 │   ├── test_mach_physics.py  — Mach fiziği
 │   ├── test_optimization.py  — Optimizasyon

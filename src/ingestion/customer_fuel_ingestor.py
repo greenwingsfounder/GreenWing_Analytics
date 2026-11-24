@@ -223,11 +223,60 @@ class CustomerFuelIngestor:
              "distance_nm": 1618, "ac": "B738", "route_type": "long"},
         ]
         
+        # ── GERÇEK UÇUŞLARDAN TÜRET (denetim #92) ─────────────
+        # Eskiden rota/çağrı işareti havuzu SABİTTİ (SXS1409, SXS120,
+        # SXS802) ve tarih 2025-06-01'den başlıyordu. Depodaki gerçek
+        # uçuşlar ise PGT120 / THY501 / SXS1409... farklı çağrı
+        # işaretleri ve farklı tarihler taşıyordu → eşleştirici
+        # HİÇBİR kaydı eşleştiremiyordu (0/30) ve kalibrasyon kapısı
+        # (min 15 uçuş) asla açılmıyordu.
+        #
+        # ÇÖZÜM: batch_results.json varsa ondan türet (çağrı işareti,
+        # rota, mesafe, tarih). Yoksa sabit havuza düş.
+        try:
+            import json as _json
+            _batch = (Path(_PROJECT_ROOT) / 'reports' / 'optimizations'
+                      / 'batch_results.json')
+            if _batch.exists():
+                _data = _json.loads(_batch.read_text(encoding='utf-8'))
+                _derived = [
+                    {'callsign': d.get('callsign'),
+                     'origin': d.get('origin_airport') or d.get('origin'),
+                     'dest': d.get('dest_airport') or d.get('destination'),
+                     'distance_nm': float(d.get('distance_nm') or 0),
+                     'ac': d.get('aircraft_type') or 'B738',
+                     'flight_date': str(d.get('flight_date') or '')[:10],
+                     'route_type': ('short'
+                                    if float(d.get('distance_nm') or 0) < 600
+                                    else 'medium'
+                                    if float(d.get('distance_nm') or 0) < 1400
+                                    else 'long')}
+                    for d in _data if d.get('callsign')]
+                if _derived:
+                    bases = _derived
+                    logger.info(
+                        f"[mock] {len(bases)} uçuş batch_results'tan "
+                        'türetildi (çağrı işareti + rota + tarih uyumlu)')
+        except Exception as _e:      # türetme başarısızsa sabit havuz
+            logger.warning(f'[mock] batch_results türetilemedi: {_e}')
+
         recs = []
         d0 = datetime(2025, 6, 1)
         
-        for i in range(n_flights):
+        # DENETİM #92: aynı (çağrı işareti, tarih) çifti iki kez
+        # üretilirse eşleştirici ikincisini reddediyor (doğru davranış)
+        # ve kalibrasyon kapısı boşa düşüyor. Tekrar üretme.
+        _seen = set()
+        _tries = 0
+        while len(recs) < n_flights and _tries < n_flights * 30:
+            _tries += 1
             b = random.choice(bases)
+            _date = b.get("flight_date") or (
+                d0 + timedelta(days=len(recs) % 28)).strftime("%Y-%m-%d")
+            _key = (b["callsign"], _date)
+            if _key in _seen:
+                continue
+            _seen.add(_key)
             dist = b["distance_nm"]
             route_type = b["route_type"]
             
@@ -311,7 +360,12 @@ class CustomerFuelIngestor:
             total_fuel = max(min_fuel, min(max_fuel, total_fuel))
             
             recs.append({
-                "flight_date": (d0 + timedelta(days=i % 28)).strftime("%Y-%m-%d"),
+                # DENETİM #92: tarih sabit d0'dan üretiliyordu → her
+                # zaman 2025-06-xx. Türetilen tarih (gerçek uçuşun
+                # tarihi) VARSA onu kullan; yoksa geriye dönük d0.
+                "flight_date": (b.get("flight_date")
+                                or (d0 + timedelta(days=len(recs) % 28))
+                                .strftime("%Y-%m-%d")),
                 "callsign": b["callsign"],
                 "origin": b["origin"],
                 "dest": b["dest"],

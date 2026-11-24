@@ -2,16 +2,17 @@
 GreenWing Enterprise Calibration Pipeline (v2.1)
 """
 from __future__ import annotations
-import json, hashlib, logging
-from datetime import datetime, timezone
+
+import json
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-import pandas as pd
+from typing import Any
+
+from config.ingestion_config import DEFAULT_INGESTION_CONFIG
+from config.settings import _PROJECT_ROOT
 from src.ingestion.customer_fuel_ingestor import CustomerFuelIngestor
 from src.ingestion.flight_matcher import FlightMatcher
 from src.optimization.model_calibrator import ModelCalibrator
-from config.ingestion_config import DEFAULT_INGESTION_CONFIG
-from config.settings import _PROJECT_ROOT
 
 # === CENTRAL PROVENANCE: AnalysisTracer (pre-real scientific integrity) ===
 # This is the "kara kutu". Every critical ingestion/calibration step is now recorded.
@@ -23,13 +24,14 @@ except ImportError:
     AnalysisTracer = None  # graceful for environments without it (should not happen)
 
 from src.logging_config import get_logger
+
 logger = get_logger("ingestion.pipeline")
 
 CALIBRATIONS_DIR = Path(_PROJECT_ROOT) / "data" / "calibrations"
 CALIBRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 class CalibrationPipeline:
-    def __init__(self, tenant_id: str = "default", config: Optional[Any] = None):
+    def __init__(self, tenant_id: str = "default", config: Any | None = None):
         self.tenant_id = tenant_id
         self.cfg = config or DEFAULT_INGESTION_CONFIG
         self.ingestor = CustomerFuelIngestor(tenant_id, config=self.cfg)
@@ -42,7 +44,7 @@ class CalibrationPipeline:
         # Every key step is now logged with AnalysisTracer.
         # This directly addresses "Provenance kâfi değil".
         # When real data comes, we only add more log_input/log_step calls.
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         tracer = None
         if AnalysisTracer:
             tracer = AnalysisTracer(
@@ -123,7 +125,22 @@ class CalibrationPipeline:
             if tracer:
                 tracer.log_validation("CalibrationPipeline", "quality_gate", "FAIL",
                                       value=imp, expected_range=f">={self.cfg.MIN_IMPROVEMENT_PCT}% and after<={self.cfg.MAX_ACCEPTABLE_ERROR_AFTER_PCT}%")
-            return {"status":"REJECTED", "message": f"Quality gate failed (imp={imp:.1f}%, after={after:.1f}%)"}
+            # DENETİM #92: reddedilen koşuda teşhis bilgisi
+            # KAYBOLUYORDU — kullanıcı neden reddedildiğini göremiyordu.
+            # Artık tam metrikler sonuçla birlikte dönüyor.
+            return {"status":"REJECTED",
+                    "message": f"Quality gate failed (imp={imp:.1f}%, after={after:.1f}%)",
+                    "full_matched_count": len(matched),
+                    "calibration": cres,
+                    "accuracy_improvement": {
+                        "before_pct": round(before, 2),
+                        "after_pct": round(after, 2),
+                        "improvement_pct": round(imp, 2)},
+                    "quality_gate": {
+                        "min_improvement_pct": self.cfg.MIN_IMPROVEMENT_PCT,
+                        "max_acceptable_error_after_pct":
+                            self.cfg.MAX_ACCEPTABLE_ERROR_AFTER_PCT,
+                        "passed": False}}
 
         if tracer:
             tracer.log_validation("CalibrationPipeline", "quality_gate", "PASS",

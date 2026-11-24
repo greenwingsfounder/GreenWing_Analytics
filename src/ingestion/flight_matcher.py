@@ -2,29 +2,44 @@
 GreenWing Professional Flight Matcher (v2.1)
 """
 from __future__ import annotations
+
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 import pandas as pd
-import numpy as np
+
 from config.ingestion_config import DEFAULT_INGESTION_CONFIG
 from src.logging_config import get_logger
 
 logger = get_logger("ingestion.matcher")  # Central logging (consistent)
 
 class FlightMatcher:
-    def __init__(self, tenant_id="default", tolerance_days=None, config: Optional[Any] = None):
+    def __init__(self, tenant_id="default", tolerance_days=None, config: Any | None = None):
         self.tenant_id = tenant_id
         self.cfg = config or DEFAULT_INGESTION_CONFIG
         self.tolerance_days = tolerance_days or self.cfg.DEFAULT_TOLERANCE_DAYS
 
-    def match_customer_fuel_to_trajectories(self, fuel_df: pd.DataFrame, trajs: List[dict]) -> List[dict]:
+    def match_customer_fuel_to_trajectories(self, fuel_df: pd.DataFrame, trajs: list[dict]) -> list[dict]:
         if fuel_df.empty: return []
+        # DENETİM #92: 'used' set'i her trajectory'yi YALNIZCA BİR KEZ
+        # eşleştiriyordu. Ama aynı uçuş (ör. PGT120) birden çok günde
+        # yapılır ve müşteri CSV'sinde her gün ayrı satırdır.
+        # Sonuç: 14 uçuşluk veri havuzunda yalnızca 4 eşleşme çıkıyordu
+        # ve kalibrasyon kapısı (>=15) hiç açılamıyordu.
+        #
+        # DOĞRU KURAL: bir trajectory bir GÜNE aittir. Aynı çağrı
+        # işareti + AYNI TARİH yalnızca bir kez eşleşir; farklı
+        # tarihler serbesttir. Anahtar: (callsign, date).
         matched, used = [], set()
         for _, f in fuel_df.iterrows():
-            best_score, best, best_idx = -1, None, -1
+            best_score, best = -1, None
             for i, t in enumerate(trajs):
-                if i in used: continue
+                _t_key = (str(t.get('callsign', '')).upper(),
+                          str(t.get('flight_date') or
+                              t.get('timestamp', ''))[:10])
+                if _t_key in used:      # aynı uçuş + aynı gün → tekrar yok
+                    continue
                 sc = 0
                 if str(f.get("callsign","")).upper() == str(t.get("callsign","")).upper():
                     if abs(self._dd(str(f.get("flight_date","")), str(t.get("flight_date",t.get("timestamp",""))))) <= self.tolerance_days:
@@ -60,9 +75,11 @@ class FlightMatcher:
                     # This line is only reached if someone explicitly sets
                     # ALLOW_DISTANCE_ONLY_MATCH=True (strongly discouraged)
                 if sc > best_score:
-                    best_score, best, best_idx = sc, {"match_quality":"EXACT" if sc>90 else "FUZZY" if sc>65 else "DISTANCE", "match_score":sc, "trajectory":t, "customer_fuel":dict(f)}, i
+                    best_score, best = sc, {"match_quality":"EXACT" if sc>90 else "FUZZY" if sc>65 else "DISTANCE", "match_score":sc, "trajectory":t, "customer_fuel":dict(f)}
             if best and best_score >= self.cfg.MIN_ACCEPTABLE_MATCH_SCORE:
-                used.add(best_idx)
+                used.add((str(best['trajectory'].get('callsign', '')).upper(),
+                          str(best['trajectory'].get('flight_date') or
+                              best['trajectory'].get('timestamp', ''))[:10]))
                 t = best["trajectory"]
                 pred = t.get("estimated_fuel_kg", float(t.get("distance_nm",1200))*6.8)
                 matched.append({
