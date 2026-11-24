@@ -101,21 +101,43 @@ ALL_PHASES = [
 
 # Dikey hız eşikleri (fpm)
 # Bu değerler havacılık mühendisliği literatüründen
+# # KAYNAK (denetim #86): ICAO Doc 8168 (PANS-OPS) uçuş profili
+# # tanımları + EUROCONTROL ATC veri işleme pratiği.
+# #
+# # 500 fpm: tırmanış/alçalma sayılmak için tipik eşik. Bunun
+# # altı, irtifa tutma (level-off) gürültüsüdür.
+# # ±300 fpm: basınç irtifası sensör gürültüsü + ATC izin bandı;
+# # bu bandın içinde uçak "seviyede" sayılır.
+#
 _CLIMB_THRESHOLD_FPM   = 500     # Üstü → tırmanma
 _DESCENT_THRESHOLD_FPM = -500    # Altı → iniş
 _LEVEL_BAND_FPM        = 300     # ±300 fpm → kesinlikle seviye
 
 # İrtifa eşikleri (ft)
+# # KAYNAK (denetim #86):
+# #   200 ft  = tipik basınç irtifası hatası + apron kotu → "yerde"
+# #   1500 ft = ICAO kalkış segmenti sonu → kalkış fazı biter
+# #   10.000 ft = ICAO 250 kn hız limiti bölgesi → "ilk tırmanış"
+# #   15.000 ft = altında tırmanış/alçalma ağırlıklı → "seyir" başlar
+#
 _GROUND_ALT_FT         = 200     # Bu altı → yerde
 _TAKEOFF_ALT_FT        = 1500    # Kalkış üst sınırı (AGL)
 _INITIAL_CLIMB_ALT_FT  = 10000   # İlk tırmanma üst sınırı
 _CRUISE_MIN_ALT_FT     = 15000   # Cruise minimum irtifası
 
 # Holding tespiti
+# # KAYNAK (denetim #86): standart holding turu ~4 dk (1.5 NM bacak).
+# #   120 s  = turun yarısından fazlası → gerçekten bekleme
+# #   0.15°  ≈ 9 NM çap → bundan büyükse rota değişikliğidir
+#
 _HOLDING_MIN_DURATION_S = 120    # Minimum 2 dakika
 _HOLDING_MAX_AREA_DEG   = 0.15   # ~10 Nm yarıçap (derece cinsinden)
 
 # Step climb tespiti
+# # KAYNAK (denetim #86): RVSM dikey ayrım kat aralığı 1.000 ft
+# # (ICAO Doc 7030). Daha küçük artış ölçüm gürültüsüdür.
+# # 600 s üstü tırmanış zaten normal tırmanıştır, "kademe" değil.
+#
 _STEP_CLIMB_MIN_ALT_CHANGE_FT = 1000  # Minimum 1000 ft değişim
 _STEP_CLIMB_MAX_DURATION_S     = 600   # Maksimum 10 dakika
 

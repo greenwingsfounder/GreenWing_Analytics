@@ -499,10 +499,22 @@ def run_tests():
         check(f"ICAO {_h:,} ft basınç (hPa)", _pm / 100, _p / 100, _p * 0.002 / 100)
 
     # Yoğunluk ideal gaz yasasıyla tutarlı mı? (ρ = p/(R·T))
+    #
+    # DİKKAT (denetim #86): burada 287.05 gömülüydü, kod ise
+    # 287.0550227 (= 8.314462618/28.9647) kullanıyor. İki farklı
+    # R yan yana gelince test YAPAY olarak başarısız oluyordu
+    # (Δ ≈ 2e-5). Sorun modelde değil, testin kendi kopyasında.
+    # Kural: test de aynı TEK KAYNAĞI okur.
+    from src.units import _R_AIR as _R_TEST
     for _h in (0, 20000, 35000, 45000):
         _T, _P, _rho = _ia.get_properties(altitude_ft=_h)
-        _rho_calc = _P / (287.05 * _T)
+        _rho_calc = _P / (_R_TEST * _T)
         check(f"ρ tutarlı @ {_h:,} ft (p/RT)", _rho, _rho_calc, 1e-6)
+        # AYRICA: ICAO yuvarlanmış R ile de %0,01 içinde olmalı —
+        # bu, tek kaynağın ICAO değerinden koptuğunu yakalar.
+        _rho_icao = _P / (287.05 * _T)
+        check(f"R ICAO yuvarlanmışından sapma @ {_h:,} ft",
+              _rho, _rho_icao, _rho * 1e-4)
 
     # ═══════════════════════════════════════════════════════
     # SONUÇ

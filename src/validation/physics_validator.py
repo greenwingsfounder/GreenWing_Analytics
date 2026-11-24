@@ -77,6 +77,10 @@ _BUFFET_CL = {
 }
 
 # FAR 25.251 gereği minimum buffet marjı
+# # KAYNAK (denetim #86): FAR 25.251 (14 CFR 25.251) — titreşim ve
+# # buffet. Yapısal sınır 1.3 g marjla tanımlanır.
+# # Yani CL_max yapısal = CL_buffet / 1.3.
+#
 FAR_25_251_BUFFET_MARGIN = 1.3  # 1.3g marjı
 
 

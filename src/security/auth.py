@@ -66,8 +66,19 @@ from typing import Optional
 from urllib.parse import urlparse
 
 # ── Kriptografik parametreler ────────────────────────────────
+# # KAYNAK (denetim #86): OWASP Password Storage Cheat Sheet (2023).
+# # PBKDF2-HMAC-SHA256 için önerilen alt sınır: 600.000 iterasyon.
+# # Daha azı GPU ile kırılabilir; daha fazlası girişi yavaşlatır.
+#
 _PBKDF2_ITERATIONS = 600_000       # OWASP 2023: PBKDF2-HMAC-SHA256 ≥ 600k
 _PBKDF2_ALGO = 'sha256'
+# # KAYNAK (denetim #86):
+# #  16 bayt tuz = RFC 8018 (PKCS#5 v2.2) önerisi; gökkuşağı
+# #   tablolarını etkisiz kılar (her kullanıcıya özgü).
+# #  5 deneme / 300 s + 900 s kilit = NIST SP 800-63B §5.2.2
+# #   (rate limiting + account lockout). Kısa kilit saldırgana
+# #   zaman verir, çok uzun kilit meşru kullanıcıyı cezalandırır.
+#
 _SALT_BYTES = 16
 _SESSION_TTL_S = 8 * 3600          # 8 saat
 _MAX_ATTEMPTS = 5

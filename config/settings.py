@@ -66,13 +66,27 @@ load_dotenv(dotenv_path=_ENV_PATH, override=True)
 # OPENSKY_USERNAME = os.getenv('OPENSKY_USERNAME')
 # OPENSKY_PASSWORD = os.getenv('OPENSKY_PASSWORD')
 
+# ── TEK KAYNAK (denetim #86) ─────────────────────────────────
+# Dönüşüm ve fizik sabitlerinin tek tanım yeri src/units.py'dir.
+# Bu dosya onları YENİDEN YAZMAZ, oradan okur. Aksi hâlde 5 kopya
+# oluşuyordu ve biri güncellenince diğerleri sessizce eski kalıyordu.
+# Bu dosya hem `import config.settings` hem `python config/settings.py`
+# ile çalışabilmeli. İkincisinde depo kökü sys.path'te olmaz → ekle.
+import pathlib as _pathlib
+import sys as _sys
+_ROOT = _pathlib.Path(__file__).resolve().parents[1]
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+
+from src import units as _u   # noqa: E402
+
 # ═══════════════════════════════════════════════════════════
 # 1. FİZİKSEL SABİTLER
 # ═══════════════════════════════════════════════════════════
 # Kaynak: NIST, ICAO
 # DEĞİŞİR Mİ: ASLA. Fizik yasaları.
 
-GRAVITY = 9.80665
+GRAVITY = _u._GRAVITY
 """
 Yerçekimi ivmesi (m/s²).
 Kaldırma kuvveti hesabında: L = W × g
@@ -80,7 +94,7 @@ Her ağırlık → kuvvet dönüşümünde kullanılır.
 Kaynak: 3. CGPM (1901), standart yerçekimi.
 """
 
-R_AIR = 287.05
+R_AIR = _u._R_AIR
 """
 Kuru hava spesifik gaz sabiti (J/(kg·K)).
 İdeal gaz denklemi: P = ρ × R × T
@@ -126,6 +140,10 @@ ISA deniz seviyesi basıncı (Pascal).
 Altimetre kalibrasyonu ve basınç oranı (δ) hesabı referansı.
 """
 
+# # Deniz seviyesi yoğunluğu. TÜRETİLMİŞ: p0/(R·T0)
+# #   101325/(287.055×288.15) = 1.22499 → ICAO yuvarlatması 1.225
+# # Tek kaynak: src/units.py _ISA_RHO0.
+#
 ISA_RHO0 = 1.225
 """
 ISA deniz seviyesi hava yoğunluğu (kg/m³).
@@ -141,7 +159,7 @@ Her 1000 metre yükselişte sıcaklık 6.5°C azalır.
 Not: Negatif değer (sıcaklık azalıyor).
 """
 
-TROPOPAUSE_ALT = 11000
+TROPOPAUSE_ALT = _u._TROPOPAUSE_M
 """
 Tropopoz irtifası (metre).
 = ~36089 feet
@@ -154,24 +172,33 @@ Stratosfer başlangıcı.
 # 3. BİRİM DÖNÜŞÜM SABİTLERİ
 # ═══════════════════════════════════════════════════════════
 # DEĞİŞİR Mİ: ASLA. Tanım gereği sabit.
-# NOT: units.py bu sabitleri kendi içinde de tutar.
-#      Burada da referans olarak bulunur.
-#      KULLANIM: Tercihen units.py üzerinden dönüşüm yap.
+#
+# ⚠ TEK KAYNAK KURALI (denetim #86)
+# Aynı dönüşüm kat sayıları daha önce DÖRT yerde tanımlıydı:
+#   src/units.py · config/settings.py · src/models/atmosphere.py
+#   src/models/fuel_model.py · src/utils.py
+# Beşi elle yazılmıştı. İkisinde yuvarlama vardı (2.20462 vs
+# 2.20462262). Bir gün birini düzeltip diğerini unutmak
+# "aynı hesap iki farklı sonuç veriyor" hatasına yol açar.
+# ARTIK: tanım src/units.py'de, buradaki değerler ORADAN geliyor.
+# Alt modüller döngüsel import yapmasın diye sayılar kopyalanmıyor,
+# units üzerinden okunuyor (units hiçbir alt modülü import etmez).
+# ═══════════════════════════════════════════════════════════
 
-KNOT_TO_MS = 0.514444
+KNOT_TO_MS = _u._KTS_TO_MS
 """
 1 knot = 0.514444 m/s
 Havacılık hız birimi dönüşümü.
 """
 
-FT_TO_M = 0.3048
+FT_TO_M = _u._FT_TO_M
 """
 1 foot = 0.3048 metre
 Havacılık irtifa birimi dönüşümü.
 Tanım gereği TAM OLARAK bu değer.
 """
 
-NM_TO_M = 1852.0
+NM_TO_M = _u._NM_TO_M
 """
 1 deniz mili (nautical mile) = 1852.0 metre
 Havacılık mesafe birimi dönüşümü.
@@ -179,7 +206,7 @@ Tanım gereği TAM OLARAK bu değer.
 Not: Statute mile = 1609.344 m → FARKLI! Karıştırma.
 """
 
-KG_TO_LBS = 2.20462
+KG_TO_LBS = _u._KG_TO_LBS
 """
 1 kilogram = 2.20462 pound
 Ağırlık dönüşümü. ABD ve İngiltere hâlâ pound kullanır.
@@ -211,7 +238,7 @@ Su buharı emisyonu. Contrail oluşumunda önemli.
 Non-CO2 iklim etkisi hesaplamalarında kullanılır.
 """
 
-EI_SO2 = 0.001
+EI_SO2 = 0.0008    # 0.8 g/kg — türetim: emission_model.py (#87)
 """
 SO2 emission index (kg SO2 / kg yakıt).
 Jet-A1'deki küçük sülfür içeriğinden (~0.05% S).
@@ -232,6 +259,9 @@ NOT: Bu sabit değerdir. Sıcaklığa bağlı yoğunluk için
      Units.fuel_density_at_temp(temperature_c) kullan.
 """
 
+# # 43.15 MJ/kg — Jet A-1 alt ısıl değer (LHV).
+# # Detay ve kaynak: src/models/emission_model.py _JET_A1_LHV.
+#
 JET_A1_ENERGY = 43.15
 """
 Jet-A1 alt ısıl değeri / Lower Heating Value (MJ/kg).
@@ -451,7 +481,7 @@ def validate_settings() -> bool:
     # Fiziksel sabitler
     print("\n  [1] Fiziksel Sabitler")
     check("GRAVITY",    GRAVITY,    9.80665)
-    check("R_AIR",      R_AIR,      287.05)
+    check("R_AIR (ICAO yuvarlanmış)", R_AIR, 287.05, tol=0.01)
     check("GAMMA",      GAMMA,      1.4)
     check("R_EARTH",    R_EARTH,    6371000)
 
@@ -474,16 +504,21 @@ def validate_settings() -> bool:
 
     # Birim dönüşüm
     print("\n  [3] Birim Dönüşüm")
-    check("KNOT_TO_MS", KNOT_TO_MS, 0.514444)
-    check("FT_TO_M",    FT_TO_M,    0.3048)
-    check("NM_TO_M",    NM_TO_M,    1852.0)
-    check("KG_TO_LBS",  KG_TO_LBS,  2.20462)
+    # NOT (denetim #86): bu testler eskiden sabitin KENDİ kopyasını
+    # bekliyordu → döngüsel test. Değer yanlış olsa da "geçer"di.
+    # Artık BAĞIMSIZ TANIMDAN türetilmiş değerle karşılaştırılıyor:
+    #   1 kn = 1852 m / 3600 s ; 1 lb = 0.45359237 kg (1959 anlaşması)
+    check("KNOT_TO_MS", KNOT_TO_MS, 1852.0 / 3600.0)
+    check("FT_TO_M",    FT_TO_M,    0.3048)          # tanım
+    check("NM_TO_M",    NM_TO_M,    1852.0)          # tanım
+    check("KG_TO_LBS",  KG_TO_LBS,  1.0 / 0.45359237)  # tanımdan
+    check("KG_TO_LBS (tam)", KG_TO_LBS, 2.204622622, tol=1e-6)
 
     # Emisyon
     print("\n  [4] Emisyon Sabitleri")
     check("EI_CO2", EI_CO2, 3.16)
     check("EI_H2O", EI_H2O, 1.24)
-    check("EI_SO2", EI_SO2, 0.001)
+    check("EI_SO2", EI_SO2, 0.0008)
 
     # Yakıt
     print("\n  [5] Yakıt Özellikleri")

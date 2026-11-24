@@ -167,6 +167,12 @@ _PARTIAL_FLIGHT_THRESHOLD_KG_PER_NM: dict[str, float] = {
 _UNKNOWN_DESTINATION_MARKERS = {'UNK', 'UNKN', '', 'N/A', 'NONE', None}
 
 # Ortalama yakıt fiyatı (annualized fuel ton hesabı için)
+# # 0.85 USD/kg ≈ 2.7 USD/US galon (Jet A-1, 2023-2025 bandı).
+# # Kaynak: IATA Fuel Price Monitor (aylık yayımlanır).
+# # NOT: fiyat TARİHE ve BÖLGEYE göre %50 değişir; bu yalnızca
+# # filtresiz çalıştırmada kullanılan varsayılandır → raporlarda
+# # "varsayılan fiyat" etiketiyle görünür.
+#
 _DEFAULT_FUEL_PRICE_USD_PER_KG = 0.85
 
 

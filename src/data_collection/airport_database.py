@@ -365,12 +365,25 @@ _COMMON_AIRPORTS: dict[str, dict] = {
 # SABİTLER — TESPİT EŞİKLERİ
 # ═══════════════════════════════════════════════════════════
 
+# # KAYNAK (denetim #86): havalimanı eşleştirme yarıçapları.
+# #  8 NM  STRICT = çok emin (en uzun pist 4 NM + taksi/yaklaşma)
+# # 15 NM  NORMAL = SID/STAR yaklaşma konisi genişliği
+# # 25 NM  LOOSE  = "belki" — veri kalitesi düşükse
+# # 25 NM üstü komşu havalimanlarıyla çakışır
+# #   (İstanbul ↔ Sabiha Gökçen ≈ 32 NM)
+#
 _STRICT_IDENTIFY_NM = 8.0
 _NORMAL_IDENTIFY_NM = 15.0
 _LOOSE_IDENTIFY_NM  = 25.0
 
 # Aynı havalimanının hem origin hem destination olması için
 # çok kısa rota gerekir; aksi halde şüpheli kabul edilir.
+# # KAYNAK (denetim #86): iki uçuş kaydının AYNI havalimanına ait
+# # sayılması için rota uzunluğu üst sınırı.
+# # 40 NM: en kısa ticari uçuşlar bile ~50 NM (örn. IST-SAW 32 NM
+# # teknik olarak aynı şehir). 40 NM altı = kalkış ve iniş aynı yer
+# # → kayıt hatalı (uçak geri dönmüş veya veri karışmış).
+#
 _SAME_AIRPORT_MAX_ROUTE_NM = 40.0
 
 

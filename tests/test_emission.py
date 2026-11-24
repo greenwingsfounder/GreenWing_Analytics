@@ -112,8 +112,20 @@ def run_tests():
     # ═══════════════════════════════════════════════════════
     print("\n  [3] SO₂ Hesabı")
 
-    check("SO₂ 1000 kg", calc.so2_from_fuel(1000), 1.0, 0.01)
-    check("SO₂ 10000 kg", calc.so2_from_fuel(10000), 10.0, 0.01)
+    # ── SO₂ (denetim #87) ──────────────────────────────────────
+    # ESKİ BEKLENTİ 1.0 kg/1000 kg (1.0 g/kg) → YANLIŞTI.
+    # Türetim: EI(SO₂) = [M(SO₂)/M(S)] × FSC
+    #          = (64.066/32.065) × 0.4 g S/kg
+    #          = 1.998 × 0.4 = 0.799 g/kg
+    # Literatür: Lee et al. (2010), ICAO → 0.8 g/kg.
+    _MS, _MSO2, _FSC = 32.065, 64.066, 0.4
+    _ei = (_MSO2 / _MS) * _FSC / 1000      # kg SO2 / kg fuel
+    check("SO₂ 1000 kg → türetim",
+          calc.so2_from_fuel(1000), _ei * 1000, 0.001)
+    check("SO₂ 10000 kg → türetim",
+          calc.so2_from_fuel(10000), _ei * 10000, 0.01)
+    check("EI(SO₂) literatür 0.8 g/kg ±%5",
+          calc.so2_from_fuel(1e6), 800, 40)
 
     # ═══════════════════════════════════════════════════════
     # 4. SIFIR YAKIT

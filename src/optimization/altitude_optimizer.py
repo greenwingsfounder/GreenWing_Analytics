@@ -1,8 +1,3 @@
-
-
-from __future__ import annotations
-from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
-
 """
 GreenWing Analytics — İrtifa ve Step Climb Optimizasyonu
 ═══════════════════════════════════════════════════════════
@@ -52,6 +47,10 @@ aircraft_database.yaml içinde **motor başına thrust** olarak yorumlanır.
     toplam thrust = 2 × 121400 = 242800 N
 """
 
+from __future__ import annotations
+from config.settings import EI_CO2  # CORSIA: 3.16 kg CO₂/kg yakıt
+
+
 import numpy as np
 from typing import Optional
 
@@ -74,10 +73,22 @@ _EASTBOUND_LEVELS = [31000, 33000, 35000, 37000, 39000, 41000]
 _WESTBOUND_LEVELS = [30000, 32000, 34000, 36000, 38000, 40000]
 
 # Step climb mantık sınırları
+# # KAYNAK (denetim #86): kademeli tırmanış kuralları.
+# # Uçak yakıt yaktıkça hafifler → daha yükseğe çıkabilir → az yakar.
+# # 4 adım : ATC pratiği; 8-10 saatlik uçuşta tipik 2-4 kademe.
+# # 200 NM : kademeler arası en az mesafe (daha sık = ATC reddeder)
+# # 50 kg  : bu kadar kazandırmıyorsa ÖNERİLMEZ (pilot iş yükü).
+#
 _MAX_STEP_CLIMBS = 4
 _MIN_STEP_INTERVAL_NM = 200
 _MIN_NET_SAVING_KG = 50
 # Raporlanabilir en küçük tasarruf — altında 0 gösterilir (yuvarlama artığı)
+# # KAYNAK (denetim #86):
+# #   5 kg   : model belirsizliği ±%22 iken bundan azını "tasarruf"
+# #            diye sunmak yanıltıcıdır.
+# #   200 NM : bundan kısa uçuşta kademe tırmanışı yakıt harcatır;
+# #            tırmanma maliyeti geri kazanılmaz.
+#
 _MIN_REPORTABLE_SAVING_KG = 5.0
 _MIN_REMAINING_NM = 200
 
@@ -85,6 +96,10 @@ _MIN_REMAINING_NM = 200
 # Sertifikasyon seviyesinde 1.3g marjı için çok daha detaylı AFM/FCOM
 # verisi gerekir. Bu optimizer seviyesinde onset CL'nin %90'ı operasyonel
 # screening limiti olarak kullanılır.
+# # KAYNAK (denetim #86): teorik buffet sınırının %90 kullanılır.
+# # %10 pay: türbülans, buzlanma, ağırlık tahmin hatası.
+# # FAR 25.251 (1.3 g) yapısal sınırı tanımlar; bu ise OPERASYONEL pay.
+#
 _BUFFET_OPERATIONAL_FACTOR = 0.90
 
 # Buffet onset CL referansları

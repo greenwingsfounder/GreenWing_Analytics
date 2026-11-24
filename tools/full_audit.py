@@ -610,6 +610,49 @@ def layer_physics() -> None:
                      f'K={p["K"]} vs 1/(π·{ar}·{p["e"]})={k_imp:.4f} '
                      f'(%{rel:.1f})')
 
+    # 5d-3) HER SAYISAL SABİTİN KAYNAĞI VAR MI? (denetim #86)
+    # Bir sayının nereden geldiği yazılı değilse, altı ay sonra
+    # kimse (sen dahil) o sayıya güvenemez. Bu kontrol, modül
+    # düzeyindeki her sayısal sabitin yakınında bir kaynak izi
+    # (KAYNAK/ICAO/OpenAP/OWASP/türet/tanım/...) arar.
+    import re as _re
+    _SRC = _re.compile(
+        r'(KAYNAK|ICAO|IATA|OpenAP|EASA|FAA|Boeing|Airbus|OWASP|NIST|'
+        r'RFC|ASTM|CGPM|CODATA|RVSM|CRC|türet|tanım|Tanım|KURAL)', _re.I)
+    unsourced = []
+    for _f in (list((ROOT / 'src').rglob('*.py'))
+               + list((ROOT / 'config').rglob('*.py'))):
+        if '__pycache__' in str(_f):
+            continue
+        _txt = _f.read_text(encoding='utf-8', errors='ignore')
+        _lines = _txt.split('\n')
+        try:
+            _tree = __import__('ast').parse(_txt)
+        except SyntaxError:
+            continue
+        for _n in _tree.body:
+            if not isinstance(_n, (__import__('ast').Assign,
+                                   __import__('ast').AnnAssign)):
+                continue
+            _v = _n.value
+            if not (isinstance(_v, __import__('ast').Constant)
+                    and isinstance(_v.value, (int, float))
+                    and not isinstance(_v.value, bool)):
+                continue
+            _tgt = _n.targets[0] if isinstance(_n, __import__('ast').Assign) \
+                else _n.target
+            if not isinstance(_tgt, __import__('ast').Name):
+                continue
+            _win = _lines[max(0, _n.lineno - 13):_n.lineno]
+            if not any(_SRC.search(x) for x in _win):
+                unsourced.append(f'{_f.relative_to(ROOT)}:{_n.lineno}'
+                                 f' {_tgt.id}')
+    if not unsourced:
+        lay.ok()
+    else:
+        lay.fail('kaynaksız sabit',
+                 f'{len(unsourced)} adet: ' + '; '.join(unsourced[:5]))
+
     # 5e) Kütle hiyerarşisi: OEW < MTOW, max_fuel < MTOW−OEW
     for tip, p in dbf['aircraft_types'].items():
         oew, mtow, fuel = p['oew'], p['mtow'], p['max_fuel']

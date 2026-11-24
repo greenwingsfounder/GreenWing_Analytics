@@ -803,6 +803,10 @@ if __name__ == "__main__":
 # VERİ NORMALİZASYONU — birimler ve sütun adları
 # ═══════════════════════════════════════════════════════════
 
+# # 0.3048 — feet tanımı (1959 uluslararası anlaşma), TAM değer.
+# # Tek kaynak: src/units.py. Burada yerel kopya bırakıldı çünkü
+# # units.py utils'i import etmiyor (döngüsel import olmasın).
+#
 _M_PER_FT = 0.3048
 
 

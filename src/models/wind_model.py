@@ -43,6 +43,12 @@ import math
 from dataclasses import dataclass
 
 # Kuzey yarımküre orta enlem klimatolojisi (yıllık ortalama)
+# # KAYNAK (denetim #86): rüzgâr verisi YOKSA kullanılan varsayılan.
+# # 270° = batıdan esen rüzgâr (meteorolojik: rüzgârın GELDİĞİ yön).
+# # KUŞAK ortalaması: orta enlemlerde (45°) batı rüzgârları egemendir
+# # → "westerlies". Bu bir ölçüm DEĞİL; belirsizlik ±%22 olarak taşınır
+# # (is_measured=False → GFS yok uyarısı).
+#
 _DEFAULT_WIND_DIR_DEG = 270.0   # batıdan eser
 _DEFAULT_LATITUDE_DEG = 45.0    # orta enlem
 

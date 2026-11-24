@@ -55,7 +55,7 @@ def check(name: str, cond: bool, detail: str = '') -> None:
 
 
 PAGES = ['', 'ucuslar', 'metodoloji', 'veri', 'denetim', 'el-kitabi',
-         'basit', 'kullanicilar', 'ticari']
+         'atlas', 'basit', 'kullanicilar', 'ticari']
 
 
 def main() -> int:
@@ -121,6 +121,14 @@ def main() -> int:
           r.text.count('Sen ne sunmalısın') >= 6)
     r = fresh.get(f'/denetim?token={token}')
     check('denetim sayfası 81 bulguyu gösteriyor', '81' in r.text)
+    r = fresh.get(f'/atlas?token={token}')
+    check('kod atlası 200', r.status_code == 200)
+    check('kod atlası her sayının kaynağını gösteriyor',
+          'Sayıları nereden' in r.text and 'ICAO Doc 7488' in r.text)
+    check('kod atlası sabit türlerini ayırıyor',
+          'Tanım' in r.text and 'Türetilmiş' in r.text and 'Varsayım' in r.text)
+    check('kod atlası bilinen sınırları dürüstçe yazıyor',
+          'Gerçek uçuş verisi' in r.text and '0' in r.text)
     r = fresh.get(f'/kullanicilar?token={token}')
     check('kullanicilar sayfası 200', r.status_code == 200)
     check('kullanicilar rol tablosu basıyor',

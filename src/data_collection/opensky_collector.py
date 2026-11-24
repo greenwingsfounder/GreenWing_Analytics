@@ -63,6 +63,11 @@ load_dotenv(dotenv_path=_ENV_PATH, override=True)
 # ═══════════════════════════════════════════════════════════
 
 _BASE_URL     = "https://opensky-network.org/api"
+# # KAYNAK (denetim #86): ağ davranışı.
+# # 30 s = ölü bağlantı eşiği (TCP yeniden iletim penceresi).
+# #  OpenSky yanıtı tipik 1-3 s; daha uzun bekletmek kullanıcıyı yorar.
+# # 5 s + 2 deneme = 3 istek; OpenSky anonim limit saatte 400 istek.
+#
 _TIMEOUT_S    = 30
 _RETRY_WAIT_S = 5
 _MAX_RETRIES  = 2
@@ -138,7 +143,7 @@ class OpenSkyCollector:
     ) -> None:
         # GÜVENLİK: Kimlik bilgileri tek noktadan okunur (config.secrets).
         # Kaynak kodda veya depoda asla sabit değer tutulmaz.
-        from config.secrets import get_opensky_credentials
+        from config.credentials import get_opensky_credentials
 
         _creds = get_opensky_credentials(
             client_id=client_id,

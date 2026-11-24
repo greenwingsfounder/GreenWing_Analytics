@@ -91,9 +91,35 @@ logger = get_logger("models.emission")  # Central logging (CORSIA + SAF readines
 # 24 yerde 3.16 sabitine çevrilirken burası gözden kaçmıştı.
 _EI_CO2 = EI_CO2   # kanonik: config.settings.EI_CO2 (CORSIA 3.160)
 _EI_H2O = EI_H2O   # kanonik: config.settings.EI_H2O
-_EI_SO2 = 0.001    # Yakıttaki sülfür içeriğine bağlı (~0.05% S); settings'te yok
+# ── SO₂ EMİSYON İNDEKSİ (denetim #87) ─────────────────────────
+# ESKİ DURUM: 0.001 kg/kg (1.0 g/kg) + yorum "~0.05% S".
+# Bu yorum YANLIŞTI: %0.05 S = 0.5 g S/kg yakıt, ki bu dünya
+# ortalamasının ÜSTÜNDE. Ayrıca EI hesabı şöyle türetilir:
+#
+#   EI(SO₂) = [M(SO₂)/M(S)] × S_içeriği
+#           = 1.998 × FSC
+#
+#   FSC = 0.4 g S/kg  (IATA/ICAO dünya ortalaması, ~0.04% S)
+#   → EI = 1.998 × 0.4 = 0.799 g/kg  ≈ 0.8 g/kg
+#
+# Literatür: Lee et al. (2010) ve ICAO çevresel raporu EI(SO₂)
+# için 0.8 g/kg kullanır. Kodun 1.0 g/kg değeri %25 YÜKSEKTI.
+#
+# DÜZELTME: 0.0008 kg/kg (0.8 g/kg), türetimi yorumda.
+# ETKİ: SO₂, CO₂'nin ~1/4000'i olduğu için toplam CO₂-eşdeğeri
+# değişmez (CORSIA kapsamı dışı). Yine de yanlış sayı yanlış
+# rapordur; düzeltildi.
+_M_S, _M_SO2 = 32.065, 64.066              # g/mol (IUPAC 2021)
+_FSC_DEFAULT_G_PER_KG = 0.4                # g S/kg yakıt (dünya ort.)
+_EI_SO2 = (_M_SO2 / _M_S) * _FSC_DEFAULT_G_PER_KG / 1000.0   # 0.000799 kg/kg
 
 # Jet-A1 enerji içeriği
+# # KAYNAK (denetim #86): Jet A-1 alt ısıl değeri (LHV).
+# # 43.15 MJ/kg — CRC Handbook / ASTM D1655 tipik değeri.
+# # ICAO CORSIA varsayılanı 43.8 MJ/kg (HHV) kullanır; LHV ile
+# # HHV arasındaki fark ~%3-4 (gizli buharlaşma ısısı).
+# # Bu model LHV kullanır çünkü yanma verimi LHV üzerinden tanımlı.
+#
 _JET_A1_LHV = 43.15e6  # J/kg (Lower Heating Value)
 
 

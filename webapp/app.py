@@ -395,6 +395,7 @@ NAV = [
     ('/veri', 'Veri Kaynakları'),
     ('/denetim', 'Denetim'),
     ('/el-kitabi', 'El Kitabı'),
+    ('/atlas', 'Kod Atlası'),
     ('/basit', 'Basit Anlatım'),
     ('/kullanicilar', 'Kullanıcılar'),
     ('/ticari', 'Ticari Plan'),
@@ -1286,6 +1287,224 @@ tek yerde</td><td><span class="badge b-ok">kaynaklı</span></td></tr>
 """
     return HTMLResponse(page('El Kitabı', body, user=user, token=token,
                              active='/el-kitabi'))
+
+
+# ══════════════════════════════════════════════════════════════════════
+# SAYFA 5b — KOD ATLAS
+# ══════════════════════════════════════════════════════════════════════
+@app.get('/atlas', response_class=HTMLResponse)
+def code_atlas(request: Request, gw_session: str | None = Cookie(None),
+               token: str = Query('')):
+    ok, user = _check(gw_session, token)
+    if not ok:
+        return RedirectResponse('/giris?next=/atlas', status_code=303)
+
+    ATLAS = [
+        ('Temel taşlar', 'Her şeyin dayandığı 4 dosya', [
+            ('src/units.py', 2338, 'Birim dönüşümü + fizik sabitleri. TEK KAYNAK.',
+             'Tanımlar (0.3048 ft, 1852 m nmi) + türetmeler (1852/3600 = 0.5144444 kn)'),
+            ('src/models/atmosphere.py', 733, 'ISA atmosfer: T, P, ρ, ses hızı.',
+             'ICAO Doc 7488/3 — units.py\'den okur'),
+            ('config/assumptions.py', 1185, 'İş varsayımları: fiyat, gerçekleşme, blok saat.',
+             'IATA Fuel Monitor; %50-80 literatür bandının ortası'),
+            ('config/aircraft_database.yaml', 1100, '14 uçak tipi: ağırlık, kanat, polar, motor.',
+             'Boeing/Airbus ACAP, OpenAP dragpolar, ICAO EDB'),
+        ]),
+        ('Fizik', 'Yakıt hesabının motoru', [
+            ('src/models/aircraft_performance.py', 822, 'Kaldırma, sürükleme, L/D, buffet.',
+             'OpenAP polar · FAR 25.251 (1.3 g buffet marjı)'),
+            ('src/models/fuel_model.py', 1725, 'Yakıt akışı; EDB ya da tahmin yolu.',
+             'ICAO EDB (motor test verisi) · OpenAP ff_to'),
+            ('src/models/emission_model.py', 1630, 'CO₂/H₂O/SO₂/NOₓ + CORSIA.',
+             'EI(CO₂)=3.16 (CORSIA ETM) · EI(SO₂)=(64.066/32.065)×0.4 g S/kg'),
+            ('src/models/wind_model.py', 210, 'Rüzgâr profili + rota bileşeni.',
+             'Kuşak ortalaması; ölçüm DEĞİL → belirsizlik ±%22,2'),
+            ('src/models/wind_gfs.py', 368, '3 kademeli zincir: GFS → Seasonal → NoWind.',
+             'GFS 0.25° GRIB2 (veri bekleniyor)'),
+            ('src/models/saf_model.py', 251, 'SAF karışım oranı ve CO₂ azaltımı.',
+             'CORSIA SAF kılavuzu'),
+        ]),
+        ('Veri', 'İçeri giriyor', [
+            ('src/data_collection/airport_database.py', 1042,
+             '60+ havalimanı; uçak→havalimanı eşleştirme.',
+             '8/15/25 NM yarıçap — ICAO Doc 8168 SID/STAR konisi'),
+            ('src/data_collection/opensky_collector.py', 975,
+             'OpenSky OAuth2 + tarihsel veri.',
+             '30 s timeout (TCP yeniden iletim) · saatte 400 istek (OpenSky docs)'),
+            ('src/ingestion/customer_fuel_ingestor.py', 341,
+             'Müşteri yakıt CSV\'sini al ve normalize et.',
+             '16 kolon / 8 zorunlu (pilot paketi şablonu)'),
+            ('src/ingestion/flight_matcher.py', 92,
+             'Gerçek yakıt kaydı ↔ radar izi eşleştirme.',
+             'skor eşiği 30/100'),
+        ]),
+        ('Analiz', 'Ham veriden anlam', [
+            ('src/analysis/phase_segmentation.py', 1222,
+             'İzi fazlara ayır: taksi/kalkış/tırmanış/seyir/alçalma.',
+             '500 fpm · 10.000 ft · 15.000 ft — ICAO Doc 8168 · RVSM 1.000 ft'),
+            ('src/analysis/flight_analyzer.py', 1199,
+             'Tek uçuş: yakıt dengesi, step climb kazancı.',
+             'Ağırlık faktörü 0,97/0,95/0,92/0,90 (seyir uzunluğuna göre)'),
+            ('src/analysis/fleet_analyzer.py', 1646,
+             'Filo geneli: toplam yakıt, tasarruf, CO₂.',
+             'Yakıt fiyatı 0,85 $/kg — IATA Fuel Price Monitor'),
+            ('src/analysis/uncertainty.py', 836,
+             'Güven aralığı ve belirsizlik bütçesi.',
+             'Rüzgâr ±%22,2 (ölçülmemiş) / ±%4 (GFS) · ağırlık ±%2 · ISA sapma ±%3'),
+            ('src/analysis/benchmark.py', 835,
+             'Sonucu bağımsız kaynakla karşılaştır.',
+             'ICAO EDB referans yakıtı'),
+        ]),
+        ('Optimizasyon', 'Ne yapsam daha az yakar', [
+            ('src/optimization/altitude_optimizer.py', 864,
+             'Optimum seyir irtifası + step climb planı.',
+             '4 adım (ATC pratiği) · 200 NM ara · 50 kg eşik (pilot iş yükü)'),
+            ('src/optimization/cost_index_optimizer.py', 906,
+             'CI → hız; yakıt vs zaman dengesi.',
+             'CI 0–200 aralığı (uçak üreticisi kılavuzu)'),
+            ('src/optimization/tankering_optimizer.py', 647,
+             'Ucuz yerde fazla yakıt almanın net kazancı.',
+             'Taşıma cezası: fazla yakıt da yakıt yakar'),
+            ('src/optimization/model_calibrator.py', 849,
+             'Modeli müşteri verisine göre ayarla.',
+             'Min 30 uçuş (istatistiksel anlamlılık)'),
+        ]),
+        ('Doğrulama + güvenlik', 'Modelin kendini kandırmasını engeller', [
+            ('src/validation/physics_validator.py', 495,
+             'Fizik yasalarına uyuyor mu (kaldırma = ağırlık).',
+             'FAR 25.251 · kütle-hız-irtifa tutarlılığı'),
+            ('src/validation/data_validator.py', 861,
+             'Girdi sağlıklı mı (boşluk, aykırı değer, birim).',
+             '≥5 nokta · iki kayıt arası ≤600 s'),
+            ('src/security/auth.py', 403,
+             'Oturum + rol (viewer/analyst/admin) + kiracı.',
+             'PBKDF2 600.000 (OWASP 2023) · NIST SP 800-63B kilitleme'),
+        ]),
+        ('Sunum', 'Kullanıcının gördüğü', [
+            ('src/reporting/report_generator.py', 1252,
+             'HTML/JSON rapor, CORSIA belgesi.',
+             'CORSIA ETM (Emissions Time Series)'),
+            ('webapp/app.py', 1790, '9 sayfalı site + API.', '—'),
+            ('tools/full_audit.py', 700, '7 katmanlı tam denetim: 227 kontrol.', '—'),
+        ]),
+    ]
+
+    blocks = []
+    for title, sub, items in ATLAS:
+        rows = []
+        for path, lines, what, src in items:
+            rows.append(f"""<tr>
+<td><code>{esc(path)}</code><div class="small" style="color:#6b7280">{lines:,} satır</div></td>
+<td>{esc(what)}</td>
+<td class="small">{esc(src)}</td></tr>""")
+        blocks.append(f"""<h2>{esc(title)}
+<span class="sub">{esc(sub)}</span></h2>
+<div class="wrap"><table><thead><tr><th style="width:30%">Dosya</th>
+<th style="width:34%">Ne yapar</th><th>Sayıları nereden</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table></div>""")
+
+    body = f"""
+<h1>Kod Atlası
+<span class="sub">92 dosya, ~50.000 satır. Her modülün ne işe yaradığı ve
+kullandığı her sayının nereden geldiği. "Bu 0.85 nereden çıktı?"
+sorusunun cevabı burada.</span></h1>
+
+<div class="note-box info"><div class="t">Temel kural</div>
+Kaynağı yazılı olmayan sayısal sabit kabul edilmez.
+<b>Şu anda 0 belgesiz sabit var</b> — bu, denetimin K5 katmanında
+otomatik kontrol ediliyor (69'dan 0'a indirildi).</div>
+
+<h2>0 · Bir dakikada mimari</h2>
+<pre class="code">Radar / CSV  →  VERİ        src/data_collection, src/ingestion, src/validation
+                  ↓
+             FİZİK       src/models  (atmosphere → aircraft_perf → fuel → emission)
+                  ↓
+             ANALİZ      src/analysis, src/optimization
+                  ↓
+             SUNUM       src/reporting, webapp</pre>
+<p><b>Tek yönlü bağımlılık:</b> üst katman alt katmanı import eder, tersi
+olmaz. <code>src/units.py</code> hiçbir şeyi import etmez — bu yüzden
+tek kaynak olabiliyor.</p>
+
+{''.join(blocks)}
+
+<h2>Sabit türleri — hangisi ne zaman değişir</h2>
+<div class="wrap"><table>
+<thead><tr><th>Tür</th><th>Örnek</th><th>Değişir mi?</th></tr></thead>
+<tbody>
+<tr><td><b>Tanım</b> (anlaşma)</td><td>0,3048 m/ft · 1852 m/nmi ·
+9,80665 m/s²</td><td><b>ASLA</b></td></tr>
+<tr><td><b>Türetilmiş</b></td><td>1852/3600 = 0,5144444 kn ·
+p₀/(R·T₀) = 1,225</td><td>Kaynağı değişirse</td></tr>
+<tr><td><b>Ölçüm / standart</b></td><td>Jet A-1 0,804 kg/L ·
+EI(CO₂) 3,16</td><td>Yeni standarda göre</td></tr>
+<tr><td><b>Varsayım</b></td><td>Yakıt fiyatı 0,85 $/kg ·
+gerçekleşme %65</td><td>Pazar/veri ile</td></tr>
+</tbody></table></div>
+
+<h2>Denetimde düzeltilen 3 sabit hatası</h2>
+<div class="grid g1">
+<div class="card info"><div class="lbl">#85 · K / e / AR çelişkisi</div>
+<div class="note">B738 için K=0,042 ama 1/(π·AR·e)=0,0388 → %7,7 sapma.
+Kök neden: OpenAP poları <b>winglet'siz</b> kanat (AR 9,453) üzerinde
+fit edilmiş, veritabanı ise <b>winglet dahil</b> açıklığı (35,79 m →
+AR 10,280) kullanıyordu. İki büyüklük ayrıldı:
+<code>AR</code> (geometri) ve <code>AR_aerodynamic</code> (polar).
+Sonuç: %7,7 → <b>%0,3</b>.</div></div>
+
+<div class="card info"><div class="lbl">#87 · EI(SO₂) %25 yüksekti</div>
+<div class="note">Kod 1,0 g/kg kullanıyordu ve yorum "0,05% S" diyordu.
+Doğru türetim: EI = (M(SO₂)/M(S)) × FSC = 1,998 × 0,4 g S/kg =
+<b>0,799 g/kg</b>. Literatür (Lee et al. 2010, ICAO) 0,8 g/kg.
+Etki CO₂'ye göre 1/4000 olduğu için toplam değişmez — ama yanlış
+sayı yanlış rapordur.</div></div>
+
+<div class="card info"><div class="lbl">#88 · stdlib gölgeleme</div>
+<div class="note"><code>config/secrets.py</code> Python'un standart
+<code>secrets</code> modülünü gölgeliyordu. <code>python
+config/settings.py</code> çalıştırılınca numpy
+<code>secrets.randbits</code> isteyip çöküyordu:
+<code>ImportError: cannot import name 'randbits'</code>. Hata, suçlu
+dosyadan kilometrelerce uzakta patlıyordu.
+<code>config/credentials.py</code> olarak yeniden adlandırıldı.</div></div>
+</div>
+
+<h2>Bilinen sınırlar (dürüst liste)</h2>
+<div class="wrap"><table>
+<thead><tr><th>Konu</th><th>Durum</th><th>Etki</th></tr></thead>
+<tbody>
+<tr><td>Gerçek uçuş verisi</td><td><b>0</b> (14 sentetik)</td>
+<td>Model henüz gerçek faturayla sınanmadı</td></tr>
+<tr><td>Rüzgâr</td><td>GFS kodu hazır, GRIB2 yok</td>
+<td>Belirsizlik ±%22,2</td></tr>
+<tr><td>A20N yakıtı</td><td>ICAO EDB'de yok → tahmin</td>
+<td>±%20 sapma riski (#77)</td></tr>
+<tr><td>Geniş gövde poları</td><td>+%63 sapma</td>
+<td>B77W/B789/A350 dikkatli okunmalı</td></tr>
+<tr><td>Veritabanı</td><td>Dosya tabanlı</td>
+<td>50+ kullanıcıda DB gerekli</td></tr>
+<tr><td>MFA</td><td>Yok</td><td>Kurumsal satışta istenir</td></tr>
+</tbody></table></div>
+
+<h2>Bir sayıyı nasıl doğrularım?</h2>
+<pre class="code"># belirli bir katmanı çalıştır
+python tools/full_audit.py --layer K5
+
+# bir sabitin kaynağını gör
+grep -B8 "_GRAVITY" src/units.py
+
+# uçak verisinin kaynağını doğrula
+python tests/test_aircraft_data_provenance.py
+
+# her şey
+python tools/full_audit.py</pre>
+<div class="note-box ok"><div class="t">Kural</div>
+Bir sayının kaynağını gösteremiyorsan o sayıyı kullanma.
+Bu depoda her modül düzeyi sayısal sabit ya bir tanıma ya bir
+standarda dayanır ya da türetilmiştir — ve bu denetimle zorlanır.</div>
+"""
+    return HTMLResponse(page('Kod Atlası', body, user=user, token=token,
+                             active='/atlas'))
 
 
 # ══════════════════════════════════════════════════════════════════════

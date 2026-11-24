@@ -76,6 +76,10 @@ from src.models.atmosphere import ISAAtmosphere
 # SABİTLER
 # ═══════════════════════════════════════════════════════════
 
+# # 9.80665 m/s² — CGPM 1901 standart yerçekimi (TAM değer).
+# # Tek kaynak: src/units.py. Burada kopya tutuluyor çünkü bu modül
+# # hafif kalsın diye units.py'yi import etmiyor.
+#
 _GRAVITY = 9.80665   # m/s²
 
 

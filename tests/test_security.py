@@ -109,7 +109,7 @@ class TestRepositoryHygiene(unittest.TestCase):
 
 class TestSecretsManagement(unittest.TestCase):
     def test_credentials_are_masked_in_repr(self):
-        from config.secrets import OpenSkyCredentials
+        from config.credentials import OpenSkyCredentials
 
         creds = OpenSkyCredentials(
             client_id="my-client-id",
@@ -123,7 +123,7 @@ class TestSecretsManagement(unittest.TestCase):
         self.assertNotIn("my-client-id", text)
 
     def test_credentials_from_environment(self):
-        from config.secrets import get_opensky_credentials
+        from config.credentials import get_opensky_credentials
 
         os.environ["OPENSKY_CLIENT_ID"] = "env-client"
         os.environ["OPENSKY_CLIENT_SECRET"] = "env-secret"
@@ -136,7 +136,7 @@ class TestSecretsManagement(unittest.TestCase):
             del os.environ["OPENSKY_CLIENT_SECRET"]
 
     def test_empty_credentials_mean_anonymous(self):
-        from config.secrets import OpenSkyCredentials
+        from config.credentials import OpenSkyCredentials
 
         creds = OpenSkyCredentials()
         self.assertFalse(creds.is_authenticated)

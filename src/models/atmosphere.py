@@ -70,18 +70,28 @@ import numpy as np
 # ═══════════════════════════════════════════════════════════
 # ISA SABİTLERİ
 # ═══════════════════════════════════════════════════════════
-# Kaynak: ICAO Doc 7488
+# Kaynak: ICAO Doc 7488/3 (1993)
 # DEĞİŞİR Mİ: ASLA. Uluslararası standart.
+#
+# TEK KAYNAK (denetim #86): Bu sabitlerin tanım yeri src/units.py.
+# Burada yeniden yazılırsa kopya oluşur ve biri güncellenince
+# diğeri sessizce eski kalır (R_AIR 4 yerde farklı yazılmıştı).
 
-_T0         = 288.15      # Deniz seviyesi sıcaklığı (K) = 15°C
-_P0         = 101325.0    # Deniz seviyesi basıncı (Pa) = 1013.25 hPa
-_RHO0       = 1.225       # Deniz seviyesi yoğunluğu (kg/m³)
-_LAPSE_RATE = -0.0065     # Troposfer sıcaklık düşüşü (K/m)
-_TROP_ALT   = 11000.0     # Tropopoz irtifası (m) = ~36089 ft
-_GRAVITY    = 9.80665     # Yerçekimi (m/s²)
-_R_AIR      = 287.05      # Hava gaz sabiti (J/(kg·K))
-_GAMMA      = 1.4         # Havanın spesifik ısı oranı (cp/cv)
-_FT_TO_M    = 0.3048      # Feet → metre dönüşümü
+from src.units import (
+    _GAMMA as _GAMMA_U, _R_AIR as _R_AIR_U, _GRAVITY as _GRAVITY_U,
+    _ISA_T0 as _T0_U, _ISA_P0 as _P0_U, _ISA_RHO0 as _RHO0_U,
+    _ISA_LAPSE as _LAPSE_U, _TROPOPAUSE_M as _TROP_U, _FT_TO_M as _FT_U,
+)
+
+_T0         = _T0_U       # 288.15 K = 15 °C        (ICAO Doc 7488)
+_P0         = _P0_U       # 101325 Pa = 1 atm (tanım)
+_RHO0       = _RHO0_U     # türetilmiş: p0/(R·T0)
+_LAPSE_RATE = _LAPSE_U    # -0.0065 K/m (troposfer)
+_TROP_ALT   = _TROP_U     # 11000 m = 36.089 ft
+_GRAVITY    = _GRAVITY_U  # 9.80665 m/s² (CGPM 1901)
+_R_AIR      = _R_AIR_U    # 287.055 = 8314.462618/28.9647
+_GAMMA      = _GAMMA_U    # 1.4 (iki atomlu gaz)
+_FT_TO_M    = _FT_U       # 0.3048 (tanım)
 
 
 # ═══════════════════════════════════════════════════════════

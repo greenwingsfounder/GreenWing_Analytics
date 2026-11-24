@@ -2,6 +2,26 @@
 GreenWing Analytics — Gizli Anahtar Yönetimi (Secrets Management)
 ══════════════════════════════════════════════════════════════════
 
+NEDEN ADI "credentials" (denetim #88)
+────────────────────────────────────
+Bu dosyanın eski adı `config/secrets.py` idi ve bu, Python standart
+kütüphanesindeki `secrets` modülünü GÖLGELİYORDU. Ne zaman mı?
+
+  `python config/settings.py` gibi doğrudan çalıştırmalarda
+  Python, script'in bulunduğu dizini (config/) sys.path'in BAŞINA
+  ekler. O anda `import secrets` (stdlib) yerine BU dosya bulunur.
+  numpy/pandas `secrets.randbits` çağırdığı için:
+
+      ImportError: cannot import name 'randbits' from 'secrets'
+
+  Yani hata, suçlu dosyadan kilometrelerce uzakta, bambaşka bir
+  kütüphanede patlıyor. Teşhisi çok zor. `import config.settings`
+  ile çalıştırınca sorun görünmüyordu — bu yüzden yıllarca fark
+  edilmemişti.
+
+KURAL: config/ ve src/ altında stdlib modül adları KULLANILMAZ.
+  Yasak: secrets, types, json, code, test, io, email, calendar...
+
 GÜVENLİK KURALI:
 ───────────────
 Depoda gizli anahtar, şifre veya token TUTULMAZ. Kimlik bilgileri
@@ -20,7 +40,7 @@ OKUMA ÖNCELİĞİ:
 
 KULLANIM:
 ─────────
-    from config.secrets import get_opensky_credentials
+    from config.credentials import get_opensky_credentials
 
     creds = get_opensky_credentials()
     if creds.oauth_ready:

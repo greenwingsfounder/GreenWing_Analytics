@@ -121,6 +121,11 @@ _DATA_LIMITS = {
     "pressure_pa"       : (1000.0, 110000.0),
 }
 
+# # KAYNAK (denetim #86): uçuş izi kabul kuralları.
+# #  5 nokta : bundan az noktayla tırmanış/seyir/alçalma ayrılamaz.
+# #  600 s   : iki kayıt arası 10 dakikadan fazla boşluk → iz kopuk,
+# #            faz segmentasyonu güvenilmez (ADSB ~1-60 s aralık verir).
+#
 MIN_TRAJECTORY_POINTS = 5
 MAX_TIME_GAP_SECONDS  = 600
 

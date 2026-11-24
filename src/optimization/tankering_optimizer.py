@@ -1,9 +1,3 @@
-from __future__ import annotations
-
-from src.logging_config import get_logger
-
-logger = get_logger(__name__)
-
 """
 GreenWing Analytics — Yakıt Tankering Optimizasyonu
 ════════════════════════════════════════════════════
@@ -63,6 +57,13 @@ KULLANIM:
         fuel_price_dest_usd_per_kg=1.05,
     )
 """
+
+from __future__ import annotations
+
+from src.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 from typing import Optional
 

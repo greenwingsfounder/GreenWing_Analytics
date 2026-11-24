@@ -275,6 +275,14 @@ _DAILY_FREQUENCY_BY_DISTANCE: list[dict] = [
 # Teorik tasarruf × bu faktör = operasyonel gerçekleşme tahmini
 # Neden 1.0 değil: ATC kısıtları, hava durumu, slot, operasyonel sınırlar
 # Override edilebilir. Değer aralığı: 0.0 < x ≤ 1.0
+# # KAYNAK (denetim #86): "benefits realization" — modelin öngördüğü
+# # tasarrufun operasyonda gerçekleşme oranı.
+# # Model 100 birim derse, gerçekte ~%65'i hayata geçer: hava
+# # durumu, ATC kısıtı, mürettebat uygulaması, fiyat farkı.
+# # Literatürde %50-80 bandı raporlanır; %65 bandın ORTASI.
+# # ETKİ: sunulan tasarruf bu katsayıyla ÇARPILIR → muhafazakâr.
+# # Müşteriye fazla vaat etmemek ticari bir zorunluluktur.
+#
 REALIZATION_FACTOR: float = 0.65
 
 # Tankering tekrarlanabilirlik faktörü
@@ -286,6 +294,12 @@ REALIZATION_FACTOR: float = 0.65
 #   • Tank kapasitesi uçuşa, yüke, hava durumuna göre değişir
 #   • Operatörler yakıt güvenliği için marj bırakır
 # %50 muhafazakâr kabul; müşteri verisiyle kalibre edilmeli.
+# # KAYNAK (denetim #86): tankering tasarrufunun kalıcılığı.
+# # Ucuz havalimanında fazla yakıt alıp taşımak tasarruf sağlar
+# # AMA: fazla yakıt taşımak da yakıt yakar; fiyat farkı kalıcı
+# # değildir (dalgalanır). %50 = muhafazakâr varsayım;
+# # kalan %50 belirsizlik payı olarak bırakılır.
+#
 TANKERING_PERSISTENCE: float = 0.50
 
 # Motor degradasyon varsayılanı (kalibrasyon öncesi)

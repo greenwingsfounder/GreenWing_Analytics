@@ -72,7 +72,7 @@ logger = get_logger(__name__)
 # SABİTLER
 # ═══════════════════════════════════════════════════════════
 
-_GRAVITY = 9.80665   # m/s²
+from src.units import _GRAVITY   # m/s² — tek kaynak (denetim #86)
 # ── UÇAK VERİTABANI ÖNBELLEĞİ (denetim #83) ─────────────────────
 # Eski bir işaret vardı: "reload/invalidation ve thread-safety eksik".
 # Kapatıldı. Neden önemliydi:
@@ -134,6 +134,11 @@ def reload_aircraft_database() -> None:
 #
 # (c) YAVAŞ UÇMAK: A=200 ile M0.70, M0.78'e göre +%7,5 yakıt
 #     — gerçek B738 davranışıyla (~%7-8) uyumlu.
+# # NOT (denetim #69): burada 20 yazıyordu → model kendi tanımıyla
+# # çelişiyordu (ölçülen ΔCD hedefin 1/46'sı). 200 değeri, aynı
+# # drag-divergence tanımından türetildi (dCD/dM=0.1 @ M_dd).
+# # Detay: drag_coefficient() docstring'i.
+#
 _WAVE_DRAG_COEFF = 200.0
 
 # ── DENETİM #78 — OpenAP "default" yakıt modeli katsayıları ──────
