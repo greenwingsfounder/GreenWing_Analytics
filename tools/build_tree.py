@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ast
 import sys
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -185,11 +186,38 @@ def human(n: int) -> str:
     return f'{n:,}'.replace(',', '.')
 
 
+def _tracked() -> set[str]:
+    """git'in TAKİP ETTİĞİ dosyalar. Yoksa None döner (git yoksa)."""
+    try:
+        r = subprocess.run(['git', 'ls-files'], cwd=ROOT,
+                            capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            return None
+        return set(r.stdout.splitlines())
+    except Exception:
+        return None
+
+
 def build() -> list[str]:
     out: list[str] = []
     stats = {'py': 0, 'lines': 0, 'files': 0}
+
+    # DENETİM #92: ağaç DİSKİ sayıyordu, git'i değil. Üretilen mock CSV /
+    # kalibrasyon JSON'ları .gitignore'da olduğu hâlde ağaca giriyor ve
+    # "163 dosya" gibi YANILTICI bir sayı üretiyordu. Artık yalnızca
+    # git'in takip ettiği dosyalar sayılıyor — ağaç = depo.
+    tracked = _tracked()
+    if tracked is not None:
+        stats['git_files'] = len(tracked)
+
+    def _is_tracked(p: Path) -> bool:
+        if tracked is None:          # git yoksa eski davranış
+            return True
+        return p.relative_to(ROOT).as_posix() in tracked
+
     all_py = [p for p in ROOT.rglob('*.py')
-              if not any(s in p.parts for s in SKIP_DIRS)]
+              if not any(s in p.parts for s in SKIP_DIRS)
+              and _is_tracked(p)]
     for p in all_py:
         try:
             stats['lines'] += len(p.read_text(encoding='utf-8',
@@ -210,7 +238,9 @@ def build() -> list[str]:
                  if i.name not in SKIP_DIRS
                  and i.suffix not in SKIP_EXT
                  and not i.name.startswith('.pytest')
-                 and i.name != '.git']
+                 and i.name != '.git'
+                 # git'in görmediği üretim çıktılarını ağaca koyma
+                 and (i.is_dir() or _is_tracked(i))]
         for i, item in enumerate(items):
             last = i == len(items) - 1
             branch = '└── ' if last else '├── '
@@ -218,7 +248,8 @@ def build() -> list[str]:
             if item.is_dir():
                 n = len([x for x in item.rglob('*') if x.is_file()
                          and not any(s in x.parts for s in SKIP_DIRS)
-                         and x.suffix not in SKIP_EXT])
+                         and x.suffix not in SKIP_EXT
+                         and _is_tracked(x)])
                 out.append(f'{prefix}{branch}{item.name}/'
                            + (f'   ({n} dosya)' if depth < 2 else ''))
                 walk(item, prefix + ('    ' if last else '│   '), depth + 1)
@@ -263,9 +294,12 @@ if __name__ == '__main__':
     header = [
         '# GreenWing Analytics — Proje Yapı Ağacı',
         '',
-        f'> Otomatik üretildi: `python tools/build_tree.py`  ',
-        f'> **{st["files"]} dosya** · **{st["py"]} Python modülü** · '
+        '> Otomatik üretildi: `python tools/build_tree.py`  ',
+        f'> **{st["files"]} gösterilen dosya** · '
+        f'**{st.get("git_files", st["files"])} git-takipli dosya** · '
+        f'**{st["py"]} Python modülü** · '
         f'**{human(st["lines"])} satır kod**',
+        '> (Arşiv `archive/` ayrı blokta gösterilir, sayıya dahil değil.)',
         '',
         '**İşaretler:** ★ = kritik dosya · ⚠️ = dikkat · '
         '(0 byte) = silinecek',

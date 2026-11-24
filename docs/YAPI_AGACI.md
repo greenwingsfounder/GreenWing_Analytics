@@ -1,7 +1,8 @@
 # GreenWing Analytics — Proje Yapı Ağacı
 
 > Otomatik üretildi: `python tools/build_tree.py`  
-> **177 dosya** · **95 Python modülü** · **51.938 satır kod**
+> **138 gösterilen dosya** · **174 git-takipli dosya** · **95 Python modülü** · **51.972 satır kod**
+> (Arşiv `archive/` ayrı blokta gösterilir, sayıya dahil değil.)
 
 **İşaretler:** ★ = kritik dosya · ⚠️ = dikkat · (0 byte) = silinecek
 
@@ -17,29 +18,10 @@
 │   ├── phase_thrust_table.yaml  — Faz bazlı itki tablosu
 │   ├── saf_database.yaml  — SAF türleri ve özellikleri
 │   └── settings.py  — Sistem ayarları (units.py'den okur)
-├── data/   (48 dosya)
-│   ├── calibrations/   (1 dosya)
-│   │   └── OKU.md
-│   ├── customer_fuel/   (11 dosya)
-│   │   ├── OKU.md
-│   │   ├── pytest2_137847.csv
-│   │   ├── pytest2_459835.csv
-│   │   ├── pytest2_45b2c7.csv
-│   │   ├── pytest2_c507b7.csv
-│   │   ├── pytest_07945f.csv
-│   │   ├── pytest_21109d.csv
-│   │   ├── pytest_785dba.csv
-│   │   ├── pytest_aab2b8.csv
-│   │   ├── regression_e8aa5e.csv
-│   │   └── sunexpress_demo_d6ea5a.csv
-│   ├── mocks/   (7 dosya)
-│   │   ├── mock_default_20.csv
-│   │   ├── mock_default_25.csv
-│   │   ├── mock_pytest2_20.csv
-│   │   ├── mock_pytest_20.csv
-│   │   ├── mock_regression_30.csv
-│   │   ├── mock_sunexpress_demo_30.csv
-│   │   └── OKU.md
+├── data/   (15 dosya)
+│   ├── calibrations/   (0 dosya)
+│   ├── customer_fuel/   (0 dosya)
+│   ├── mocks/   (0 dosya)
 │   ├── openap/   (14 dosya)
 │   │   ├── aircraft/
 │   │   │   ├── a20n.yml
@@ -58,22 +40,8 @@
 │   │   ├── fuel/
 │   │   │   └── fuel_models.csv
 │   │   └── OKU.md
-│   ├── raw/   (14 dosya)
+│   ├── raw/   (0 dosya)
 │   │   └── opensky/
-│   │       ├── ARR_PGT_PGT120_20261122_121625.csv
-│   │       ├── ARR_PGT_PGT501_20261122_121559.csv
-│   │       ├── ARR_PGT_PGT802_20261122_121651.csv
-│   │       ├── ARR_SXS_SXS1409_20261122_121559.csv
-│   │       ├── ARR_SXS_SXS1409_LTAI_EDDF.csv
-│   │       ├── ARR_SXS_SXS5720_20261122_121612.csv
-│   │       ├── ARR_SXS_SXS6381_20261122_121559.csv
-│   │       ├── ARR_THY_THY1011_20261122_121638.csv
-│   │       ├── ARR_THY_THY1587_20261122_121559.csv
-│   │       ├── ARR_THY_THY1629_20261122_121612.csv
-│   │       ├── ARR_THY_THY1865_20261122_121651.csv
-│   │       ├── ARR_THY_THY1951_20261122_121625.csv
-│   │       ├── ARR_THY_THY501_20261122_121559.csv
-│   │       └── ARR_THY_THY764_20261122_121612.csv
 │   └── openap_reference.json [6 KB]
 ├── deliverables/   (4 dosya)
 │   └── pilot_paketi/   (4 dosya)
@@ -90,18 +58,12 @@
 │   ├── NASIL_KULLANIRIM.md
 │   ├── SECURITY_AUDIT.md  — Güvenlik denetimi
 │   └── YAPI_AGACI.md  — ★ Bu ağaç (bu dosya)
-├── reports/   (10 dosya)
+├── reports/   (4 dosya)
 │   ├── audit/   (1 dosya)
 │   │   └── full_audit.json [1 KB]
-│   ├── case_studies/   (4 dosya)
-│   │   ├── case_study_20261122.json [33 KB]
-│   │   ├── corsia_report_20261122.json [2 KB]
-│   │   ├── data_quality_20261122.json [4 KB]
-│   │   └── fleet_digital_twins_20261122.json [0 KB]
+│   ├── case_studies/   (0 dosya)
 │   ├── optimizations/   (1 dosya)
 │   │   └── batch_results.json [26 KB]
-│   ├── GreenWing_CaseStudy_20261122.html
-│   ├── GreenWing_Fleet_Report_20261122.html
 │   ├── GreenWing_Proje_El_Kitabi.pdf [116 KB]
 │   └── GreenWing_Teknik_Rapor.pdf [138 KB]
 ├── scripts/   (10 dosya)
