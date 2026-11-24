@@ -92,6 +92,10 @@ data/archive/opensky_real/
 reports/case_studies/
 reports/optimizations/*.html
 reports/optimizations/*.csv
+# 04_generate_professional_demo.py çıktısı — DEMO verisi (235 sentetik
+# uçuş). Üretilebilir; depoda durmamalı. batch_results.json ise
+# KALICI (webapp + kalibrasyon zinciri onu okur).
+reports/optimizations/demo_batch_results.json
 *.xlsx
 *.pdf
 # Teslimat: teknik doğrulama raporu sürüm kontrolünde tutulur
